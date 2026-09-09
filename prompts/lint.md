@@ -4,8 +4,8 @@ Task: find what `bin/wiki-lint.py` cannot: wrong or stale meaning, not broken st
 
 Check, in order:
 
-1. Contradictions: two pages asserting incompatible facts without a `## Contradictions` section.
-2. Stale claims: a page cites an older source where a newer source in `wiki/sources/` supersedes it.
+1. Contradictions: two pages asserting incompatible facts without a `## Contradictions` section. A source that claims completeness and omits what another source asserts counts.
+2. Stale claims: a page cites a source whose `dated` is older than another source in `wiki/sources/` that supersedes it.
 3. Missing pages: an entity or concept named on three or more pages with no page of its own.
 4. Thin hubs: a page with many inbound links and under ten lines of content.
 5. Gaps: questions the wiki raises but no source answers. Name the source type that would close each gap.

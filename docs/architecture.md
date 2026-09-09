@@ -28,7 +28,7 @@ It changes no page, so an unattended run cannot damage the wiki.
 ## What is deterministic and why
 
 - `index.md` is generated from frontmatter. An LLM-maintained index drifts; a generated one cannot.
-- `wiki-lint.py` catches broken links, orphans, missing keys. It runs after every ingest, and its non-zero exit makes the agent fix its own mistakes inside the same call.
+- `wiki-lint.py` catches broken links, orphans, missing keys, malformed dates and source pages without `dated`. It runs after every ingest, and its non-zero exit makes the agent fix its own mistakes inside the same call.
 - `wiki-ingest.ps1` moves the source file itself if the agent forgot. A re-run with an empty inbox is a no-op.
 
 ## Where the human stays

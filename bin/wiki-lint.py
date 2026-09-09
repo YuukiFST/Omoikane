@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import sys
 
-from wikilib import PAGE_TYPES, REQUIRED_KEYS, load_pages
+from wikilib import DATE, PAGE_TYPES, REQUIRED_KEYS, SOURCE_KEYS, UNDATED, load_pages
 
 
 def main() -> int:
@@ -25,6 +25,14 @@ def main() -> int:
                 findings.append(f"{p.rel}: frontmatter missing `{key}`")
         if p.meta.get("type") not in PAGE_TYPES:
             findings.append(f"{p.rel}: type must be one of {', '.join(PAGE_TYPES)}")
+        if p.meta.get("type") == "source":
+            for key in SOURCE_KEYS:
+                if key not in p.meta:
+                    findings.append(f"{p.rel}: source page missing `{key}` (date the source bears, or {UNDATED})")
+        for key in ("created", "updated", "dated"):
+            value = str(p.meta.get(key, ""))
+            if key in p.meta and not DATE.match(value) and not (key == "dated" and value == UNDATED):
+                findings.append(f"{p.rel}: `{key}` is `{value}`, expected YYYY-MM-DD")
         summary = str(p.meta.get("summary", ""))
         if len(summary) > 120:
             findings.append(f"{p.rel}: summary is {len(summary)} chars, limit 120")
