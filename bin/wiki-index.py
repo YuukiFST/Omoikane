@@ -21,7 +21,9 @@ def main() -> None:
         out.append(f"## {HEADINGS[kind]} ({len(group)})")
         out.append("")
         for p in group:
-            out.append(f"- [[{p.slug}]] — {p.meta.get('summary', '')} `{p.meta.get('updated', '')}`")
+            # Source pages show the source's own date: the agent ranks sources by it when claims disagree.
+            stamp = f"dated {p.meta.get('dated', '')}" if kind == "source" else str(p.meta.get("updated", ""))
+            out.append(f"- [[{p.slug}]] — {p.meta.get('summary', '')} `{stamp}`")
         out.append("")
     (ROOT / "index.md").write_text("\n".join(out).rstrip() + "\n", encoding="utf-8")
     print(f"index.md: {len(pages)} pages")

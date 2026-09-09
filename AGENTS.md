@@ -25,8 +25,9 @@ title: Exact page title
 type: source | entity | concept | query
 summary: One line, under 120 characters, used verbatim in index.md
 tags: [tag-a, tag-b]
-created: YYYY-MM-DD
+created: YYYY-MM-DD                 # when this wiki page was written, not the source
 updated: YYYY-MM-DD
+dated: YYYY-MM-DD                   # source pages only: the date the source itself bears, or unknown
 sources: [wiki/sources/<slug>.md]   # pages this one draws from; empty list on source pages
 ---
 ```
@@ -34,7 +35,7 @@ sources: [wiki/sources/<slug>.md]   # pages this one draws from; empty list on s
 - Filename is the kebab-case slug of `title`.
 - Link pages with `[[slug]]` wikilinks. A claim taken from a source cites it inline: `(source: [[slug]])`.
 - One entity or concept per page. A concept mentioned on three pages gets its own page.
-- When a new source contradicts an existing claim, keep both in the page under `## Contradictions` and add an entry to `_review.md`. You do not pick a winner.
+- A contradiction lives where its two sides meet: on the source page when a source contradicts itself, on the entity or concept page when two sources disagree. Keep both claims under `## Contradictions`, add an entry to `_review.md`, and do not pick a winner.
 
 ## Operations
 
@@ -51,7 +52,7 @@ python bin/wiki-index.py
 python bin/wiki-lint.py
 ```
 
-`wiki-lint.py` exits non-zero on broken wikilinks, missing frontmatter or orphan pages. Fix every finding before you report done.
+`wiki-lint.py` exits non-zero on broken wikilinks, missing frontmatter, undated source pages or orphan pages. Fix every finding before you report done.
 
 ## Domain
 

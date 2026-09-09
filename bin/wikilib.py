@@ -9,6 +9,10 @@ ROOT = Path(__file__).resolve().parent.parent
 WIKI = ROOT / "wiki"
 REQUIRED_KEYS = ("title", "type", "summary", "tags", "created", "updated", "sources")
 PAGE_TYPES = ("source", "entity", "concept", "query")
+# Source pages carry `dated`: the date the source itself bears. Not in REQUIRED_KEYS so older pages of other types keep passing.
+SOURCE_KEYS = ("dated",)
+DATE = re.compile(r"\d{4}-\d{2}-\d{2}\Z")
+UNDATED = "unknown"
 WIKILINK = re.compile(r"\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
 FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
 
