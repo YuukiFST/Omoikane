@@ -41,7 +41,8 @@ foreach ($f in $files) {
     if ($Agent -eq "claude") {
         claude -p "/$op $rel" --permission-mode acceptEdits --allowedTools "Read,Write,Edit,Glob,Grep,Bash(python omoikane/bin/*),Bash(git mv *)" 2>&1 | Tee-Object -FilePath $log -Append
     } else {
-        opencode run "/$op $rel" 2>&1 | Tee-Object -FilePath $log -Append
+        # `opencode run --command <name> <args>` runs a .opencode/command/<name>.md command (opencode run --help).
+        opencode run --command $op $rel 2>&1 | Tee-Object -FilePath $log -Append
     }
     if ($LASTEXITCODE -ne 0) { Log "$op FAILED $rel"; continue }
     # Agent skipped the move step of the prompt: move the source so the next run does not process it again.
