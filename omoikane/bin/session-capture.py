@@ -90,8 +90,15 @@ def clip(text: str, limit: int) -> str:
 
 
 def relative_to(path: str, cwd: str) -> str:
+    """Path relative to the session cwd, posix-style; a path outside the cwd is returned as given.
+
+    Separators are normalised first: OpenCode on Windows mixes `C:/x` and `C:\\x` between session and tool input,
+    and a transcript captured on Windows must read the same on a Linux CI runner.
+    """
+    if not cwd:
+        return path
     try:
-        return Path(path).resolve().relative_to(Path(cwd).resolve()).as_posix() if cwd else path
+        return Path(path.replace("\\", "/")).resolve().relative_to(Path(cwd.replace("\\", "/")).resolve()).as_posix()
     except (ValueError, OSError):
         return path
 
