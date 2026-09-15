@@ -3,9 +3,9 @@
 Register a Windows Task Scheduler job that runs wiki-ingest.ps1 every N minutes.
 
 .EXAMPLE
-bin/install-schedule.ps1                 # every 30 min, Claude Code, commits
-bin/install-schedule.ps1 -Minutes 60 -Agent opencode
-bin/install-schedule.ps1 -Remove
+omoikane/bin/install-schedule.ps1                 # every 30 min, Claude Code, commits
+omoikane/bin/install-schedule.ps1 -Minutes 60 -Agent opencode
+omoikane/bin/install-schedule.ps1 -Remove
 #>
 param(
     [int] $Minutes = 30,
