@@ -1,17 +1,22 @@
 """Structural checks that need no LLM.
 
 Exit 1 on any finding so agents and CI stop on it.
-Usage: python bin/wiki-lint.py
+Usage: python omoikane/bin/wiki-lint.py
 """
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
-from wikilib import DATE, PAGE_TYPES, REQUIRED_KEYS, SOURCE_KEYS, UNDATED, load_pages
+from wikilib import CODE_KEY, DATE, PAGE_TYPES, REPO, REQUIRED_KEYS, SOURCE_KEYS, UNDATED, Page, load_pages
 
 
-def main() -> int:
-    pages = load_pages()
+def lint_pages(pages: list[Page], repo: Path = REPO) -> list[str]:
+    """Return one finding per contract violation; an empty list means clean.
+
+    Example: lint_pages([Page(path, "x", {"type": "gotcha", "code": ["gone.py"], ...})], repo)
+    returns ["...: code path `gone.py` does not exist", ...].
+    """
     slugs = {p.slug for p in pages}
     inbound: dict[str, int] = {s: 0 for s in slugs}
     findings: list[str] = []
@@ -41,14 +46,30 @@ def main() -> int:
                 inbound[target] += 1
             else:
                 findings.append(f"{p.rel}: broken wikilink [[{target}]]")
+        # `sources:` entries are relative to omoikane/ (`wiki/sources/x.md`), matching the page contract in AGENTS.md.
         for src in p.meta.get("sources", []) or []:
             if not (str(src).startswith("wiki/") and str(src).endswith(".md")):
                 findings.append(f"{p.rel}: sources entry `{src}` is not a wiki path")
+        code = p.meta.get(CODE_KEY, [])
+        if not isinstance(code, list):
+            findings.append(f"{p.rel}: `{CODE_KEY}` must be an inline list of repository paths")
+            code = []
+        for path in code:
+            # `code:` entries are relative to the repository root. A page about code that no longer exists is stale
+            # by definition; the agent must revisit it. Paths escaping the repository are never valid.
+            target = (repo / str(path)).resolve()
+            if not target.is_relative_to(repo.resolve()) or not target.exists():
+                findings.append(f"{p.rel}: code path `{path}` does not exist")
 
     for p in pages:
         if inbound.get(p.slug, 0) == 0 and p.meta.get("type") != "query":
             findings.append(f"{p.rel}: orphan page, no inbound wikilink")
+    return findings
 
+
+def main() -> int:
+    pages = load_pages()
+    findings = lint_pages(pages)
     for f in findings:
         print(f)
     print(f"wiki-lint: {len(pages)} pages, {len(findings)} findings")
