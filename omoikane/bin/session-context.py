@@ -62,5 +62,6 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except Exception as exc:  # noqa: BLE001 - context injection must never block a session from starting
-        print(f"session-context: error {type(exc).__name__}: {exc}")
+        # stderr: the Pi extension and the OpenCode plugin inject stdout into the system prompt
+        print(f"session-context: error {type(exc).__name__}: {exc}", file=sys.stderr)
         sys.exit(0)

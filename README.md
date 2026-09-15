@@ -32,7 +32,20 @@ Follows Karpathy's LLM Wiki pattern with one addition: coding sessions are a sou
 | Tests | `python -m unittest discover -s tests` | same |
 
 Both agents run the same prompt files in `omoikane/prompts/`; the skill and command folders are thin wrappers.
-Session hooks are wired for Claude Code in `.claude/settings.json`; Pi Agent and OpenCode adapters call the same two scripts and are tracked as follow-up work.
+
+## Session hooks
+
+The two scripts are harness-independent; each harness registers them its own way, and the registration is committed in the repository.
+
+| Harness | Registration | Index at start | Capture on stop |
+|---|---|---|---|
+| Claude Code | `.claude/settings.json` | `SessionStart` | `Stop`, `SessionEnd` |
+| Pi | `.pi/extensions/omoikane.ts` | `before_agent_start` (system prompt) | `agent_end`, `session_shutdown` |
+| OpenCode | `.opencode/plugins/omoikane.ts` | `experimental.chat.system.transform` | `session.idle`, plugin `dispose` |
+
+Pi loads a project extension only after you trust the project (`pi` asks once; headless runs need `--approve` or `defaultProjectTrust`).
+OpenCode installs `@opencode-ai/plugin` into `.opencode/` on first start and ignores those files itself.
+Manual capture from a saved session: `python omoikane/bin/session-capture.py --harness pi --transcript <file>.jsonl`, or `opencode export <id> > s.json` then `--harness opencode --transcript s.json`.
 
 ## Setup
 
@@ -43,6 +56,6 @@ python -m unittest discover -s tests       # sanity check
 omoikane/bin/install-schedule.ps1          # optional: Task Scheduler job every 30 min
 ```
 
-Requirements: Python 3.11+, `claude` or `opencode` on PATH, git.
+Requirements: Python 3.11+, `claude` or `opencode` on PATH (they run the wiki operations; `pi` sessions are captured but Pi has no `/ingest`, `/distill`, `/ask`, `/lint` yet), git.
 
 Architecture, conventions and the reasoning behind them: `docs/architecture.md`. The agent's own operating manual: `AGENTS.md`.

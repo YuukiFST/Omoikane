@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "omoikane" / "bi
 import importlib
 
 capture = importlib.import_module("session-capture")
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 def user(text: str, **extra: object) -> dict[str, object]:
@@ -64,12 +65,88 @@ class ReadTranscript(unittest.TestCase):
         self.assertEqual(s.turns[0].notes, ["Root cause: the regex misses CRLF."])
         self.assertEqual(s.files, ["src/parser.py", "tests/test_parser.py"])
 
+    def test_error_text_kept_when_block_has_no_type(self) -> None:
+        entries = [user("Fix"), tool_result("ignored", False)]
+        entries[1]["message"]["content"] = [{"type": "tool_result", "is_error": True, "content": [{"text": "Traceback boom"}]}]
+        with tempfile.TemporaryDirectory() as d:
+            s = capture.read_claude_transcript(write_transcript(Path(d), entries))
+        self.assertEqual(s.turns[0].errors, ["Traceback boom"])
+
     def test_slash_command_recorded(self) -> None:
         entries = [user("<command-name>/ingest</command-name><command-args>x.md</command-args>")]
         with tempfile.TemporaryDirectory() as d:
             s = capture.read_claude_transcript(write_transcript(Path(d), entries))
         self.assertEqual(s.first_command, "/ingest")
         self.assertEqual(s.turns[0].prompt, "/ingest")
+
+
+class ReadPiTranscript(unittest.TestCase):
+    """Fixture follows docs/session-format.md of @earendil-works/pi-coding-agent 0.85.1 (v3 tree)."""
+
+    def test_turns_follow_active_branch(self) -> None:
+        s = capture.read_pi_transcript(FIXTURES / "pi-session.jsonl")
+        self.assertEqual(s.harness, "pi")
+        self.assertEqual(s.session_id, "0192f0a1-1111-7000-8000-000000000001")
+        self.assertEqual((s.cwd, s.day, s.ended), ("C:/proj", "2026-09-15", "2026-09-15T10:00:08.000Z"))
+        self.assertEqual([t.prompt for t in s.turns], ["Fix the parser", "Now add a test"])  # e5 is a dead branch
+        self.assertEqual(s.turns[0].files, ["src/parser.py"])
+        self.assertEqual(s.turns[0].commands, ["python -m pytest", "git status"])  # tool call, then ! command
+        self.assertEqual(s.turns[0].errors, ["Exit code 1\nAssertionError"])
+        self.assertEqual(s.turns[0].notes, ["Root cause: the regex misses CRLF."])
+        self.assertEqual(s.files, ["src/parser.py", "tests/test_parser.py"])
+
+    def test_entry_without_id_in_a_tree_file_does_not_resurrect_dead_branches(self) -> None:
+        lines = (FIXTURES / "pi-session.jsonl").read_text(encoding="utf-8").splitlines()
+        lines.insert(3, json.dumps({"type": "label", "timestamp": "2026-09-15T10:00:02.500Z", "targetId": "e1", "label": "x"}))
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "mixed.jsonl"
+            path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            s = capture.read_pi_transcript(path)
+        self.assertEqual([t.prompt for t in s.turns], ["Fix the parser", "Now add a test"])
+
+    def test_legacy_v1_file_without_ids_is_read_linearly(self) -> None:
+        entries = [{"type": "session", "version": 1, "id": "old", "timestamp": "2026-01-01T00:00:00.000Z", "cwd": "C:/proj"},
+                   {"type": "message", "timestamp": "2026-01-01T00:00:01.000Z", "message": {"role": "user", "content": "hi"}},
+                   {"type": "message", "timestamp": "2026-01-01T00:00:02.000Z", "message": {"role": "user", "content": "again"}}]
+        with tempfile.TemporaryDirectory() as d:
+            s = capture.read_pi_transcript(write_transcript(Path(d), entries))
+        self.assertEqual([t.prompt for t in s.turns], ["hi", "again"])
+
+
+class ReadOpenCodeExport(unittest.TestCase):
+    """Fixture has the shape of `opencode export <id>` on 1.18.30, which the plugin reproduces from the SDK."""
+
+    def test_turns_files_commands_errors(self) -> None:
+        s = capture.read_opencode_export(FIXTURES / "opencode-export.json")
+        self.assertEqual(s.harness, "opencode")
+        self.assertEqual(s.session_id, "ses_0123456789abcdefghijklmnop")
+        self.assertEqual((s.cwd, s.started, s.ended), ("C:\\proj", "2026-09-15T10:20:00.000Z", "2026-09-15T10:30:00.000Z"))
+        self.assertEqual([t.prompt for t in s.turns], ["Fix the parser", "Now add a test"])  # synthetic msg_3 dropped
+        self.assertEqual(s.turns[0].files, ["src/parser.py"])
+        self.assertEqual(s.turns[0].commands, ["python -m pytest"])
+        self.assertEqual(s.turns[0].errors, ["Exit code 1\nAssertionError"])
+        self.assertEqual(s.turns[0].notes, ["Root cause: the regex misses CRLF."])
+        self.assertEqual(s.files, ["src/parser.py", "tests/test_parser.py"])
+        self.assertEqual(s.parent, "")
+
+    def test_command_template_as_first_prompt_is_the_first_command(self) -> None:
+        doc = json.loads((FIXTURES / "opencode-export.json").read_text(encoding="utf-8"))
+        doc["messages"][0]["parts"][0]["text"] = "Read `omoikane/prompts/distill.md` and follow it. Argument: x.md"
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "cmd.json"
+            path.write_text(json.dumps(doc), encoding="utf-8")
+            s = capture.read_opencode_export(path)
+        self.assertEqual(s.first_command, "/distill")
+        self.assertEqual(capture.skip_reason(s, []), "omoikane operation /distill")
+
+    def test_subagent_session_is_skipped(self) -> None:
+        doc = json.loads((FIXTURES / "opencode-export.json").read_text(encoding="utf-8"))
+        doc["info"]["parentID"] = "ses_parent"
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "sub.json"
+            path.write_text(json.dumps(doc), encoding="utf-8")
+            s = capture.read_opencode_export(path)
+        self.assertEqual(capture.skip_reason(s, []), "subagent of ses_parent")
 
 
 class SkipRules(unittest.TestCase):

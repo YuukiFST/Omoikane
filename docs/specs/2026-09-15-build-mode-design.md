@@ -68,5 +68,5 @@ None of that becomes a file, so it is lost, and the next agent starts from zero.
 
 ## Follow-ups
 
-- Pi Agent and OpenCode adapters: a transcript reader per harness in `session-capture.py`, and the hook registration each harness uses.
+- Pi Agent and OpenCode adapters: a transcript reader per harness in `session-capture.py`, and the hook registration each harness uses. Done in #7; see `docs/architecture.md`, "Session capture".
 - Search-based context injection once `index.md` exceeds the budget.

@@ -1,16 +1,19 @@
 """Turn a coding-session transcript into a source file under raw/inbox/sessions/, with no LLM call.
 
-Runs from the harness Stop and SessionEnd hooks (see .claude/settings.json). Idempotent: every run rewrites
-the file for the session, so firing on every turn is safe. Never blocks the harness: any failure prints one
-line and exits 0.
+Runs from the harness stop hooks: Claude Code Stop/SessionEnd (.claude/settings.json), Pi agent_end/session_shutdown
+(.pi/extensions/omoikane.ts), OpenCode session idle (.opencode/plugins/omoikane.ts). Idempotent: every run rewrites
+the file for the session, so firing on every turn is safe. Never blocks the harness: any failure prints one line
+and exits 0.
 
 Usage:
-    python omoikane/bin/session-capture.py                      # hook: reads the harness JSON payload on stdin
-    python omoikane/bin/session-capture.py --transcript X.jsonl # manual or test run
+    python omoikane/bin/session-capture.py                                    # Claude hook: JSON payload on stdin
+    python omoikane/bin/session-capture.py --transcript X.jsonl               # Claude transcript, manual or test run
+    python omoikane/bin/session-capture.py --harness pi --transcript X.jsonl  # Pi session file
+    python omoikane/bin/session-capture.py --harness opencode --transcript X.json  # `opencode export <id>` output
 
-The Claude Code transcript format is internal and undocumented; the parser reads only the fields observed
-in real sessions and ignores anything it does not recognise, so a format change degrades to a thinner
-capture rather than a crash.
+Each harness has its own reader producing the same Session/Turn objects; the Markdown and the skip rules are shared.
+Claude Code's transcript is internal and undocumented; Pi's and OpenCode's are documented (links in docs/architecture.md).
+Every reader ignores what it does not recognise, so a format change degrades to a thinner capture, not a crash.
 """
 from __future__ import annotations
 
@@ -21,8 +24,9 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
+from typing import Callable
 
 from wikilib import OMOIKANE, parse_frontmatter
 
@@ -31,9 +35,14 @@ INGESTED = OMOIKANE / "raw" / "sources" / "sessions"
 NO_CAPTURE_ENV = "OMOIKANE_NO_CAPTURE"
 # Headless runs of these commands are Omoikane maintaining itself; capturing them would loop forever.
 OMOIKANE_COMMANDS = {"/ingest", "/ask", "/lint", "/distill"}
-EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
-SHELL_TOOLS = {"Bash", "PowerShell"}
+# Lower-cased tool names: Claude Code capitalises (Edit, Bash), Pi and OpenCode do not (edit, bash).
+EDIT_TOOLS = {"edit", "write", "multiedit", "notebookedit"}
+SHELL_TOOLS = {"bash", "powershell"}
+# Path argument per harness: Claude Code file_path/notebook_path, OpenCode filePath, Pi path.
+PATH_KEYS = ("file_path", "notebook_path", "filePath", "path")
 COMMAND_TAG = re.compile(r"<command-name>(/[\w:-]+)</command-name>")
+# OpenCode stores a command as its expanded template; every .opencode/command/*.md in this repository starts this way.
+OPENCODE_COMMAND = re.compile(r"\s*Read `omoikane/prompts/(\w+)\.md` and follow it")
 NOTE_CHARS = 1500
 PROMPT_CHARS = 2000
 ERROR_CHARS = 400
@@ -59,7 +68,14 @@ class Session:
     started: str = ""
     ended: str = ""
     first_command: str = ""
+    parent: str = ""  # id of the session that spawned this one (OpenCode subagent); such sessions are skipped
     turns: list[Turn] = field(default_factory=list)
+
+    @property
+    def short_id(self) -> str:
+        """Tail of the id, used in file names. Pi ids are UUIDv7 and OpenCode ids are time-ordered, so their heads
+        collide for sessions started close together; the tail is random in all three harnesses."""
+        return self.session_id[-8:] or "unknown"
 
     @property
     def day(self) -> str:
@@ -76,10 +92,54 @@ def clip(text: str, limit: int) -> str:
 
 
 def relative_to(path: str, cwd: str) -> str:
+    """Path relative to the session cwd, posix-style; a path outside the cwd is returned as given.
+
+    Separators are normalised first: OpenCode on Windows mixes `C:/x` and `C:\\x` between session and tool input,
+    and a transcript captured on Windows must read the same on a Linux CI runner.
+    """
+    if not cwd:
+        return path
     try:
-        return Path(path).resolve().relative_to(Path(cwd).resolve()).as_posix() if cwd else path
+        return Path(path.replace("\\", "/")).resolve().relative_to(Path(cwd.replace("\\", "/")).resolve()).as_posix()
     except (ValueError, OSError):
         return path
+
+
+def iso_from_ms(stamp: object) -> str:
+    """Unix milliseconds (Pi message and OpenCode timestamps) to the ISO-8601 UTC form Claude Code writes."""
+    if not isinstance(stamp, (int, float)) or stamp <= 0:
+        return ""
+    moment = datetime.fromtimestamp(stamp / 1000, tz=timezone.utc)
+    return moment.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def text_blocks(content: object) -> str:
+    """Join the text of a content string or list of text blocks; image and thinking blocks contribute nothing.
+
+    Example: text_blocks([{"type": "text", "text": "a"}, {"type": "image"}, {"text": "b"}]) returns "a\\nb".
+    """
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return ""
+    return "\n".join(str(b["text"]) for b in content if isinstance(b, dict) and "text" in b and b.get("type", "text") == "text")
+
+
+def first_line(command: object) -> str:
+    lines = str(command or "").strip().splitlines()
+    return clip(lines[0], COMMAND_CHARS) if lines else ""
+
+
+def jsonl_entries(path: Path) -> list[dict[str, object]]:
+    entries: list[dict[str, object]] = []
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(entry, dict):
+            entries.append(entry)
+    return entries
 
 
 def read_claude_transcript(path: Path, session_id: str = "") -> Session:
@@ -90,12 +150,8 @@ def read_claude_transcript(path: Path, session_id: str = "") -> Session:
     """
     session = Session(session_id=session_id, harness="claude")
     current: Turn | None = None
-    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-        try:
-            entry = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(entry, dict) or entry.get("isSidechain"):
+    for entry in jsonl_entries(path):
+        if entry.get("isSidechain"):
             continue
         kind = entry.get("type")
         message = entry.get("message")
@@ -125,7 +181,7 @@ def read_claude_transcript(path: Path, session_id: str = "") -> Session:
                 continue
             block_type = block.get("type")
             if kind == "user" and block_type == "tool_result" and block.get("is_error"):
-                current.errors.append(clip(result_text(block.get("content")), ERROR_CHARS))
+                current.errors.append(clip(text_blocks(block.get("content")), ERROR_CHARS))
             elif kind == "assistant" and block_type == "text" and str(block.get("text", "")).strip():
                 current.notes.append(clip(str(block["text"]), NOTE_CHARS))
             elif kind == "assistant" and block_type == "tool_use":
@@ -133,25 +189,134 @@ def read_claude_transcript(path: Path, session_id: str = "") -> Session:
     return session
 
 
-def result_text(content: object) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        return "\n".join(str(b.get("text", "")) for b in content if isinstance(b, dict))
-    return ""
+def pi_active_branch(entries: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Entries on the path from the current leaf to the root, oldest first; abandoned `/tree` branches are left out.
+
+    Pi's leaf is the last entry appended (docs/session-format.md, "Tree Structure"). Legacy v1 files have no ids at
+    all and are returned as they are; in a tree file an entry without an id is unreachable and dropped.
+
+    Example: pi_active_branch([a, b(parent a), c(parent a)]) returns [a, c].
+    """
+    tree = [e for e in entries if e.get("type") != "session"]
+    if not tree or not tree[-1].get("id"):
+        return tree
+    by_id = {str(e["id"]): e for e in tree if e.get("id")}
+    path: list[dict[str, object]] = []
+    current: dict[str, object] | None = tree[-1]
+    while current is not None and len(path) < len(by_id):  # bound guards against a parentId cycle
+        path.append(current)
+        current = by_id.get(str(current.get("parentId") or ""))
+    path.reverse()
+    return path
+
+
+def read_pi_transcript(path: Path, session_id: str = "") -> Session:
+    """Parse a Pi coding agent session file (~/.pi/agent/sessions/**/*.jsonl) into turns.
+
+    Example: read_pi_transcript(Path("2026-09-15T10-00-00-000Z_<uuid>.jsonl")).turns[0].commands
+    returns the shell commands the agent ran for the first prompt.
+    """
+    session = Session(session_id=session_id, harness="pi")
+    entries = jsonl_entries(path)
+    header = next((e for e in entries if e.get("type") == "session"), {})
+    session.session_id = session.session_id or str(header.get("id", ""))
+    session.cwd = str(header.get("cwd", ""))
+    session.started = str(header.get("timestamp", ""))
+    current: Turn | None = None
+    for entry in pi_active_branch(entries):
+        message = entry.get("message")
+        if entry.get("type") != "message" or not isinstance(message, dict):
+            continue
+        stamp = str(entry.get("timestamp", "")) or iso_from_ms(message.get("timestamp"))
+        if stamp:
+            session.started = session.started or stamp
+            session.ended = stamp
+        role = message.get("role")
+        if role == "user":
+            current = Turn(prompt=clip(text_blocks(message.get("content")), PROMPT_CHARS))
+            session.turns.append(current)
+        elif current is None:
+            continue
+        elif role == "bashExecution" and message.get("command"):
+            current.commands.append(first_line(message.get("command")))
+        elif role == "toolResult" and message.get("isError"):
+            current.errors.append(clip(text_blocks(message.get("content")), ERROR_CHARS))
+        elif role == "assistant":
+            content = message.get("content")
+            for block in content if isinstance(content, list) else []:
+                if not isinstance(block, dict):
+                    continue
+                if block.get("type") == "text" and str(block.get("text", "")).strip():
+                    current.notes.append(clip(str(block["text"]), NOTE_CHARS))
+                elif block.get("type") == "toolCall":
+                    record_tool_use(current, str(block.get("name", "")), block.get("arguments") or {}, session.cwd)
+    return session
+
+
+def read_opencode_export(path: Path, session_id: str = "") -> Session:
+    """Parse an OpenCode session document `{info, messages: [{info, parts}]}`: the output of `opencode export <id>`,
+    and what the plugin writes from the SDK's `client.session.get` and `client.session.messages`.
+
+    Example: read_opencode_export(Path("ses_x.json")).turns[0].files
+    returns the files the first prompt led the agent to edit.
+    """
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    info = doc.get("info") if isinstance(doc, dict) and isinstance(doc.get("info"), dict) else {}
+    messages = doc.get("messages") if isinstance(doc, dict) and isinstance(doc.get("messages"), list) else []
+    session = Session(session_id=session_id or str(info.get("id", "")), harness="opencode")
+    session.cwd = str(info.get("directory", ""))
+    session.parent = str(info.get("parentID") or "")
+    times = info.get("time") if isinstance(info.get("time"), dict) else {}
+    session.started = iso_from_ms(times.get("created"))
+    session.ended = iso_from_ms(times.get("updated"))
+    current: Turn | None = None
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        meta = message.get("info") if isinstance(message.get("info"), dict) else {}
+        raw_parts = message.get("parts") if isinstance(message.get("parts"), list) else []
+        parts = [p for p in raw_parts if isinstance(p, dict)]
+        role = meta.get("role")
+        if role == "user":
+            # synthetic parts are written by the harness (tool replays, compaction), not typed by the human
+            prompt = "\n".join(str(p.get("text", "")) for p in parts if p.get("type") == "text" and not p.get("synthetic"))
+            if not prompt.strip():
+                continue
+            command = OPENCODE_COMMAND.match(prompt)
+            if command and not session.turns:
+                session.first_command = f"/{command.group(1)}"
+            current = Turn(prompt=clip(prompt, PROMPT_CHARS))
+            session.turns.append(current)
+            continue
+        if role != "assistant" or current is None:
+            continue
+        for part in parts:
+            if part.get("type") == "text" and str(part.get("text", "")).strip():
+                current.notes.append(clip(str(part["text"]), NOTE_CHARS))
+            elif part.get("type") == "tool":
+                state = part.get("state") if isinstance(part.get("state"), dict) else {}
+                record_tool_use(current, str(part.get("tool", "")), state.get("input") or {}, session.cwd)
+                if state.get("status") == "error":
+                    current.errors.append(clip(str(state.get("error", "")), ERROR_CHARS))
+    return session
+
+
+READERS: dict[str, Callable[[Path, str], Session]] = {
+    "claude": read_claude_transcript,
+    "pi": read_pi_transcript,
+    "opencode": read_opencode_export,
+}
 
 
 def record_tool_use(turn: Turn, name: str, tool_input: object, cwd: str) -> None:
     if not isinstance(tool_input, dict):
         return
-    if name in EDIT_TOOLS:
-        path = str(tool_input.get("file_path") or tool_input.get("notebook_path") or "")
+    if name.lower() in EDIT_TOOLS:
+        path = next((str(tool_input[k]) for k in PATH_KEYS if tool_input.get(k)), "")
         if path and relative_to(path, cwd) not in turn.files:
             turn.files.append(relative_to(path, cwd))
-    elif name in SHELL_TOOLS:
-        command = str(tool_input.get("command", "")).strip().splitlines()
-        if command:
-            turn.commands.append(clip(command[0], COMMAND_CHARS))
+    elif name.lower() in SHELL_TOOLS and first_line(tool_input.get("command")):
+        turn.commands.append(first_line(tool_input.get("command")))
 
 
 def skip_reason(session: Session, worktree: list[str]) -> str | None:
@@ -161,6 +326,8 @@ def skip_reason(session: Session, worktree: list[str]) -> str | None:
     """
     if session.first_command in OMOIKANE_COMMANDS:
         return f"omoikane operation {session.first_command}"
+    if session.parent:
+        return f"subagent of {session.parent}"
     if not session.turns:
         return "no prompts"
     if not session.files and not worktree:
@@ -168,17 +335,24 @@ def skip_reason(session: Session, worktree: list[str]) -> str | None:
     return None
 
 
+def run_git(cwd: str, *args: str) -> str:
+    if not cwd or not Path(cwd).is_dir():
+        return ""
+    try:
+        out = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, timeout=5, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return out.stdout if out.returncode == 0 else ""
+
+
 def git_status(cwd: str) -> list[str]:
     """Changed paths in the working tree at capture time; catches edits made through shell commands, not edit tools."""
-    if not cwd or not Path(cwd).is_dir():
-        return []
-    try:
-        out = subprocess.run(
-            ["git", "status", "--short"], cwd=cwd, capture_output=True, text=True, timeout=5, check=False
-        )
-    except (OSError, subprocess.SubprocessError):
-        return []
-    return [line for line in out.stdout.splitlines() if line.strip()][:50] if out.returncode == 0 else []
+    return [line for line in run_git(cwd, "status", "--short").splitlines() if line.strip()][:50]
+
+
+def git_branch(cwd: str) -> str:
+    """Current branch, for harnesses whose transcript does not record it (Claude Code's does)."""
+    return run_git(cwd, "rev-parse", "--abbrev-ref", "HEAD").strip()
 
 
 def keep_ends(lengths: list[int], budget: int) -> tuple[int, int]:
@@ -213,7 +387,7 @@ def render(session: Session, turns: list[Turn], part: int, worktree: list[str]) 
         f"branch: {session.branch}",
         "---",
         "",
-        f"# Coding session {session.day} ({session.session_id[:8]}, part {part})",
+        f"# Coding session {session.day} ({session.short_id}, part {part})",
         "",
         "Captured by `omoikane/bin/session-capture.py`, no LLM involved. Agent notes are clipped, not summarised.",
         "",
@@ -244,28 +418,30 @@ def render(session: Session, turns: list[Turn], part: int, worktree: list[str]) 
 
 
 def ingested_parts(session: Session) -> list[int]:
-    """`turns:` of every distilled part of this session under raw/sources/sessions/, matched by full session id."""
+    """`turns:` of every distilled part of this session under raw/sources/sessions/, matched by the full session id
+    in the frontmatter, so the file-name scheme can change without losing continuation."""
     parts: list[int] = []
-    for path in INGESTED.glob(f"{session.day}-{session.session_id[:8]}*.md"):
+    for path in INGESTED.glob(f"{session.day}-*.md"):
         parsed = parse_frontmatter(path.read_text(encoding="utf-8"))
         if parsed and str(parsed[0].get("session")) == session.session_id:
             parts.append(int(str(parsed[0].get("turns", 0)) or 0))
     return parts
 
 
-def capture(transcript: Path, session_id: str = "") -> str:
-    session = read_claude_transcript(transcript, session_id)
+def capture(transcript: Path, session_id: str = "", harness: str = "claude") -> str:
+    session = READERS[harness](transcript, session_id)
     worktree = git_status(session.cwd)
     reason = skip_reason(session, worktree)
     if reason:
         return f"skip: {reason}"
+    session.branch = session.branch or git_branch(session.cwd)
     parts = ingested_parts(session)
     covered = max(parts, default=0)
     if covered >= len(session.turns):
         return "skip: already ingested"
     part = len(parts) + 1
     suffix = "" if part == 1 else f"-part{part}"
-    target = INBOX / f"{session.day}-{session.session_id[:8]}{suffix}.md"
+    target = INBOX / f"{session.day}-{session.short_id}{suffix}.md"
     INBOX.mkdir(parents=True, exist_ok=True)
     target.write_text(render(session, session.turns[covered:], part, worktree), encoding="utf-8")
     return f"captured {target.relative_to(OMOIKANE.parent).as_posix()} ({len(session.turns) - covered} turns)"
@@ -273,7 +449,8 @@ def capture(transcript: Path, session_id: str = "") -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--transcript", type=Path, help="JSONL transcript; default: transcript_path from the hook payload on stdin")
+    parser.add_argument("--harness", choices=sorted(READERS), default="claude")
+    parser.add_argument("--transcript", type=Path, help="session file; default: transcript_path from the Claude Code hook payload on stdin")
     parser.add_argument("--session-id", default="")
     args = parser.parse_args(argv)
     if os.environ.get(NO_CAPTURE_ENV):
@@ -286,7 +463,7 @@ def main(argv: list[str] | None = None) -> int:
     if not transcript or not transcript.is_file():
         print(f"session-capture: no transcript at {transcript}")
         return 0
-    print(f"session-capture: {capture(transcript, session_id)}")
+    print(f"session-capture: {capture(transcript, session_id, args.harness)}")
     return 0
 
 
