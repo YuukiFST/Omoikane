@@ -53,8 +53,8 @@ One reader per harness in `session-capture.py` (`--harness claude|pi|opencode`) 
 Where each harness registers the hooks, and why that shape:
 
 - Claude Code: `.claude/settings.json`, `SessionStart` / `Stop` / `SessionEnd`, with the transcript path in the hook payload.
-- Pi: `.pi/extensions/omoikane.ts`. `before_agent_start` appends the index to the system prompt (computed once per session; Pi has no persisted session-start injection). `agent_end` fires once per prompt and `session_shutdown` on exit, both with the session file path from `ctx.sessionManager.getSessionFile()`. An `input` handler records the first slash command for the recursion guard.
-- OpenCode: `.opencode/plugins/omoikane.ts`. `experimental.chat.system.transform` adds the index to the system prompt (once per session). `session.idle` fires once per prompt; event handlers are not awaited by OpenCode, so `dispose` also captures every session touched, which is what makes `opencode run` capture before it exits. `command.executed` records the first slash command. Sessions with a `parentID` are subagents and are skipped.
+- Pi: `.pi/extensions/omoikane.ts`. `before_agent_start` appends the index to the system prompt (computed once per session; Pi has no persisted session-start injection). `agent_end` fires once per prompt and `session_shutdown` on exit, both with the session file path from `ctx.sessionManager.getSessionFile()`.
+- OpenCode: `.opencode/plugins/omoikane.ts`. `experimental.chat.system.transform` adds the index to the system prompt (once per session). `session.idle` fires once per prompt; event handlers are not awaited by OpenCode, so `dispose` also captures every session not yet captured, which is what makes `opencode run` capture before it exits. A command is stored as its expanded template, so the reader recognises `/ingest` and friends from the first prompt text. Sessions with a `parentID` are subagents and are skipped.
 
 File names end in the last eight characters of the session id: Pi ids are UUIDv7 and OpenCode ids are time-ordered, so the head is shared by sessions started close together.
 

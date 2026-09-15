@@ -41,6 +41,8 @@ SHELL_TOOLS = {"bash", "powershell"}
 # Path argument per harness: Claude Code file_path/notebook_path, OpenCode filePath, Pi path.
 PATH_KEYS = ("file_path", "notebook_path", "filePath", "path")
 COMMAND_TAG = re.compile(r"<command-name>(/[\w:-]+)</command-name>")
+# OpenCode stores a command as its expanded template; every .opencode/command/*.md in this repository starts this way.
+OPENCODE_COMMAND = re.compile(r"\s*Read `omoikane/prompts/(\w+)\.md` and follow it")
 NOTE_CHARS = 1500
 PROMPT_CHARS = 2000
 ERROR_CHARS = 400
@@ -73,7 +75,7 @@ class Session:
     def short_id(self) -> str:
         """Tail of the id, used in file names. Pi ids are UUIDv7 and OpenCode ids are time-ordered, so their heads
         collide for sessions started close together; the tail is random in all three harnesses."""
-        return self.session_id[-8:]
+        return self.session_id[-8:] or "unknown"
 
     @property
     def day(self) -> str:
@@ -112,12 +114,15 @@ def iso_from_ms(stamp: object) -> str:
 
 
 def text_blocks(content: object) -> str:
-    """Join the text of a content string or list of `{type: text}` blocks; other block types contribute nothing."""
+    """Join the text of a content string or list of text blocks; image and thinking blocks contribute nothing.
+
+    Example: text_blocks([{"type": "text", "text": "a"}, {"type": "image"}, {"text": "b"}]) returns "a\\nb".
+    """
     if isinstance(content, str):
         return content
-    if isinstance(content, list):
-        return "\n".join(str(b.get("text", "")) for b in content if isinstance(b, dict) and b.get("type") == "text")
-    return ""
+    if not isinstance(content, list):
+        return ""
+    return "\n".join(str(b["text"]) for b in content if isinstance(b, dict) and "text" in b and b.get("type", "text") == "text")
 
 
 def first_line(command: object) -> str:
@@ -187,18 +192,18 @@ def read_claude_transcript(path: Path, session_id: str = "") -> Session:
 def pi_active_branch(entries: list[dict[str, object]]) -> list[dict[str, object]]:
     """Entries on the path from the current leaf to the root, oldest first; abandoned `/tree` branches are left out.
 
-    Pi's leaf is the last entry appended (docs/session-format.md, "Tree Structure"). Legacy v1 files have no ids
-    and are returned as they are.
+    Pi's leaf is the last entry appended (docs/session-format.md, "Tree Structure"). Legacy v1 files have no ids at
+    all and are returned as they are; in a tree file an entry without an id is unreachable and dropped.
 
     Example: pi_active_branch([a, b(parent a), c(parent a)]) returns [a, c].
     """
     tree = [e for e in entries if e.get("type") != "session"]
-    if not tree or not all(e.get("id") for e in tree):
+    if not tree or not tree[-1].get("id"):
         return tree
-    by_id = {str(e["id"]): e for e in tree}
+    by_id = {str(e["id"]): e for e in tree if e.get("id")}
     path: list[dict[str, object]] = []
     current: dict[str, object] | None = tree[-1]
-    while current is not None and len(path) <= len(tree):
+    while current is not None and len(path) < len(by_id):  # bound guards against a parentId cycle
         path.append(current)
         current = by_id.get(str(current.get("parentId") or ""))
     path.reverse()
@@ -277,6 +282,9 @@ def read_opencode_export(path: Path, session_id: str = "") -> Session:
             prompt = "\n".join(str(p.get("text", "")) for p in parts if p.get("type") == "text" and not p.get("synthetic"))
             if not prompt.strip():
                 continue
+            command = OPENCODE_COMMAND.match(prompt)
+            if command and not session.turns:
+                session.first_command = f"/{command.group(1)}"
             current = Turn(prompt=clip(prompt, PROMPT_CHARS))
             session.turns.append(current)
             continue
@@ -410,23 +418,23 @@ def render(session: Session, turns: list[Turn], part: int, worktree: list[str]) 
 
 
 def ingested_parts(session: Session) -> list[int]:
-    """`turns:` of every distilled part of this session under raw/sources/sessions/, matched by full session id."""
+    """`turns:` of every distilled part of this session under raw/sources/sessions/, matched by the full session id
+    in the frontmatter, so the file-name scheme can change without losing continuation."""
     parts: list[int] = []
-    for path in INGESTED.glob(f"{session.day}-{session.short_id}*.md"):
+    for path in INGESTED.glob(f"{session.day}-*.md"):
         parsed = parse_frontmatter(path.read_text(encoding="utf-8"))
         if parsed and str(parsed[0].get("session")) == session.session_id:
             parts.append(int(str(parsed[0].get("turns", 0)) or 0))
     return parts
 
 
-def capture(transcript: Path, session_id: str = "", harness: str = "claude", first_command: str = "") -> str:
+def capture(transcript: Path, session_id: str = "", harness: str = "claude") -> str:
     session = READERS[harness](transcript, session_id)
-    session.first_command = session.first_command or first_command
-    session.branch = session.branch or git_branch(session.cwd)
     worktree = git_status(session.cwd)
     reason = skip_reason(session, worktree)
     if reason:
         return f"skip: {reason}"
+    session.branch = session.branch or git_branch(session.cwd)
     parts = ingested_parts(session)
     covered = max(parts, default=0)
     if covered >= len(session.turns):
@@ -444,7 +452,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--harness", choices=sorted(READERS), default="claude")
     parser.add_argument("--transcript", type=Path, help="session file; default: transcript_path from the Claude Code hook payload on stdin")
     parser.add_argument("--session-id", default="")
-    parser.add_argument("--first-command", default="", help="first slash command of the session, when the harness reports it")
     args = parser.parse_args(argv)
     if os.environ.get(NO_CAPTURE_ENV):
         return 0
@@ -456,7 +463,7 @@ def main(argv: list[str] | None = None) -> int:
     if not transcript or not transcript.is_file():
         print(f"session-capture: no transcript at {transcript}")
         return 0
-    print(f"session-capture: {capture(transcript, session_id, args.harness, args.first_command)}")
+    print(f"session-capture: {capture(transcript, session_id, args.harness)}")
     return 0
 
 

@@ -6,27 +6,32 @@
  * - session idle (once per prompt) and dispose (process exit): the session is fetched through the SDK, written as
  *   the `opencode export` document and captured into omoikane/raw/inbox/sessions/
  *   (omoikane/bin/session-capture.py --harness opencode), like Claude Code's Stop and SessionEnd.
- * - command.executed: remembers the first slash command of each session; session-capture.py skips sessions that
- *   start with an Omoikane operation (/ingest, /distill, /ask, /lint), the guard Claude Code applies from its transcript.
  *
  * Both scripts print one line and exit 0 on any failure, and do nothing when OMOIKANE_NO_CAPTURE is set, so this
  * file needs no error handling of its own. OpenCode loads .opencode/plugins/*.ts and installs @opencode-ai/plugin
  * next to it for the types (https://opencode.ai/docs/plugins). Events reach a plugin only for its own directory.
  */
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Plugin } from "@opencode-ai/plugin";
 
+// session.idle and session.status {type: "idle"} both exist in SDK 1.18.30 and can announce the same moment;
+// captures requested within this window run once.
+const IDLE_SETTLE_MS = 300;
+
 export const OmoikanePlugin: Plugin = async ({ client, directory, $ }) => {
+	// Same guard as the scripts: a headless run started by wiki-ingest.ps1 is Omoikane maintaining itself.
+	if (process.env.OMOIKANE_NO_CAPTURE) return {};
+
 	const capture = join(directory, "omoikane", "bin", "session-capture.py");
 	const context = join(directory, "omoikane", "bin", "session-context.py");
-	const firstCommand = new Map<string, string>();
 	const indexBySession = new Map<string, string>();
 	// Event handlers are fire-and-forget: `opencode run` exits right after the session goes idle, so dispose
-	// awaits the capture still in flight (or starts one for a session that never reached idle).
+	// awaits the capture still in flight and captures sessions whose idle event never came.
 	const inFlight = new Map<string, Promise<void>>();
-	const touched = new Set<string>();
+	const timers = new Map<string, ReturnType<typeof setTimeout>>();
+	const pending = new Set<string>();
 
 	async function exportAndCapture(sessionID: string): Promise<void> {
 		const session = await client.session.get({ path: { id: sessionID } });
@@ -36,35 +41,49 @@ export const OmoikanePlugin: Plugin = async ({ client, directory, $ }) => {
 		mkdirSync(dir, { recursive: true });
 		const file = join(dir, `${sessionID}.json`);
 		writeFileSync(file, JSON.stringify({ info: session.data, messages: messages.data }));
-		const args = ["--harness", "opencode", "--transcript", file, "--session-id", sessionID];
-		const command = firstCommand.get(sessionID);
-		if (command) args.push("--first-command", `/${command}`);
-		await $`python ${capture} ${args}`.cwd(directory).quiet().nothrow();
+		try {
+			await $`python ${capture} --harness opencode --transcript ${file} --session-id ${sessionID}`.cwd(directory).quiet().nothrow();
+		} finally {
+			rmSync(file, { force: true });
+		}
 	}
 
 	function captureSession(sessionID: string): Promise<void> {
-		const pending = inFlight.get(sessionID);
-		if (pending) return pending;
-		const run = exportAndCapture(sessionID).finally(() => inFlight.delete(sessionID));
+		const running = inFlight.get(sessionID);
+		if (running) return running;
+		const run = exportAndCapture(sessionID)
+			.then(() => {
+				pending.delete(sessionID);
+			})
+			.catch(() => undefined)
+			.finally(() => inFlight.delete(sessionID));
 		inFlight.set(sessionID, run);
 		return run;
 	}
 
+	function captureSoon(sessionID: string): void {
+		clearTimeout(timers.get(sessionID));
+		timers.set(
+			sessionID,
+			setTimeout(() => {
+				timers.delete(sessionID);
+				void captureSession(sessionID);
+			}, IDLE_SETTLE_MS),
+		);
+	}
+
 	return {
 		event: async ({ event }) => {
-			if (event.type === "command.executed" && !firstCommand.has(event.properties.sessionID)) {
-				firstCommand.set(event.properties.sessionID, event.properties.name);
-			}
-			if (event.type === "message.updated") touched.add(event.properties.info.sessionID);
-			// session.idle is the documented event; session.status {type: "idle"} is its successor in the SDK types.
-			// Either one triggers a capture; a capture already in flight for the session is reused, not duplicated.
-			if (event.type === "session.idle") await captureSession(event.properties.sessionID);
+			if (event.type === "message.updated") pending.add(event.properties.info.sessionID);
+			if (event.type === "session.idle") captureSoon(event.properties.sessionID);
 			if (event.type === "session.status" && event.properties.status.type === "idle") {
-				await captureSession(event.properties.sessionID);
+				captureSoon(event.properties.sessionID);
 			}
 		},
 		dispose: async () => {
-			await Promise.all([...touched].map(captureSession));
+			for (const timer of timers.values()) clearTimeout(timer);
+			timers.clear();
+			await Promise.allSettled([...pending].map(captureSession));
 		},
 		"experimental.chat.system.transform": async (input, output) => {
 			const key = input.sessionID ?? "";

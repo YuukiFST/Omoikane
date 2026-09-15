@@ -56,6 +56,6 @@ python -m unittest discover -s tests       # sanity check
 omoikane/bin/install-schedule.ps1          # optional: Task Scheduler job every 30 min
 ```
 
-Requirements: Python 3.11+, `claude`, `pi` or `opencode` on PATH, git.
+Requirements: Python 3.11+, `claude` or `opencode` on PATH (they run the wiki operations; `pi` sessions are captured but Pi has no `/ingest`, `/distill`, `/ask`, `/lint` yet), git.
 
 Architecture, conventions and the reasoning behind them: `docs/architecture.md`. The agent's own operating manual: `AGENTS.md`.

@@ -17,27 +17,29 @@ const CAPTURE = join("omoikane", "bin", "session-capture.py");
 const CONTEXT = join("omoikane", "bin", "session-context.py");
 
 export default function omoikane(pi: ExtensionAPI) {
-	let firstCommand = "";
-	let index: string | undefined;
+	// Same guard as the scripts: a headless run started by wiki-ingest.ps1 is Omoikane maintaining itself.
+	if (process.env.OMOIKANE_NO_CAPTURE) return;
 
-	async function capture(ctx: ExtensionContext): Promise<void> {
+	let index: string | undefined;
+	let inFlight: Promise<void> | undefined;
+
+	// agent_end and session_shutdown can fire back to back; one capture at a time, the second call reuses it.
+	function capture(ctx: ExtensionContext): Promise<void> {
 		const file = ctx.sessionManager.getSessionFile();
-		if (!file) return; // --no-session: nothing on disk to read
+		if (!file) return Promise.resolve(); // --no-session: nothing on disk to read
+		if (inFlight) return inFlight;
 		const args = [join(ctx.cwd, CAPTURE), "--harness", "pi", "--transcript", file, "--session-id", ctx.sessionManager.getSessionId()];
-		if (firstCommand) args.push("--first-command", firstCommand);
-		await pi.exec("python", args, { cwd: ctx.cwd, timeout: 15_000 });
+		inFlight = pi
+			.exec("python", args, { cwd: ctx.cwd, timeout: 15_000 })
+			.then(() => undefined)
+			.finally(() => {
+				inFlight = undefined;
+			});
+		return inFlight;
 	}
 
 	pi.on("session_start", async () => {
-		firstCommand = "";
 		index = undefined;
-	});
-
-	// Records the first slash command of the session: session-capture.py skips sessions that start with an
-	// Omoikane operation (/ingest, /distill, /ask, /lint), the same guard Claude Code applies from its transcript.
-	pi.on("input", async (event) => {
-		const text = event.text.trim();
-		if (!firstCommand && text.startsWith("/")) firstCommand = text.split(/\s+/)[0];
 	});
 
 	pi.on("before_agent_start", async (event, ctx) => {
