@@ -52,7 +52,8 @@ def main(argv: list[str] | None = None) -> int:
     body = compact_index(index.read_text(encoding="utf-8"), args.budget)
     if body:
         # Windows consoles default to a legacy code page; the index holds UTF-8 (em dashes, non-ASCII titles).
-        sys.stdout.reconfigure(encoding="utf-8")
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8")
         sys.stdout.write(HEADER + "\n\n" + body + "\n")
     return 0
 

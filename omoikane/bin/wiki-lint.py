@@ -46,6 +46,7 @@ def lint_pages(pages: list[Page], repo: Path = REPO) -> list[str]:
                 inbound[target] += 1
             else:
                 findings.append(f"{p.rel}: broken wikilink [[{target}]]")
+        # `sources:` entries are relative to omoikane/ (`wiki/sources/x.md`), matching the page contract in AGENTS.md.
         for src in p.meta.get("sources", []) or []:
             if not (str(src).startswith("wiki/") and str(src).endswith(".md")):
                 findings.append(f"{p.rel}: sources entry `{src}` is not a wiki path")
@@ -54,8 +55,10 @@ def lint_pages(pages: list[Page], repo: Path = REPO) -> list[str]:
             findings.append(f"{p.rel}: `{CODE_KEY}` must be an inline list of repository paths")
             code = []
         for path in code:
-            # A decision or gotcha about code that no longer exists is stale by definition; the agent must revisit it.
-            if not (repo / str(path)).exists():
+            # `code:` entries are relative to the repository root. A page about code that no longer exists is stale
+            # by definition; the agent must revisit it. Paths escaping the repository are never valid.
+            target = (repo / str(path)).resolve()
+            if not target.is_relative_to(repo.resolve()) or not target.exists():
                 findings.append(f"{p.rel}: code path `{path}` does not exist")
 
     for p in pages:

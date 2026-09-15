@@ -243,14 +243,14 @@ def render(session: Session, turns: list[Turn], part: int, worktree: list[str]) 
     return "\n".join(out).rstrip() + "\n"
 
 
-def ingested_turns(session: Session) -> int:
-    """How many turns of this session already sit in raw/sources/sessions/, so a later capture appends only the rest."""
-    covered = 0
+def ingested_parts(session: Session) -> list[int]:
+    """`turns:` of every distilled part of this session under raw/sources/sessions/, matched by full session id."""
+    parts: list[int] = []
     for path in INGESTED.glob(f"{session.day}-{session.session_id[:8]}*.md"):
         parsed = parse_frontmatter(path.read_text(encoding="utf-8"))
         if parsed and str(parsed[0].get("session")) == session.session_id:
-            covered = max(covered, int(str(parsed[0].get("turns", 0)) or 0))
-    return covered
+            parts.append(int(str(parsed[0].get("turns", 0)) or 0))
+    return parts
 
 
 def capture(transcript: Path, session_id: str = "") -> str:
@@ -259,10 +259,11 @@ def capture(transcript: Path, session_id: str = "") -> str:
     reason = skip_reason(session, worktree)
     if reason:
         return f"skip: {reason}"
-    covered = ingested_turns(session)
+    parts = ingested_parts(session)
+    covered = max(parts, default=0)
     if covered >= len(session.turns):
         return "skip: already ingested"
-    part = 1 if covered == 0 else 1 + len(list(INGESTED.glob(f"{session.day}-{session.session_id[:8]}*.md")))
+    part = len(parts) + 1
     suffix = "" if part == 1 else f"-part{part}"
     target = INBOX / f"{session.day}-{session.session_id[:8]}{suffix}.md"
     INBOX.mkdir(parents=True, exist_ok=True)

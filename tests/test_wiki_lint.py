@@ -33,6 +33,17 @@ class CodePaths(unittest.TestCase):
             findings = lint.lint_pages([hub, g], Path(d))
         self.assertEqual(findings, ["/wiki/g.md: code path `gone.py` does not exist"])
 
+    def test_code_path_outside_repo_is_a_finding(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d) / "repo"
+            repo.mkdir()
+            (Path(d) / "outside.py").write_text("", encoding="utf-8")
+            g = page("g", "gotcha", code=["../outside.py"])
+            hub = page("hub", "concept")
+            hub.links, g.links = {"g"}, {"hub"}
+            findings = lint.lint_pages([hub, g], repo)
+        self.assertEqual(findings, ["/wiki/g.md: code path `../outside.py` does not exist"])
+
     def test_new_types_accepted(self) -> None:
         a = page("a", "decision")
         b = page("b", "gotcha")

@@ -45,7 +45,7 @@ foreach ($f in $files) {
     }
     if ($LASTEXITCODE -ne 0) { Log "$op FAILED $rel"; continue }
     # Agent skipped the move step of the prompt: move the source so the next run does not process it again.
-    if (Test-Path $f.FullName) { Move-Item $f.FullName $dest }
+    if (Test-Path $f.FullName) { New-Item -ItemType Directory -Force $dest | Out-Null; Move-Item $f.FullName $dest }
     python omoikane/bin/wiki-index.py | Tee-Object -FilePath $log -Append
     python omoikane/bin/wiki-lint.py | Tee-Object -FilePath $log -Append
     if ($Commit) {
