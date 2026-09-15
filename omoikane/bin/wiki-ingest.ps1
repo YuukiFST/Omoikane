@@ -1,42 +1,56 @@
 <#
 .SYNOPSIS
-Ingest every file in raw/inbox through the agent, one headless call per file.
+Ingest every file in omoikane/raw/inbox through the agent, one headless call per file.
+
+Plain sources go through /ingest; captured coding sessions under raw/inbox/sessions go through /distill.
+A session file modified less than -QuietMinutes ago may still be growing (Stop fires on every turn), so it waits.
 
 .EXAMPLE
-bin/wiki-ingest.ps1                      # Claude Code
-bin/wiki-ingest.ps1 -Agent opencode      # OpenCode
-bin/wiki-ingest.ps1 -Commit              # git commit after each successful ingest
+omoikane/bin/wiki-ingest.ps1                      # Claude Code
+omoikane/bin/wiki-ingest.ps1 -Agent opencode      # OpenCode
+omoikane/bin/wiki-ingest.ps1 -Commit              # git commit after each successful run
 #>
 param(
     [ValidateSet("claude", "opencode")] [string] $Agent = "claude",
-    [switch] $Commit
+    [switch] $Commit,
+    [int] $QuietMinutes = 30
 )
 $ErrorActionPreference = "Stop"
-$root = Split-Path -Parent $PSScriptRoot
+$omoikane = Split-Path -Parent $PSScriptRoot
+$root = Split-Path -Parent $omoikane
 Set-Location $root
-$log = Join-Path $root ".wiki-ingest.log"
+$log = Join-Path $omoikane ".wiki-ingest.log"
+# The agent runs started here maintain the wiki; the session hooks must neither capture nor inject context for them.
+$env:OMOIKANE_NO_CAPTURE = "1"
 
 function Log([string] $msg) { "$(Get-Date -Format s) $msg" | Tee-Object -FilePath $log -Append }
 
-$files = Get-ChildItem (Join-Path $root "raw/inbox") -File | Where-Object { $_.Name -ne ".gitkeep" }
+$inbox = Join-Path $omoikane "raw/inbox"
+$files = Get-ChildItem $inbox -File -Recurse | Where-Object { $_.Name -ne ".gitkeep" }
 if (-not $files) { Log "nothing in inbox"; exit 0 }
 
 foreach ($f in $files) {
-    $rel = "raw/inbox/$($f.Name)"
-    Log "ingest start $rel"
-    if ($Agent -eq "claude") {
-        claude -p "/ingest $rel" --permission-mode acceptEdits --allowedTools "Read,Write,Edit,Glob,Grep,Bash(python bin/*),Bash(git mv *)" 2>&1 | Tee-Object -FilePath $log -Append
-    } else {
-        opencode run "/ingest $rel" 2>&1 | Tee-Object -FilePath $log -Append
+    $isSession = $f.DirectoryName -eq (Join-Path $inbox "sessions")
+    if ($isSession -and $f.LastWriteTime -gt (Get-Date).AddMinutes(-$QuietMinutes)) {
+        Log "session still active, waiting: $($f.Name)"; continue
     }
-    if ($LASTEXITCODE -ne 0) { Log "ingest FAILED $rel"; continue }
-    # Agent skipped step 6 of prompts/ingest.md: move the source so the next run does not re-ingest it.
-    if (Test-Path $f.FullName) { Move-Item $f.FullName (Join-Path $root "raw/sources") }
-    python bin/wiki-index.py | Tee-Object -FilePath $log -Append
-    python bin/wiki-lint.py | Tee-Object -FilePath $log -Append
+    $op = if ($isSession) { "distill" } else { "ingest" }
+    $rel = [IO.Path]::GetRelativePath($root, $f.FullName) -replace "\\", "/"
+    $dest = Join-Path $omoikane $(if ($isSession) { "raw/sources/sessions" } else { "raw/sources" })
+    Log "$op start $rel"
+    if ($Agent -eq "claude") {
+        claude -p "/$op $rel" --permission-mode acceptEdits --allowedTools "Read,Write,Edit,Glob,Grep,Bash(python omoikane/bin/*),Bash(git mv *)" 2>&1 | Tee-Object -FilePath $log -Append
+    } else {
+        opencode run "/$op $rel" 2>&1 | Tee-Object -FilePath $log -Append
+    }
+    if ($LASTEXITCODE -ne 0) { Log "$op FAILED $rel"; continue }
+    # Agent skipped the move step of the prompt: move the source so the next run does not process it again.
+    if (Test-Path $f.FullName) { Move-Item $f.FullName $dest }
+    python omoikane/bin/wiki-index.py | Tee-Object -FilePath $log -Append
+    python omoikane/bin/wiki-lint.py | Tee-Object -FilePath $log -Append
     if ($Commit) {
         git add -A
-        git commit -q -m "feat(wiki): ingest $($f.BaseName)" 2>&1 | Tee-Object -FilePath $log -Append
+        git commit -q -m "feat(wiki): $op $($f.BaseName)" 2>&1 | Tee-Object -FilePath $log -Append
     }
-    Log "ingest done $rel"
+    Log "$op done $rel"
 }
