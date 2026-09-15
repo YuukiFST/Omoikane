@@ -5,12 +5,17 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-WIKI = ROOT / "wiki"
+# omoikane/ holds everything the wiki owns; its parent is the repository (the system being built, in build mode).
+OMOIKANE = Path(__file__).resolve().parent.parent
+REPO = OMOIKANE.parent
+WIKI = OMOIKANE / "wiki"
 REQUIRED_KEYS = ("title", "type", "summary", "tags", "created", "updated", "sources")
-PAGE_TYPES = ("source", "entity", "concept", "query")
+# Order matters: wiki-index.py and session-context.py emit groups in this order, most useful to a coding agent first.
+PAGE_TYPES = ("decision", "gotcha", "concept", "entity", "source", "query")
 # Source pages carry `dated`: the date the source itself bears. Not in REQUIRED_KEYS so older pages of other types keep passing.
 SOURCE_KEYS = ("dated",)
+# Optional on any page: repository paths the page is about. wiki-lint.py fails when one no longer exists.
+CODE_KEY = "code"
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}\Z")
 UNDATED = "unknown"
 WIKILINK = re.compile(r"\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
@@ -27,7 +32,7 @@ class Page:
 
     @property
     def rel(self) -> str:
-        return self.path.relative_to(ROOT).as_posix()
+        return self.path.relative_to(REPO).as_posix() if self.path.is_relative_to(REPO) else self.path.as_posix()
 
 
 def parse_frontmatter(text: str) -> tuple[dict[str, object], str] | None:
@@ -53,9 +58,9 @@ def parse_frontmatter(text: str) -> tuple[dict[str, object], str] | None:
     return meta, text[m.end():]
 
 
-def load_pages() -> list[Page]:
+def load_pages(wiki: Path = WIKI) -> list[Page]:
     pages: list[Page] = []
-    for path in sorted(WIKI.rglob("*.md")):
+    for path in sorted(wiki.rglob("*.md")):
         text = path.read_text(encoding="utf-8")
         parsed = parse_frontmatter(text)
         meta, body = parsed if parsed else ({}, text)
