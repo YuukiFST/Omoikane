@@ -36,7 +36,8 @@ def main() -> None:
             where = f" `{', '.join(map(str, code))}`" if isinstance(code, list) and code else ""
             out.append(f"- [[{p.slug}]] — {p.meta.get('summary', '')}{where} `{stamp}`")
         out.append("")
-    (OMOIKANE / "index.md").write_text("\n".join(out).rstrip() + "\n", encoding="utf-8")
+    # Explicit LF: on Windows text mode would write CRLF and the CI freshness check would see a diff.
+    (OMOIKANE / "index.md").write_text("\n".join(out).rstrip() + "\n", encoding="utf-8", newline="\n")
     print(f"index.md: {len(pages)} pages")
 
 
