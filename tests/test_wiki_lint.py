@@ -192,13 +192,18 @@ class PendingNotes(unittest.TestCase):
 
     def test_proposed_diff_lines_are_not_counted_as_items(self) -> None:
         # A guard or prompt proposal carries a diff; its removed lines start with "- " too.
-        review = ("# Review queue\n\n- [ ] guard (lint): catch x\n  ```diff\n- old line\n+ new line\n  ```\n"
-                  "- todo: y\n")
+        # A diff of a file with fences (AGENTS.md, a prompt) has context lines such as " ```": they must not
+        # close the proposal's fence, which is longer for that reason.
+        review = ("# Review queue\n\n- [ ] guard (lint) x: catch x\n````diff\n- old line\n ```\n- removed\n"
+                  "     ```yaml\n+ new line\n````\n- [x] prompt (distill.md) y: fix y\n  ````diff\n  - old\n  ````\n"
+                  "- todo z: z\n")
         with tempfile.TemporaryDirectory() as d:
             omoikane = Path(d) / "omoikane"
             omoikane.mkdir()
             (omoikane / "_review.md").write_text(review, encoding="utf-8")
-            self.assertIn("2 open items in omoikane/_review.md", context.pending_notes(omoikane))
+            out = context.pending_notes(omoikane)
+        self.assertIn("2 open items in omoikane/_review.md", out)
+        self.assertIn("1 approved proposal in omoikane/_review.md", out)
 
     def test_empty_when_nothing_is_pending(self) -> None:
         with tempfile.TemporaryDirectory() as d:
