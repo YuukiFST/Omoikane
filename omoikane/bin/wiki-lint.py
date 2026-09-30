@@ -10,7 +10,7 @@ import posixpath
 import subprocess
 import sys
 from datetime import date, timedelta
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from wikilib import (CODE_KEY, DATE, GUARD_KEY, GUARDS, PAGE_TYPES, PRACTICE_MIN_SESSIONS, PRUNE_KEY, PRUNE_MARKS,
                      REPO, REQUIRED_KEYS, SESSION_PAGE, SOURCE_KEYS, UNDATED, WIKI, Page, load_pages)
@@ -93,8 +93,9 @@ def lint_pages(pages: list[Page], repo: Path = REPO) -> list[str]:
         for path in code:
             # `code:` entries are relative to the repository root. A page about code that no longer exists is stale
             # by definition; the agent must revisit it. Paths escaping the repository are never valid.
-            target = (repo / str(path)).resolve()
-            if not target.is_relative_to(repo.resolve()) or not target.exists():
+            if PureWindowsPath(str(path)).anchor:
+                findings.append(f"{p.rel}: code path `{path}` is absolute; write it relative to the repository root")
+            elif existing_code_path(repo, path) is None:
                 findings.append(f"{p.rel}: code path `{path}` does not exist")
 
     for p in pages:
@@ -112,23 +113,33 @@ def git_path(path: object) -> str:
     return posixpath.normpath(str(path).replace("\\", "/"))
 
 
+def existing_code_path(repo: Path, path: object) -> str | None:
+    """The `code:` entry in git spelling when it names something inside the repository, else None.
+
+    Resolved from its git spelling, never the raw string, so Windows and Linux agree (#32): `src\\a.py` is
+    `src/a.py` on both. Absolute paths are None on every OS, since they name one machine's checkout.
+    Example: existing_code_path(repo, ".\\src\\") returns "src"; existing_code_path(repo, "C:\\src") returns None.
+    """
+    if PureWindowsPath(str(path)).anchor:
+        return None
+    spelled = git_path(path)
+    target = (repo / spelled).resolve()
+    return spelled if target.is_relative_to(repo.resolve()) and target.exists() else None
+
+
 def code_paths(pages: list[Page], repo: Path = REPO) -> list[str]:
     """Every `code:` path that exists inside the repository, in git spelling.
 
-    Paths `lint_pages` reports as missing or outside the repository are left out: git refuses a pathspec
-    outside the repository, and one bad page must not hide every other finding behind a traceback.
+    Paths `lint_pages` reports as missing, absolute or outside the repository are left out: git refuses a
+    pathspec outside the repository, and one bad page must not hide every other finding behind a traceback.
     Example: code_paths([page with code ["./src/", "../outside.py"]], repo) returns ["src"].
     """
-    root = repo.resolve()
     paths: set[str] = set()
     for p in pages:
         code = p.meta.get(CODE_KEY)
         if not isinstance(code, list):
             continue
-        for path in code:
-            target = (repo / str(path)).resolve()
-            if target.is_relative_to(root) and target.exists():
-                paths.add(git_path(path))
+        paths.update(spelled for path in code if (spelled := existing_code_path(repo, path)) is not None)
     return sorted(paths)
 
 
