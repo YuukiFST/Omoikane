@@ -79,24 +79,68 @@ class StalePages(unittest.TestCase):
         self.assertEqual(len(lint.stale_pages([d], self.CHANGED)), 1)
         self.assertIn("changed on 2026-09-18", lint.stale_pages([d], self.CHANGED)[0])
 
-    def test_last_changed_reads_git_history(self) -> None:
-        with tempfile.TemporaryDirectory() as d:
-            repo = Path(d)
-            git = ["git", "-C", d, "-c", "user.name=t", "-c", "user.email=t@t"]
-            subprocess.run(["git", "init", "-q", d], check=True)
-            (repo / "src").mkdir()
-            (repo / "src" / "a.py").write_text("1", encoding="utf-8")
-            (repo / "other.py").write_text("1", encoding="utf-8")
-            subprocess.run([*git, "add", "."], check=True)
-            env = {**os.environ, "GIT_COMMITTER_DATE": "2026-09-01T12:00:00Z", "GIT_AUTHOR_DATE": "2026-09-01T12:00:00Z"}
-            subprocess.run([*git, "commit", "-q", "-m", "one"], check=True, env=env)
-            (repo / "src" / "a.py").write_text("2", encoding="utf-8")
-            env = {**os.environ, "GIT_COMMITTER_DATE": "2026-09-05T12:00:00Z", "GIT_AUTHOR_DATE": "2026-09-05T12:00:00Z"}
-            subprocess.run([*git, "commit", "-q", "-am", "two"], check=True, env=env)
-            changed = lint.last_changed(repo, ["src"])
-        self.assertEqual(changed, {"src/a.py": "2026-09-05"})
+    def test_code_path_spellings_match_git_paths(self) -> None:
+        for spelling in (".", "./src", "src\\pkg", "./src/pkg/c.py"):
+            with self.subTest(spelling=spelling):
+                p = page("p", "concept", updated="2026-09-15", code=[spelling])
+                self.assertEqual(len(lint.stale_pages([p], self.CHANGED)), 1)
 
-    def test_last_changed_skips_git_without_code_paths(self) -> None:
+    def test_code_paths_keeps_only_paths_inside_the_repository(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d) / "repo"
+            (repo / "src").mkdir(parents=True)
+            (Path(d) / "outside.py").write_text("", encoding="utf-8")
+            p = page("p", "concept", code=["./src/", "../outside.py", "gone.py"])
+            self.assertEqual(lint.code_paths([p], repo), ["src"])
+
+
+def commit(repo: Path, day: str, *args: str) -> None:
+    """Run a git command in `repo` with a fixed identity and both dates pinned to `day`."""
+    stamp = f"2026-09-{day}T12:00:00Z"
+    env = {**os.environ, "GIT_COMMITTER_DATE": stamp, "GIT_AUTHOR_DATE": stamp}
+    subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", *args],
+                   check=True, env=env, capture_output=True)
+
+
+class LastChanged(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = Path(self.tmp.name) / "repo"
+        (self.repo / "src").mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", "-b", "main", str(self.repo)], check=True)
+        (self.repo / "src" / "a.py").write_text("1", encoding="utf-8")
+        (self.repo / "other.py").write_text("1", encoding="utf-8")
+        commit(self.repo, "01", "add", ".")
+        commit(self.repo, "01", "commit", "-q", "-m", "one")
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_reads_newest_commit_per_file(self) -> None:
+        (self.repo / "src" / "a.py").write_text("2", encoding="utf-8")
+        commit(self.repo, "05", "commit", "-q", "-am", "two")
+        self.assertEqual(lint.last_changed(self.repo, ["src"]), {"src/a.py": "2026-09-05"})
+
+    def test_merged_change_carries_the_merge_date(self) -> None:
+        # A page updated on the 15th, between the side commit (10th) and its merge (20th), is stale.
+        commit(self.repo, "10", "switch", "-q", "-c", "side")
+        (self.repo / "src" / "a.py").write_text("2", encoding="utf-8")
+        commit(self.repo, "10", "commit", "-q", "-am", "side")
+        commit(self.repo, "20", "switch", "-q", "main")
+        commit(self.repo, "20", "merge", "-q", "--no-ff", "-m", "merge", "side")
+        self.assertEqual(lint.last_changed(self.repo, ["src"]), {"src/a.py": "2026-09-20"})
+
+    def test_shallow_clone_gives_no_dates(self) -> None:
+        # A depth-1 clone (actions/checkout default) dates every file at HEAD; that would warn on every page.
+        clone = Path(self.tmp.name) / "clone"
+        subprocess.run(["git", "clone", "-q", "--depth", "1", self.repo.as_uri(), str(clone)], check=True)
+        self.assertEqual(lint.last_changed(clone, ["src"]), {})
+
+    def test_no_repository_gives_no_dates(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(lint.last_changed(Path(d), ["src"]), {})
+
+    def test_no_code_paths_gives_no_dates(self) -> None:
         self.assertEqual(lint.last_changed(Path("/nonexistent"), []), {})
 
 

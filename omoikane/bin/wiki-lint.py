@@ -6,6 +6,7 @@ Usage: python omoikane/bin/wiki-lint.py
 """
 from __future__ import annotations
 
+import posixpath
 import subprocess
 import sys
 from pathlib import Path
@@ -75,25 +76,61 @@ def lint_pages(pages: list[Page], repo: Path = REPO) -> list[str]:
     return findings
 
 
-def code_paths(pages: list[Page]) -> list[str]:
-    return sorted({str(path) for p in pages if isinstance(p.meta.get(CODE_KEY), list) for path in p.meta[CODE_KEY]})
+def git_path(path: object) -> str:
+    """Spell a `code:` entry the way git prints paths: posix, relative, no `./` or trailing slash.
+
+    Backslashes (a page written on Windows) become slashes.
+    Example: git_path("./src/pkg/") returns "src/pkg"; git_path(".") returns ".".
+    """
+    return posixpath.normpath(str(path).replace("\\", "/"))
+
+
+def code_paths(pages: list[Page], repo: Path = REPO) -> list[str]:
+    """Every `code:` path that exists inside the repository, in git spelling.
+
+    Paths `lint_pages` reports as missing or outside the repository are left out: git refuses a pathspec
+    outside the repository, and one bad page must not hide every other finding behind a traceback.
+    Example: code_paths([page with code ["./src/", "../outside.py"]], repo) returns ["src"].
+    """
+    root = repo.resolve()
+    paths: set[str] = set()
+    for p in pages:
+        code = p.meta.get(CODE_KEY)
+        if not isinstance(code, list):
+            continue
+        for path in code:
+            target = (repo / str(path)).resolve()
+            if target.is_relative_to(root) and target.exists():
+                paths.add(git_path(path))
+    return sorted(paths)
 
 
 def last_changed(repo: Path, paths: list[str]) -> dict[str, str]:
-    """Map each file under `paths` to the date (YYYY-MM-DD) of its newest commit, from one `git log` call.
+    """Map each file under `paths` to the date (YYYY-MM-DD) its newest change reached the current branch.
 
-    Limited to the `code:` paths so a long history outside them costs nothing.
+    One `git log` call, limited to the `code:` paths so a long history outside them costs nothing.
+    `--first-parent` dates a merged change at its merge, not at the side commit (this repository merges
+    PRs with merge commits). Returns {} without git, outside a repository, or in a shallow clone, where
+    every file would carry HEAD's date and every page would warn.
     Example: last_changed(repo, ["src"]) returns {"src/a.py": "2026-09-05"}.
     """
     if not paths:
         return {}
-    out = subprocess.run(
-        ["git", "-C", str(repo), "-c", "core.quotePath=false", "log", "--format=>%cs", "--name-only", "--", *paths],
-        capture_output=True, text=True, encoding="utf-8", check=True,
-    ).stdout
+    git = ["git", "-C", str(repo), "-c", "core.quotePath=false"]
+    try:
+        shallow = subprocess.run([*git, "rev-parse", "--is-shallow-repository"], capture_output=True, text=True,
+                                 check=False)
+        if shallow.returncode != 0 or shallow.stdout.strip() != "false":
+            return {}
+        log = subprocess.run([*git, "log", "--first-parent", "--format=>%cs", "--name-only", "--", *paths],
+                             capture_output=True, text=True, encoding="utf-8", check=False)
+    except OSError:
+        return {}
+    if log.returncode != 0:
+        return {}
     dates: dict[str, str] = {}
     current = ""
-    for line in out.splitlines():
+    for line in log.stdout.splitlines():
         if line.startswith(">"):
             current = line[1:]
         elif line:
@@ -115,8 +152,9 @@ def stale_pages(pages: list[Page], changed: dict[str, str]) -> list[str]:
         if not isinstance(code, list) or not DATE.match(updated):
             continue
         for path in code:
-            prefix = str(path).rstrip("/")
-            latest = max((d for f, d in changed.items() if f == prefix or f.startswith(prefix + "/")), default="")
+            prefix = git_path(path)
+            latest = max((d for f, d in changed.items()
+                          if prefix == "." or f == prefix or f.startswith(prefix + "/")), default="")
             if latest > updated:
                 warnings.append(f"{p.rel}: `{path}` changed on {latest}, after the page's `updated` {updated}; "
                                 "check the page still matches the code")
