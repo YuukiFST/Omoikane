@@ -42,6 +42,7 @@ SHELL_TOOLS = {"bash", "powershell"}
 # Path argument per harness: Claude Code file_path/notebook_path, OpenCode filePath, Pi path.
 PATH_KEYS = ("file_path", "notebook_path", "filePath", "path")
 COMMAND_TAG = re.compile(r"<command-name>(/[\w:-]+)</command-name>")
+SLASH_COMMAND = re.compile(r"(/[\w:-]+)(?:\s|\Z)")
 # OpenCode stores a command as its expanded template; every .opencode/command/*.md in this repository starts this way.
 OPENCODE_COMMAND = re.compile(r"\s*Read `omoikane/prompts/(\w+)\.md` and follow it")
 NOTE_CHARS = 1500
@@ -68,7 +69,6 @@ class Session:
     branch: str = ""
     started: str = ""
     ended: str = ""
-    first_command: str = ""
     parent: str = ""  # id of the session that spawned this one (OpenCode subagent); such sessions are skipped
     turns: list[Turn] = field(default_factory=list)
 
@@ -85,6 +85,21 @@ class Session:
     @property
     def files(self) -> list[str]:
         return sorted({f for t in self.turns for f in t.files})
+
+    @property
+    def first_command(self) -> str:
+        """The command the first prompt runs, "" when it runs none.
+
+        Only the first prompt counts, and it is read here rather than in each reader: the Claude reader once
+        latched a command from any turn and dropped a coding session that ran /ask in turn 4 (#34). Claude Code
+        stores the prompt as the command name; OpenCode stores the command's expanded template.
+        Example: Session(..., turns=[Turn("/ingest"), Turn("/ask")]).first_command returns "/ingest".
+        """
+        prompt = self.turns[0].prompt.lstrip() if self.turns else ""
+        if template := OPENCODE_COMMAND.match(prompt):
+            return f"/{template.group(1)}"
+        slash = SLASH_COMMAND.match(prompt)
+        return slash.group(1) if slash else ""
 
 
 def clip(text: str, limit: int) -> str:
@@ -170,8 +185,6 @@ def read_claude_transcript(path: Path, session_id: str = "") -> Session:
             if entry.get("isMeta") or content.lstrip().startswith("<local-command-"):
                 continue
             command = COMMAND_TAG.search(content)
-            if command and not session.first_command:
-                session.first_command = command.group(1)
             current = Turn(prompt=clip(command.group(1) if command else content, PROMPT_CHARS))
             session.turns.append(current)
             continue
@@ -283,9 +296,6 @@ def read_opencode_export(path: Path, session_id: str = "") -> Session:
             prompt = "\n".join(str(p.get("text", "")) for p in parts if p.get("type") == "text" and not p.get("synthetic"))
             if not prompt.strip():
                 continue
-            command = OPENCODE_COMMAND.match(prompt)
-            if command and not session.turns:
-                session.first_command = f"/{command.group(1)}"
             current = Turn(prompt=clip(prompt, PROMPT_CHARS))
             session.turns.append(current)
             continue

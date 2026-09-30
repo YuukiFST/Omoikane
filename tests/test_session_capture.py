@@ -161,7 +161,7 @@ class ReadOpenCodeExport(unittest.TestCase):
 
 class SkipRules(unittest.TestCase):
     def test_omoikane_operation_is_skipped(self) -> None:
-        s = capture.Session(session_id="x", harness="claude", first_command="/ask", turns=[capture.Turn("q", files=["a"])])
+        s = capture.Session(session_id="x", harness="claude", turns=[capture.Turn("/ask", files=["a"])])
         self.assertEqual(capture.skip_reason(s, []), "omoikane operation /ask")
 
     def test_no_edits_is_skipped_unless_worktree_dirty(self) -> None:
