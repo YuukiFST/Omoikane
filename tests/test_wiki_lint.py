@@ -258,7 +258,7 @@ class RenderIndex(unittest.TestCase):
         # Agents read the index first; a page the human has yet to delete must not look current.
         pages = [page("kept", "gotcha", summary="k"), page("old", "gotcha", summary="o", prune="stale")]
         out = index.render(pages)
-        self.assertIn("- [[kept]] — k `2026-09-15`", out)
+        self.assertIn("- [[kept]] — k `2026-09-15`\n", out)
         self.assertIn("- [[old]] — o `2026-09-15` `prune: stale`", out)
 
 
