@@ -26,6 +26,7 @@ Follows Karpathy's LLM Wiki pattern with one addition: coding sessions are a sou
 | Distill one captured session | `/distill omoikane/raw/inbox/sessions/<file>` | same |
 | Ask the wiki | `/ask <question>` | same |
 | Semantic health check | `/lint` | same |
+| Mark stale, redundant, low-value pages; merge duplicates | `/prune` | same |
 | Practices across sessions (also every 5 distills, headless) | `/synthesize [n sessions]` | same |
 | Process everything in inbox (headless) | `omoikane/bin/wiki-ingest.ps1` | `omoikane/bin/wiki-ingest.ps1 -Agent opencode` |
 | Structural checks (no LLM) | `python omoikane/bin/wiki-lint.py` | same |

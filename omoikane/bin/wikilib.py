@@ -23,6 +23,9 @@ CODE_KEY = "code"
 # Required on gotcha pages: the check that catches the mistake today, `none` when only the page does.
 GUARD_KEY = "guard"
 GUARDS = ("lint", "test", "hook", "none")
+# Optional, set by /prune on a page the human should delete or merge; the agent never deletes a page itself.
+PRUNE_KEY = "prune"
+PRUNE_MARKS = ("stale", "redundant", "low-value")
 # The block of AGENTS.md that wiki-rules.py manages. Every session loads AGENTS.md, so the cap keeps promoted
 # rules from crowding out the hand-written ones: adherence drops for all rules as the file grows.
 RULES_START = "<!-- omoikane:rules:start -->"

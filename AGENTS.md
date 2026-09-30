@@ -42,6 +42,7 @@ dated: YYYY-MM-DD                   # source pages only: the date the source its
 sources: [wiki/sources/<slug>.md]   # pages this one draws from; empty list on source pages
 code: [src/module.py]               # optional: repository paths the page is about; lint fails when one is gone
 guard: lint | test | hook | none    # gotcha pages only: the check that catches the mistake today, none when only the page does
+prune: stale | redundant | low-value  # optional, set by /prune; the human deletes the page or removes the mark
 ---
 ```
 
@@ -59,6 +60,7 @@ Prompts live in `omoikane/prompts/`; each is reachable as a slash command in Cla
 - Distill a captured coding session: `omoikane/prompts/distill.md`.
 - Answer a question and file it: `omoikane/prompts/ask.md`.
 - Semantic health check: `omoikane/prompts/lint.md`.
+- Mark stale, redundant and low-value pages and merge duplicates: `omoikane/prompts/prune.md`. It never deletes a page.
 - Find practices repeated across sessions: `omoikane/prompts/synthesize.md`. `wiki-ingest.ps1` runs it after every 5 distills.
 
 After any operation that touches `omoikane/wiki/`, finish with:

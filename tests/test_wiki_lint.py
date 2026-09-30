@@ -1,4 +1,4 @@
-"""Headless tests for omoikane/bin/wiki-lint.py and session-context.py. Run: python -m unittest discover -s tests"""
+"""Headless tests for omoikane/bin/wiki-lint.py, wiki-index.py and session-context.py. Run: python -m unittest discover -s tests"""
 from __future__ import annotations
 
 import contextlib
@@ -18,6 +18,7 @@ from wikilib import Page  # noqa: E402
 
 lint = importlib.import_module("wiki-lint")
 context = importlib.import_module("session-context")
+index = importlib.import_module("wiki-index")
 
 
 def page(slug: str, kind: str, **meta: object) -> Page:
@@ -89,6 +90,15 @@ class CodePaths(unittest.TestCase):
                 hub.links, p.links = {"p", a, a2, b}, {"hub"}
                 pages = [hub, p] + [page(s, "source", dated="2026-09-15", sources=[]) for s in (a, a2, b)]
                 self.assertEqual(lint.lint_pages(pages, Path(".")), findings)
+
+    def test_prune_mark_must_be_a_known_reason(self) -> None:
+        for mark, findings in (("stale", []), ("redundant", []), ("low-value", []),
+                               ("obsolete", ["/wiki/p.md: `prune` is `obsolete`, expected stale, redundant or low-value"])):
+            with self.subTest(mark=mark):
+                p = page("p", "concept", prune=mark)
+                hub = page("hub", "concept")
+                hub.links, p.links = {"p"}, {"hub"}
+                self.assertEqual(lint.lint_pages([hub, p], Path(".")), findings)
 
     def test_same_slug_in_two_folders_is_a_finding(self) -> None:
         a = page("x", "decision")
@@ -241,6 +251,15 @@ class CompactIndex(unittest.TestCase):
 
     def test_no_omitted_line_when_everything_fits(self) -> None:
         self.assertNotIn("Omitted", context.compact_index(self.INDEX, 12_000))
+
+
+class RenderIndex(unittest.TestCase):
+    def test_marked_page_shows_its_mark(self) -> None:
+        # Agents read the index first; a page the human has yet to delete must not look current.
+        pages = [page("kept", "gotcha", summary="k"), page("old", "gotcha", summary="o", prune="stale")]
+        out = index.render(pages)
+        self.assertIn("- [[kept]] — k `2026-09-15`\n", out)
+        self.assertIn("- [[old]] — o `2026-09-15` `prune: stale`", out)
 
 
 class PendingNotes(unittest.TestCase):

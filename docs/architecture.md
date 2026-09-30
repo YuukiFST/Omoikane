@@ -78,6 +78,12 @@ Why a new page type, `practice`, and one rather than two (`procedure` and `princ
 Why every N distills and not on each one: a pattern needs sessions to cross, and one LLM call per batch costs less than one per session.
 Why the log is the counter: it is already the append-only chronology, so no state file can drift from it.
 
+## Pruning
+
+The wiki only grows unless something removes pages. `/prune` (on demand) marks stale, redundant and low-value pages with `prune:` in their frontmatter and merges each duplicate into the stronger page, repointing the links.
+Why it never deletes: a deleted page takes its history with it, and a wrong deletion by an unattended run is found late. The marks sit in the git diff; the human deletes, and `index.md` shows the mark until then.
+Why it stops under three findings: a diff is worth a human's review only when it holds several changes; one or two go to the next run (the gate comes from brainmaxxing's `meditate`).
+
 ## Promoted rules and the context budget
 
 A practice page reaches an agent only when the agent opens it. The few practices that govern most tasks can be promoted into the rules block of `AGENTS.md`, which every session loads.
