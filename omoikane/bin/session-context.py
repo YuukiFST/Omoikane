@@ -61,6 +61,22 @@ def compact_index(text: str, budget: int) -> str:
     return "\n\n".join(kept)
 
 
+def count_items(review: str) -> int:
+    """Count the top-level bullets of _review.md, skipping fenced code blocks.
+
+    A guard or prompt proposal carries its diff in a fence, and a removed diff line starts with "- " too.
+    Example: count_items("- [ ] guard: x\\n  ```diff\\n- old\\n  ```\\n- todo: y") returns 2.
+    """
+    items = 0
+    fenced = False
+    for line in review.splitlines():
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+        elif not fenced and line.startswith("- "):
+            items += 1
+    return items
+
+
 def pending_notes(omoikane: Path) -> str:
     """Name what is known but not in the wiki yet: captured sessions waiting for /distill, open review items.
 
@@ -82,7 +98,7 @@ def pending_notes(omoikane: Path) -> str:
         lines += [f"- `{p.relative_to(omoikane.parent).as_posix()}`" for p in sessions[-PENDING_SESSIONS_SHOWN:]]
     review = omoikane / "_review.md"
     if review.is_file():
-        open_items = sum(1 for line in review.read_text(encoding="utf-8").splitlines() if line.startswith("- "))
+        open_items = count_items(review.read_text(encoding="utf-8"))
         if open_items:
             lines.append(f"{open_items} open items in omoikane/_review.md are waiting on the human.")
     return "## Pending\n\n" + "\n".join(lines) if lines else ""

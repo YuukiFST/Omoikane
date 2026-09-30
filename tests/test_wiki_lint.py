@@ -190,6 +190,16 @@ class PendingNotes(unittest.TestCase):
         self.assertNotIn(".gitkeep", out)
         self.assertIn("2 open items in omoikane/_review.md", out)
 
+    def test_proposed_diff_lines_are_not_counted_as_items(self) -> None:
+        # A guard or prompt proposal carries a diff; its removed lines start with "- " too.
+        review = ("# Review queue\n\n- [ ] guard (lint): catch x\n  ```diff\n- old line\n+ new line\n  ```\n"
+                  "- todo: y\n")
+        with tempfile.TemporaryDirectory() as d:
+            omoikane = Path(d) / "omoikane"
+            omoikane.mkdir()
+            (omoikane / "_review.md").write_text(review, encoding="utf-8")
+            self.assertIn("2 open items in omoikane/_review.md", context.pending_notes(omoikane))
+
     def test_empty_when_nothing_is_pending(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             omoikane = Path(d) / "omoikane"
