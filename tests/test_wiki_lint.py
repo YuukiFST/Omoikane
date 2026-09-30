@@ -52,6 +52,30 @@ class CodePaths(unittest.TestCase):
             findings = lint.lint_pages([hub, g], repo)
         self.assertEqual(findings, ["/wiki/g.md: code path `../outside.py` does not exist"])
 
+    def test_code_path_is_judged_the_same_on_every_os(self) -> None:
+        # A page written on Windows passed locally and failed on the Linux CI (#32): the check must not depend on
+        # which OS resolves the path.
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            (repo / "src").mkdir()
+            (repo / "src" / "keep.py").write_text("", encoding="utf-8")
+            absolute = str(repo / "src" / "keep.py")
+            for path, findings, git in (
+                    ("src\\keep.py", [], ["src/keep.py"]),
+                    (".\\src\\", [], ["src"]),
+                    (absolute, [f"/wiki/g.md: code path `{absolute}` is absolute; write it relative to the "
+                                "repository root"], []),
+                    ("C:\\src\\keep.py", ["/wiki/g.md: code path `C:\\src\\keep.py` is absolute; write it relative "
+                                          "to the repository root"], []),
+                    ("/src/keep.py", ["/wiki/g.md: code path `/src/keep.py` is absolute; write it relative to the "
+                                      "repository root"], [])):
+                with self.subTest(path=path):
+                    g = page("g", "gotcha", code=[path])
+                    hub = page("hub", "concept")
+                    hub.links, g.links = {"g"}, {"hub"}
+                    self.assertEqual(lint.lint_pages([hub, g], repo), findings)
+                    self.assertEqual(lint.code_paths([g], repo), git)
+
     def test_new_types_accepted(self) -> None:
         a = page("a", "decision")
         b = page("b", "gotcha")
