@@ -3,7 +3,7 @@
 Runs from the SessionStart hook (see .claude/settings.json); stdout becomes context. Prints nothing when there is
 nothing to say or when Omoikane is maintaining itself (OMOIKANE_NO_CAPTURE set), so those sessions pay no tokens.
 
-Usage: python omoikane/bin/session-context.py [--budget 12000]
+Usage: python omoikane/bin/session-context.py [--budget 12000] [--omoikane DIR]
 """
 from __future__ import annotations
 

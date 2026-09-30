@@ -20,8 +20,8 @@ from pathlib import Path
 
 from wikilib import FRONTMATTER, MAX_RULES, OMOIKANE, PAGE_TYPES, REPO, RULES_END, RULES_START, managed_rules
 
-context = importlib.import_module("session-context")
-index = importlib.import_module("wiki-index")
+session_context = importlib.import_module("session-context")
+wiki_index = importlib.import_module("wiki-index")
 
 CHARS_PER_TOKEN = 3.5
 # AGENTS.md is ~1,700 tokens with an empty rules block; a full block (15 rules of at most 120 characters plus a
@@ -82,28 +82,30 @@ def session_brief(*args: str) -> tuple[str, str]:
 
 def write_worst_case(omoikane: Path) -> None:
     """Fill an omoikane/ tree past every bound of the brief: more index entries per section than the index
-    budget holds, each at its longest (120 characters is the lint limit for a summary), more pending captures
-    than the brief lists, and every kind of `_review.md` line it counts.
+    budget holds, each at its longest (120 characters is the lint limit for a summary), four-digit omitted
+    counts, 100 more pending captures than the brief lists, and every kind of `_review.md` line it counts.
+    The index part stops within one entry (~250 characters) of its budget, since filling stops at the first
+    entry that does not fit.
 
     Example: write_worst_case(Path(tmp) / "omoikane") writes index.md, _review.md and raw/inbox/sessions/*.md.
     """
     entry = "- [[{slug}]] — " + "s" * 120 + " `src/module/a.py, src/module/b.py` `2026-09-30` `prune: low-value`"
     lines = ["# Index", ""]
     for kind in PAGE_TYPES:
-        lines += [f"## {index.HEADINGS[kind]} (100)", ""]
-        lines += [entry.format(slug=f"{kind}-{i:03d}-" + "x" * 60) for i in range(100)] + [""]
+        lines += [f"## {wiki_index.HEADINGS[kind]} (1000)", ""]
+        lines += [entry.format(slug=f"{kind}-{i:04d}-" + "x" * 60) for i in range(1000)] + [""]
     sessions = omoikane / "raw" / "inbox" / "sessions"
     sessions.mkdir(parents=True)
     (omoikane / "index.md").write_text("\n".join(lines), encoding="utf-8")
-    for i in range(context.PENDING_SESSIONS_SHOWN + 1):
-        (sessions / f"2026-09-30-{i:08d}-part2.md").write_text("", encoding="utf-8")
+    for i in range(session_context.PENDING_SESSIONS_SHOWN + 100):
+        (sessions / f"2026-09-30-{i:08d}-part10.md").write_text("", encoding="utf-8")
     (omoikane / "_review.md").write_text(
         "- [ ] guard (test) a: open\n- [x] guard (test) b: approved\n- [x] prompt (distill.md) c: approved\n"
         "- [x] rule d: Do d. (synthesize)\n- [x] rule e: Do e. (synthesize)\n- todo f: open\n", encoding="utf-8")
 
 
 def worst_case_brief(*args: str) -> tuple[str, str]:
-    """The brief session-context.py prints for a tree that fills every bound, whatever this wiki holds (#37).
+    """The brief session-context.py prints for a tree past every bound, whatever this wiki holds (#37).
 
     Example: worst_case_brief() returns ("Omoikane wiki brief follows: ... Omitted by budget: ...", "").
     """
@@ -121,9 +123,13 @@ def main() -> int:
         frontmatters.append(m.group(1) if m else "")
     here, here_error = session_brief()
     worst, worst_error = worst_case_brief()
-    # The worst case bounds this wiki's brief; the larger is measured in case the generated tree misses a bound.
+    # The worst case bounds this wiki's brief. A longer brief here means the generated tree misses a bound of
+    # session-context.py: measure the longer one and say so, so the tree gets fixed instead of the gate drifting.
     brief = max(here, worst, key=len)
     findings = check(agents, frontmatters, brief, brief_error="\n".join(e for e in (here_error, worst_error) if e))
+    if len(here) > len(worst):
+        findings.append("session brief: this wiki's brief is longer than the worst case; write_worst_case misses a "
+                        "bound of session-context.py")
     for name, n in measure(agents, frontmatters, brief).items():
         print(f"{name:<18} {n:>6} / {LIMITS[name]} tokens (estimated)")
     print(f"{'':<18} session brief of this wiki: {tokens(here)} tokens")
