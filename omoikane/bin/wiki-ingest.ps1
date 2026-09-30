@@ -31,11 +31,17 @@ function Log([string] $msg) { "$(Get-Date -Format s) $msg" | Tee-Object -FilePat
 # or it would become part of the return value.
 function Invoke-Operation([string] $op, [string] $arg) {
     if ($Agent -eq "claude") {
+        # dontAsk denies whatever the list does not allow. acceptEdits would also auto-approve rm, mv, cp and sed
+        # anywhere in the repository (#25). Edit(...) rules cover the Write tool; a leading / anchors at the
+        # repository root. Scripts are named exactly: a wildcard would run a file the agent wrote into
+        # omoikane/bin/, or one reached through `..`. File moves are left to this script, after the run.
         # On Windows Claude Code runs shell commands through its PowerShell tool, which Bash(...) rules do not
         # cover; without the PowerShell(...) twins the agent cannot run index and lint and never fixes a finding (#17).
-        $allowed = "Read,Write,Edit,Glob,Grep,Bash(python omoikane/bin/*),Bash(git mv *),PowerShell(python omoikane/bin/*),PowerShell(git mv *)"
+        $scripts = "python omoikane/bin/wiki-index.py", "python omoikane/bin/wiki-lint.py"
+        $allowed = @("Read", "Glob", "Grep", "Edit(/omoikane/wiki/**)", "Edit(/omoikane/log.md)", "Edit(/omoikane/_review.md)") +
+            ($scripts | ForEach-Object { "Bash($_)"; "PowerShell($_)" })
         $prompt = "/$op $arg".TrimEnd()
-        claude -p $prompt --permission-mode acceptEdits --allowedTools $allowed 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
+        claude -p $prompt --permission-mode dontAsk --allowedTools ($allowed -join ",") 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
     } else {
         # `opencode run --command <name> <args>` runs a .opencode/command/<name>.md command (opencode run --help).
         $rest = @($arg | Where-Object { $_ })  # /synthesize takes no argument; do not pass an empty one
@@ -67,7 +73,7 @@ foreach ($f in $files) {
     $dest = Join-Path $omoikane $(if ($isSession) { "raw/sources/sessions" } else { "raw/sources" })
     Log "$op start $rel"
     if (-not (Invoke-Operation $op $rel)) { Log "$op FAILED $rel"; continue }
-    # Agent skipped the move step of the prompt: move the source so the next run does not process it again.
+    # The headless agent may not move files (#25): move the source so the next run does not process it again.
     if (Test-Path $f.FullName) { New-Item -ItemType Directory -Force $dest | Out-Null; Move-Item $f.FullName $dest }
     Complete-Operation $op $f.BaseName
     Log "$op done $rel"
