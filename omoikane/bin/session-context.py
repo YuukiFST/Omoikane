@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 
 from wikilib import OMOIKANE
 
 NO_CAPTURE_ENV = "OMOIKANE_NO_CAPTURE"
+# A fence line: up to three spaces, then three or more backticks or tildes (group 1), then the info string.
+FENCE = re.compile(r" {0,3}(`{3,}|~{3,})(.*)")
 # Undistilled captures listed by path; older ones are only counted. A stalled scheduler must not flood the brief.
 PENDING_SESSIONS_SHOWN = 5
 HEADER = (
@@ -61,6 +64,34 @@ def compact_index(text: str, budget: int) -> str:
     return "\n\n".join(kept)
 
 
+def review_items(review: str) -> tuple[int, int]:
+    """Count the top-level bullets of _review.md and, among them, the ticked `- [x]` proposals.
+
+    Fenced blocks are skipped: a proposal carries its diff in one, and a removed diff line starts with "- ".
+    Fences follow CommonMark: at most three spaces of indent, closed by the same character repeated at least
+    as often. Proposals open with four backticks so a diff context line such as " ```" cannot close them.
+    Example: review_items("- [x] guard: x
+````diff
+- old
+ ```
+````
+- todo y: y") returns (2, 1).
+    """
+    items = approved = 0
+    fence = ""
+    for line in review.splitlines():
+        m = FENCE.match(line)
+        if fence:
+            if m and m.group(1).startswith(fence) and not m.group(2).strip():
+                fence = ""
+        elif m:
+            fence = m.group(1)
+        elif line.startswith("- "):
+            items += 1
+            approved += line.startswith(("- [x]", "- [X]"))
+    return items, approved
+
+
 def pending_notes(omoikane: Path) -> str:
     """Name what is known but not in the wiki yet: captured sessions waiting for /distill, open review items.
 
@@ -82,9 +113,12 @@ def pending_notes(omoikane: Path) -> str:
         lines += [f"- `{p.relative_to(omoikane.parent).as_posix()}`" for p in sessions[-PENDING_SESSIONS_SHOWN:]]
     review = omoikane / "_review.md"
     if review.is_file():
-        open_items = sum(1 for line in review.read_text(encoding="utf-8").splitlines() if line.startswith("- "))
-        if open_items:
-            lines.append(f"{open_items} open items in omoikane/_review.md are waiting on the human.")
+        open_items, approved = review_items(review.read_text(encoding="utf-8"))
+        if open_items - approved:
+            lines.append(f"{open_items - approved} open items in omoikane/_review.md are waiting on the human.")
+        if approved:
+            lines.append(f"{approved} approved proposal{'s' if approved > 1 else ''} in omoikane/_review.md "
+                         "ready to apply: apply the diff, run the tests, delete the bullet.")
     return "## Pending\n\n" + "\n".join(lines) if lines else ""
 
 
