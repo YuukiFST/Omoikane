@@ -15,6 +15,8 @@ jobs:
           python-version: "3.11"
       - name: Tests
         run: python -m unittest discover -s tests
+      - name: Context budget
+        run: python omoikane/bin/context-budget.py
       - name: Wiki structure
         run: python omoikane/bin/wiki-lint.py
       - name: Index is current

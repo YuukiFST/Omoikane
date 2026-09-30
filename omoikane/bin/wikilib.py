@@ -23,6 +23,11 @@ CODE_KEY = "code"
 # Required on gotcha pages: the check that catches the mistake today, `none` when only the page does.
 GUARD_KEY = "guard"
 GUARDS = ("lint", "test", "hook", "none")
+# The block of AGENTS.md that wiki-rules.py manages. Every session loads AGENTS.md, so the cap keeps promoted
+# rules from crowding out the hand-written ones: adherence drops for all rules as the file grows.
+RULES_START = "<!-- omoikane:rules:start -->"
+RULES_END = "<!-- omoikane:rules:end -->"
+MAX_RULES = 15
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}\Z")
 UNDATED = "unknown"
 WIKILINK = re.compile(r"\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
@@ -63,6 +68,18 @@ def parse_frontmatter(text: str) -> tuple[dict[str, object], str] | None:
         else:
             meta[key.strip()] = raw
     return meta, text[m.end():]
+
+
+def managed_rules(agents: str) -> list[str] | None:
+    """The bullet lines between RULES_START and RULES_END, or None when either marker is missing.
+
+    Example: managed_rules("x\\n<!-- omoikane:rules:start -->\\n- Do y.\\n<!-- omoikane:rules:end -->\\n")
+    returns ["- Do y."].
+    """
+    start, end = agents.find(RULES_START), agents.find(RULES_END)
+    if start < 0 or end < start:
+        return None
+    return [line for line in agents[start + len(RULES_START):end].splitlines() if line.startswith("- ")]
 
 
 def load_pages(wiki: Path = WIKI) -> list[Page]:
