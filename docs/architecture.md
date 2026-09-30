@@ -32,6 +32,7 @@ After every `-SynthesizeEvery` distills (5 by default; `omoikane/bin/synthesize-
 `/distill` routes each lesson it keeps to one destination: a guard (a `wiki-lint.py` rule, a test, a hook), a fix to an Omoikane prompt, a wiki page, or a todo.
 Why not a page for everything: a page prevents a mistake only when a later agent reads it, and a guard fails every time the mistake is made. A lesson about how distill or ingest runs is a defect in the prompt, not knowledge about the system being built.
 Guards and prompt fixes reach `omoikane/_review.md` as diffs and wait for the human: a scheduled run that rewrites its own prompt or checks changes every later run with nobody having read the change.
+Deleting a bullet is the whole rejection. Before any operation, `omoikane/bin/review-removals.py` appends `- removed (<kind>) <slug>` to `log.md` for every routed item whose bullet is gone, and `/distill` and `/synthesize` do not file a removed slug again. Why not tell applied from rejected: either way the human decided, and an applied guard already stops the lesson. Why a script and not the next distill noticing: the deletion is only visible as an absence, which a prompt reading one session cannot see.
 
 ## Session capture (build mode)
 
