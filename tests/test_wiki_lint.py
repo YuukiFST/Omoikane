@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "omoikane" / "bin"))
@@ -20,6 +21,8 @@ context = importlib.import_module("session-context")
 def page(slug: str, kind: str, **meta: object) -> Page:
     base: dict[str, object] = {"title": slug, "type": kind, "summary": "s", "tags": [], "created": "2026-09-15",
                                "updated": "2026-09-15", "sources": ["wiki/sources/x.md"]}
+    if kind == "gotcha":
+        base["guard"] = "test"
     base.update(meta)
     return Page(path=Path(f"/wiki/{slug}.md"), slug=slug, meta=base)
 
@@ -51,6 +54,17 @@ class CodePaths(unittest.TestCase):
         b = page("b", "gotcha")
         a.links, b.links = {"b"}, {"a"}
         self.assertEqual(lint.lint_pages([a, b], Path(".")), [])
+
+    def test_gotcha_guard_must_be_one_of_the_known_checks(self) -> None:
+        for meta, finding in (({}, "/wiki/g.md: gotcha missing `guard` (lint, test, hook or none)"),
+                              ({"guard": "maybe"}, "/wiki/g.md: `guard` is `maybe`, expected lint, test, hook or none")):
+            with self.subTest(meta=meta):
+                g = page("g", "gotcha")
+                del g.meta["guard"]
+                g.meta.update(meta)
+                hub = page("hub", "concept")
+                hub.links, g.links = {"g"}, {"hub"}
+                self.assertEqual(lint.lint_pages([hub, g], Path(".")), [finding])
 
     def test_same_slug_in_two_folders_is_a_finding(self) -> None:
         a = page("x", "decision")
@@ -92,6 +106,24 @@ class StalePages(unittest.TestCase):
             (Path(d) / "outside.py").write_text("", encoding="utf-8")
             p = page("p", "concept", code=["./src/", "../outside.py", "gone.py"])
             self.assertEqual(lint.code_paths([p], repo), ["src"])
+
+
+class UnguardedGotchas(unittest.TestCase):
+    TODAY = date(2026, 10, 1)
+
+    def test_old_gotcha_without_guard_is_a_warning(self) -> None:
+        g = page("g", "gotcha", guard="none", created="2026-09-15")
+        self.assertEqual(lint.unguarded_gotchas([g], self.TODAY), [
+            f"/wiki/g.md: gotcha created 2026-09-15 still has `guard: none` after {lint.GUARD_GRACE_DAYS} days; "
+            "a lint rule, test or hook would catch the mistake every time"])
+
+    def test_no_warning_inside_the_grace_period_or_with_a_guard(self) -> None:
+        recent = self.TODAY - timedelta(days=lint.GUARD_GRACE_DAYS)
+        pages = [page("new", "gotcha", guard="none", created=recent.isoformat()),
+                 page("guarded", "gotcha", guard="lint", created="2026-01-01"),
+                 page("decision", "decision", created="2026-01-01"),
+                 page("bad-date", "gotcha", guard="none", created="soon")]
+        self.assertEqual(lint.unguarded_gotchas(pages, self.TODAY), [])
 
 
 def commit(repo: Path, day: str, *args: str) -> None:

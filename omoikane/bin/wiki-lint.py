@@ -9,9 +9,16 @@ from __future__ import annotations
 import posixpath
 import subprocess
 import sys
+from datetime import date, timedelta
 from pathlib import Path
 
-from wikilib import CODE_KEY, DATE, PAGE_TYPES, REPO, REQUIRED_KEYS, SOURCE_KEYS, UNDATED, Page, load_pages
+from wikilib import (CODE_KEY, DATE, GUARD_KEY, GUARDS, PAGE_TYPES, REPO, REQUIRED_KEYS, SOURCE_KEYS, UNDATED, Page,
+                     load_pages)
+
+GUARD_CHOICES = f"{', '.join(GUARDS[:-1])} or {GUARDS[-1]}"
+# Days a gotcha may rely on being read before the lint asks for a check. Long enough for the human to act on
+# the guard distill proposed, short enough that an unguarded gotcha does not become the norm.
+GUARD_GRACE_DAYS = 14
 
 
 def lint_pages(pages: list[Page], repo: Path = REPO) -> list[str]:
@@ -39,6 +46,12 @@ def lint_pages(pages: list[Page], repo: Path = REPO) -> list[str]:
                 findings.append(f"{p.rel}: frontmatter missing `{key}`")
         if p.meta.get("type") not in PAGE_TYPES:
             findings.append(f"{p.rel}: type must be one of {', '.join(PAGE_TYPES)}")
+        if p.meta.get("type") == "gotcha":
+            guard = p.meta.get(GUARD_KEY)
+            if guard is None:
+                findings.append(f"{p.rel}: gotcha missing `{GUARD_KEY}` ({GUARD_CHOICES})")
+            elif guard not in GUARDS:
+                findings.append(f"{p.rel}: `{GUARD_KEY}` is `{guard}`, expected {GUARD_CHOICES}")
         if p.meta.get("type") == "source":
             for key in SOURCE_KEYS:
                 if key not in p.meta:
@@ -161,10 +174,29 @@ def stale_pages(pages: list[Page], changed: dict[str, str]) -> list[str]:
     return warnings
 
 
+def unguarded_gotchas(pages: list[Page], today: date) -> list[str]:
+    """Warn about gotchas that still have `guard: none` more than GUARD_GRACE_DAYS after they were created.
+
+    A warning, not a finding: some mistakes no check can catch, and /lint judges which.
+    Example: unguarded_gotchas([gotcha created 2026-09-01, guard none], date(2026, 10, 1))
+    returns ["...: gotcha created 2026-09-01 still has `guard: none` after 14 days; ..."].
+    """
+    cutoff = (today - timedelta(days=GUARD_GRACE_DAYS)).isoformat()
+    warnings: list[str] = []
+    for p in pages:
+        created = str(p.meta.get("created", ""))
+        if p.meta.get("type") != "gotcha" or p.meta.get(GUARD_KEY) != "none" or not DATE.match(created):
+            continue
+        if created < cutoff:
+            warnings.append(f"{p.rel}: gotcha created {created} still has `guard: none` after {GUARD_GRACE_DAYS} "
+                            "days; a lint rule, test or hook would catch the mistake every time")
+    return warnings
+
+
 def main() -> int:
     pages = load_pages()
     findings = lint_pages(pages)
-    warnings = stale_pages(pages, last_changed(REPO, code_paths(pages)))
+    warnings = stale_pages(pages, last_changed(REPO, code_paths(pages))) + unguarded_gotchas(pages, date.today())
     for f in findings:
         print(f)
     for w in warnings:

@@ -40,6 +40,7 @@ updated: YYYY-MM-DD
 dated: YYYY-MM-DD                   # source pages only: the date the source itself bears, or unknown
 sources: [wiki/sources/<slug>.md]   # pages this one draws from; empty list on source pages
 code: [src/module.py]               # optional: repository paths the page is about; lint fails when one is gone
+guard: lint | test | hook | none    # gotcha pages only: the check that catches the mistake today, none when only the page does
 ---
 ```
 
