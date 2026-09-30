@@ -29,6 +29,8 @@ Follows Karpathy's LLM Wiki pattern with one addition: coding sessions are a sou
 | Practices across sessions (also every 5 distills, headless) | `/synthesize [n sessions]` | same |
 | Process everything in inbox (headless) | `omoikane/bin/wiki-ingest.ps1` | `omoikane/bin/wiki-ingest.ps1 -Agent opencode` |
 | Structural checks (no LLM) | `python omoikane/bin/wiki-lint.py` | same |
+| Promote rules ticked in `_review.md` into `AGENTS.md` | `python omoikane/bin/wiki-rules.py` | same |
+| Measure what every session loads | `python omoikane/bin/context-budget.py` | same |
 | Rebuild index | `python omoikane/bin/wiki-index.py` | same |
 | Tests | `python -m unittest discover -s tests` | same |
 

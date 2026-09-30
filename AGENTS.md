@@ -74,9 +74,16 @@ python omoikane/bin/wiki-lint.py
 
 - The index is injected at session start, with any captured session not yet distilled; read the last one to pick up where the previous session stopped. Before editing an area, open the decision and gotcha pages whose `code:` lists it.
 - Do not write under `omoikane/wiki/` during coding work. The Stop hook captures the session into `omoikane/raw/inbox/sessions/`; the scheduled run distills it. Pages written mid-session duplicate that work and skip the contract checks.
-- A proposal ticked `[x]` in `omoikane/_review.md` is approved; the brief counts them. Apply its diff when the human asks, run the tests, delete the bullet. Never tick one yourself.
+- A proposal ticked `[x]` in `omoikane/_review.md` is approved; the brief counts them. Apply its diff when the human asks, run the tests, delete the bullet. A ticked `rule` has no diff: only `python omoikane/bin/wiki-rules.py`, run by the human, writes it into `AGENTS.md`. Never tick one yourself.
 - Something a later agent must know before the next distill runs: write it as a short Markdown file into `omoikane/raw/inbox/`; it is ingested like any source.
 - A `wiki-lint.py` finding about a `code:` path you moved or deleted is yours to fix: update the page's `code:` list, or say in its body that the code is gone.
+
+## Rules
+
+Practices the human approved for every session. `python omoikane/bin/wiki-rules.py` promotes the rule proposals ticked in `omoikane/_review.md` into this block, at most 15; the human deletes a line to retire it. `python omoikane/bin/context-budget.py` fails CI when this file, the skill descriptions or the session brief outgrow their budget.
+
+<!-- omoikane:rules:start -->
+<!-- omoikane:rules:end -->
 
 ## Domain
 
