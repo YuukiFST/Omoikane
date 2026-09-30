@@ -12,8 +12,8 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path
 
-from wikilib import (CODE_KEY, DATE, GUARD_KEY, GUARDS, PAGE_TYPES, REPO, REQUIRED_KEYS, SOURCE_KEYS, UNDATED, Page,
-                     load_pages)
+from wikilib import (CODE_KEY, DATE, GUARD_KEY, GUARDS, PAGE_TYPES, REPO, REQUIRED_KEYS, SOURCE_KEYS, UNDATED, WIKI,
+                     Page, load_pages)
 
 GUARD_CHOICES = f"{', '.join(GUARDS[:-1])} or {GUARDS[-1]}"
 # Days a gotcha may rely on being read before the lint asks for a check. Long enough for the human to act on
@@ -52,6 +52,8 @@ def lint_pages(pages: list[Page], repo: Path = REPO) -> list[str]:
                 findings.append(f"{p.rel}: gotcha missing `{GUARD_KEY}` ({GUARD_CHOICES})")
             elif guard not in GUARDS:
                 findings.append(f"{p.rel}: `{GUARD_KEY}` is `{guard}`, expected {GUARD_CHOICES}")
+        elif GUARD_KEY in p.meta:
+            findings.append(f"{p.rel}: `{GUARD_KEY}` belongs on gotcha pages only")
         if p.meta.get("type") == "source":
             for key in SOURCE_KEYS:
                 if key not in p.meta:
@@ -193,10 +195,10 @@ def unguarded_gotchas(pages: list[Page], today: date) -> list[str]:
     return warnings
 
 
-def main() -> int:
-    pages = load_pages()
-    findings = lint_pages(pages)
-    warnings = stale_pages(pages, last_changed(REPO, code_paths(pages))) + unguarded_gotchas(pages, date.today())
+def main(wiki: Path = WIKI, repo: Path = REPO) -> int:
+    pages = load_pages(wiki)
+    findings = lint_pages(pages, repo)
+    warnings = stale_pages(pages, last_changed(repo, code_paths(pages, repo))) + unguarded_gotchas(pages, date.today())
     for f in findings:
         print(f)
     for w in warnings:

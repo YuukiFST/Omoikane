@@ -1,7 +1,9 @@
 """Headless tests for omoikane/bin/wiki-lint.py and session-context.py. Run: python -m unittest discover -s tests"""
 from __future__ import annotations
 
+import contextlib
 import importlib
+import io
 import os
 import subprocess
 import sys
@@ -56,11 +58,13 @@ class CodePaths(unittest.TestCase):
         self.assertEqual(lint.lint_pages([a, b], Path(".")), [])
 
     def test_gotcha_guard_must_be_one_of_the_known_checks(self) -> None:
-        for meta, finding in (({}, "/wiki/g.md: gotcha missing `guard` (lint, test, hook or none)"),
-                              ({"guard": "maybe"}, "/wiki/g.md: `guard` is `maybe`, expected lint, test, hook or none")):
-            with self.subTest(meta=meta):
-                g = page("g", "gotcha")
-                del g.meta["guard"]
+        for kind, meta, finding in (
+                ("gotcha", {}, "/wiki/g.md: gotcha missing `guard` (lint, test, hook or none)"),
+                ("gotcha", {"guard": "maybe"}, "/wiki/g.md: `guard` is `maybe`, expected lint, test, hook or none"),
+                ("decision", {"guard": "lint"}, "/wiki/g.md: `guard` belongs on gotcha pages only")):
+            with self.subTest(kind=kind, meta=meta):
+                g = page("g", kind)
+                g.meta.pop("guard", None)
                 g.meta.update(meta)
                 hub = page("hub", "concept")
                 hub.links, g.links = {"g"}, {"hub"}
@@ -112,10 +116,26 @@ class UnguardedGotchas(unittest.TestCase):
     TODAY = date(2026, 10, 1)
 
     def test_old_gotcha_without_guard_is_a_warning(self) -> None:
-        g = page("g", "gotcha", guard="none", created="2026-09-15")
+        created = (self.TODAY - timedelta(days=lint.GUARD_GRACE_DAYS + 1)).isoformat()
+        g = page("g", "gotcha", guard="none", created=created)
         self.assertEqual(lint.unguarded_gotchas([g], self.TODAY), [
-            f"/wiki/g.md: gotcha created 2026-09-15 still has `guard: none` after {lint.GUARD_GRACE_DAYS} days; "
+            f"/wiki/g.md: gotcha created {created} still has `guard: none` after {lint.GUARD_GRACE_DAYS} days; "
             "a lint rule, test or hook would catch the mistake every time"])
+
+    def test_lint_run_prints_the_warning_and_exits_zero(self) -> None:
+        old = (date.today() - timedelta(days=lint.GUARD_GRACE_DAYS + 1)).isoformat()
+        with tempfile.TemporaryDirectory() as d:
+            wiki = Path(d) / "wiki"
+            wiki.mkdir()
+            head = "---\ntitle: {0}\ntype: {1}\nsummary: s\ntags: []\ncreated: {2}\nupdated: {2}\nsources: []\n"
+            (wiki / "g.md").write_text(head.format("g", "gotcha", old) + "guard: none\n---\n[[hub]]\n",
+                                       encoding="utf-8")
+            (wiki / "hub.md").write_text(head.format("hub", "concept", old) + "---\n[[g]]\n", encoding="utf-8")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                code = lint.main(wiki, Path(d))
+        self.assertEqual(code, 0)
+        self.assertIn("still has `guard: none`", out.getvalue())
 
     def test_no_warning_inside_the_grace_period_or_with_a_guard(self) -> None:
         recent = self.TODAY - timedelta(days=lint.GUARD_GRACE_DAYS)
