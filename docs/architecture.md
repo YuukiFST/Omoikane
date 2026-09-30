@@ -38,7 +38,7 @@ Guards and prompt fixes reach `omoikane/_review.md` as diffs and wait for the hu
 ```
 coding session ends a turn  --stop hook of the harness-->  omoikane/bin/session-capture.py --harness <claude|pi|opencode>
    reads the harness transcript, no LLM
-   skips: OMOIKANE_NO_CAPTURE set, first prompt is /ingest /ask /lint /distill, no file edited, subagent session
+   skips: OMOIKANE_NO_CAPTURE set, first prompt runs an operation of omoikane/prompts/, no file edited, subagent session
    writes omoikane/raw/inbox/sessions/<date>-<id8>.md   (rewritten on every turn: idempotent)
 
 new session starts  --start hook of the harness-->  omoikane/bin/session-context.py
@@ -54,13 +54,13 @@ Why the quiet period: Stop fires per turn, so a session file may still be growin
 
 Why `OMOIKANE_NO_CAPTURE`: the headless runs started by `wiki-ingest.ps1` are sessions too. Without the guard, every distill would capture itself and the loop never ends.
 
-One reader per harness in `session-capture.py` (`--harness claude|pi|opencode`) produces the same turns; the Markdown, the skip rules and the continuation logic are shared. Claude Code's transcript is internal and undocumented, so its reader keeps only the fields seen in real sessions. Pi's session file is documented ([session-format.md](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/session-format.md): JSONL tree, the reader follows the active branch from the last entry to the root). OpenCode keeps sessions in SQLite, so the reader takes the `opencode export` document (`{info, messages: [{info, parts}]}`), which the plugin rebuilds from the SDK (`client.session.get`, `client.session.messages`). Every reader ignores what it does not recognise; a format change thins the capture instead of breaking the hook. `tests/test_session_capture.py` pins the fields each reader depends on, with a fixture per harness under `tests/fixtures/`.
+One reader per harness in `session-capture.py` (`--harness claude|pi|opencode`) produces the same turns; the Markdown, the skip rules and the continuation logic are shared. Claude Code's transcript is internal and undocumented, so its reader keeps only the fields seen in real sessions. Pi's session file is documented ([session-format.md](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/session-format.md): JSONL tree, the reader follows the active branch from the last entry to the root). OpenCode keeps sessions in SQLite, so the reader takes the `opencode export` document (`{info, messages: [{info, parts}]}`), which the plugin rebuilds from the SDK (`client.session.get`, `client.session.messages`). Every reader ignores what it does not recognise; a format change thins the capture instead of breaking the hook. Whether the first prompt runs an operation is decided once, by `Session.first_command`, not by each reader: the Claude reader once latched a command from any turn and dropped a coding session that ran `/ask` later (#34). Harness commands nobody answered, such as a `/clear` at the head of a Claude transcript, do not count as the first prompt. `tests/test_session_capture.py` pins the fields each reader depends on, with a fixture per harness under `tests/fixtures/`.
 
 Where each harness registers the hooks, and why that shape:
 
 - Claude Code: `.claude/settings.json`, `SessionStart` / `Stop` / `SessionEnd`, with the transcript path in the hook payload.
 - Pi: `.pi/extensions/omoikane.ts`. `before_agent_start` appends the index to the system prompt (computed once per session; Pi has no persisted session-start injection). `agent_end` fires once per prompt and `session_shutdown` on exit, both with the session file path from `ctx.sessionManager.getSessionFile()`.
-- OpenCode: `.opencode/plugins/omoikane.ts`. `experimental.chat.system.transform` adds the index to the system prompt (once per session). `session.idle` fires once per prompt; event handlers are not awaited by OpenCode, so `dispose` also captures every session not yet captured, which is what makes `opencode run` capture before it exits. A command is stored as its expanded template, so the reader recognises `/ingest` and friends from the first prompt text. Sessions with a `parentID` are subagents and are skipped.
+- OpenCode: `.opencode/plugins/omoikane.ts`. `experimental.chat.system.transform` adds the index to the system prompt (once per session). `session.idle` fires once per prompt; event handlers are not awaited by OpenCode, so `dispose` also captures every session not yet captured, which is what makes `opencode run` capture before it exits. A command is stored as its expanded template, which `Session.first_command` recognises. Sessions with a `parentID` are subagents and are skipped.
 
 File names end in the last eight characters of the session id: Pi ids are UUIDv7 and OpenCode ids are time-ordered, so the head is shared by sessions started close together.
 
