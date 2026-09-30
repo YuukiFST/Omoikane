@@ -32,3 +32,15 @@ Updated: [[session-capture]].
 - routed (todo) omoikane-knowledge-for-sb360-kit: make Omoikane knowledge reusable as company knowledge in sb360-kit (turn 4)
 - skipped (self-resolved) remove-item-protected-path: `Remove-Item` on `omoikane/wiki/*` blocked as a protected path, eval clones cleared with `-LiteralPath` instead (turn 2)
 - skipped (one-off) eval-clone-planted-regression: `/lint` in an eval clone found a regression the agent introduced in the clone copy (turn 2)
+
+## [2026-09-30] synthesize | 2 sessions
+
+Created: [[review-each-pr-with-a-subagent-before-merging]].
+Updated: [[session-2026-09-15-e04462b2]], [[session-2026-09-30-c14af01e]] (link to the practice).
+
+- routed (rule) review-each-pr-with-a-subagent-before-merging: subagent review posted on the PR, real findings fixed, merge commit (sessions e04462b2, c14af01e; turns 3, 3)
+- dropped (one-session) headless-eval-in-temp-clone: only c14af01e ran prompt evals in a `$TEMP` clone; e04462b2 tested `opencode run` live in the repo itself
+- dropped (known) tests-first: only c14af01e wrote failing tests first, and the user's global CLAUDE.md already requires a failure list before code
+- dropped (known) verify-api-against-package-docs: e04462b2 read `npm pack` docs, c14af01e checked `claude` flags; the user's global CLAUDE.md already says never guess APIs or flags
+- dropped (known) confirm-git-identity-before-commit: both sessions ran `git config user.name; git config user.email`, required by the user's global git rules
+- dropped (coincidence) heredoc-failures: e04462b2 hit an unclosed quote in a bash heredoc, c14af01e corrupted `\n` in Python heredoc edits; different causes, the second is [[python-heredoc-edits-corrupt-backslash-n]]

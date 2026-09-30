@@ -44,3 +44,7 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
 - todo switch-on-autonomous-loop: distill the captured sessions and turn the scheduled loop on, first front of the handoff prompt (session c14af01e, turn 4)
 - todo phase-2-pendencies: resolve the Phase 2 pendencies listed in the turn 4 handoff prompt; the capture clipped the list, so the human's copy of that prompt is the only full record (session c14af01e, turn 4)
 - todo omoikane-knowledge-for-sb360-kit: design how Omoikane knowledge becomes company knowledge reusable across sb360-kit systems, such as database rules (session c14af01e, turn 4)
+
+## [2026-09-30] synthesize
+
+- [ ] rule review-each-pr-with-a-subagent-before-merging: Before merging a PR, have a subagent review it, post the findings on the PR, fix the real ones, then merge with --merge (synthesize)
