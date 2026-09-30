@@ -127,6 +127,20 @@ class ContextBudget(unittest.TestCase):
         self.assertEqual(budget.check(agents_md(), [], "", self.LIMITS, brief_error="Traceback: boom"),
                          ["session brief: session-context.py failed: Traceback: boom"])
 
+    def test_worst_case_brief_reaches_the_cap_without_the_repository_wiki(self) -> None:
+        # In CI the wiki was empty, so the brief limit never bit (#37). The generated tree fills every bound.
+        brief, error = budget.worst_case_brief()
+        self.assertEqual(error, "")
+        self.assertIn("Omitted by budget: Decisions", brief)
+        self.assertIn("- ... 1 older", brief)
+        for line in ("open items", "approved proposals", "approved rules"):
+            self.assertIn(line, brief)
+        self.assertEqual([f for f in budget.check(agents_md(), [], brief) if f.startswith("session brief")], [])
+
+    def test_raising_the_brief_cap_fails_the_gate(self) -> None:
+        brief, _ = budget.worst_case_brief("--budget", "20000")
+        self.assertRegex("\n".join(budget.check(agents_md(), [], brief)), r"session brief: \d+ tokens, limit 4000")
+
     def test_block_over_the_cap_or_missing_is_a_finding(self) -> None:
         over = agents_md(*[f"- r{i}" for i in range(MAX_RULES + 1)])
         self.assertIn(f"AGENTS.md: managed block holds {MAX_RULES + 1} rules, cap {MAX_RULES}",
