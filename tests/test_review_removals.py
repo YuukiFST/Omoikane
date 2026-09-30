@@ -1,7 +1,9 @@
 """Headless tests for omoikane/bin/review-removals.py. Run: python -m unittest discover -s tests"""
 from __future__ import annotations
 
+import contextlib
 import importlib
+import io
 import sys
 import tempfile
 import unittest
@@ -70,9 +72,10 @@ class Removed(unittest.TestCase):
             root = Path(d)
             (root / "log.md").write_text(LOG, encoding="utf-8")
             (root / "_review.md").write_text("# Review queue\n", encoding="utf-8")
-            self.assertEqual(removals.main(["--omoikane", str(root)]), 0)
-            once = (root / "log.md").read_text(encoding="utf-8")
-            removals.main(["--omoikane", str(root)])
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(removals.main(["--omoikane", str(root)]), 0)
+                once = (root / "log.md").read_text(encoding="utf-8")
+                removals.main(["--omoikane", str(root)])
             self.assertEqual((root / "log.md").read_text(encoding="utf-8"), once)
         self.assertEqual(once.count("- removed ("), 3)
 

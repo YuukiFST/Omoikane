@@ -72,6 +72,10 @@ function Complete-Operation([string] $op, [string] $name) {
     }
 }
 
+# Before any operation reads the log: proposals the human deleted from _review.md are decided, and /distill
+# must see that before it files the same lesson again (#41).
+python omoikane/bin/review-removals.py | Tee-Object -FilePath $log -Append
+
 $inbox = Join-Path $omoikane "raw/inbox"
 $files = Get-ChildItem $inbox -File -Recurse | Where-Object { $_.Name -ne ".gitkeep" }
 if (-not $files) { Log "nothing in inbox" }

@@ -34,6 +34,8 @@ MAX_RULES = 15
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}\Z")
 UNDATED = "unknown"
 WIKILINK = re.compile(r"\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
+# A fence line: up to three spaces, then three or more backticks or tildes (group 1), then the info string.
+FENCE = re.compile(r" {0,3}(`{3,}|~{3,})(.*)")
 FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
 
 
@@ -83,6 +85,29 @@ def managed_rules(agents: str) -> list[str] | None:
     if start < 0 or end < start:
         return None
     return [line for line in agents[start + len(RULES_START):end].splitlines() if line.startswith("- ")]
+
+
+def review_bullets(review: str) -> list[str]:
+    """The top-level `- ` bullets of _review.md, outside fenced blocks.
+
+    A proposal carries its diff in a fence, and a removed diff line starts with "- ". Fences follow CommonMark:
+    at most three spaces of indent, closed by the same character repeated at least as often. Proposals open
+    with four backticks so a diff context line such as " ```" cannot close them.
+    Example: review_bullets("- [x] guard: x\\n````diff\\n- old\\n ```\\n````\\n- todo y: y")
+    returns ["- [x] guard: x", "- todo y: y"].
+    """
+    bullets: list[str] = []
+    fence = ""
+    for line in review.splitlines():
+        m = FENCE.match(line)
+        if fence:
+            if m and m.group(1).startswith(fence) and not m.group(2).strip():
+                fence = ""
+        elif m:
+            fence = m.group(1)
+        elif line.startswith("- "):
+            bullets.append(line)
+    return bullets
 
 
 def load_pages(wiki: Path = WIKI) -> list[Page]:

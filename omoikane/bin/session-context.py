@@ -9,15 +9,12 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import sys
 from pathlib import Path
 
-from wikilib import OMOIKANE
+from wikilib import OMOIKANE, review_bullets
 
 NO_CAPTURE_ENV = "OMOIKANE_NO_CAPTURE"
-# A fence line: up to three spaces, then three or more backticks or tildes (group 1), then the info string.
-FENCE = re.compile(r" {0,3}(`{3,}|~{3,})(.*)")
 # Undistilled captures listed by path; older ones are only counted. A stalled scheduler must not flood the brief.
 PENDING_SESSIONS_SHOWN = 5
 HEADER = (
@@ -65,31 +62,17 @@ def compact_index(text: str, budget: int) -> str:
 
 
 def review_items(review: str) -> tuple[int, int]:
-    """Count the top-level bullets of _review.md and, among them, the ticked `- [x]` proposals and rules.
+    """Count the top-level bullets of _review.md (review_bullets: diff lines in fences are not bullets) and,
+    among them, the ticked `- [x]` proposals and rules.
 
-    Fenced blocks are skipped: a proposal carries its diff in one, and a removed diff line starts with "- ".
-    Fences follow CommonMark: at most three spaces of indent, closed by the same character repeated at least
-    as often. Proposals open with four backticks so a diff context line such as " ```" cannot close them.
     A ticked rule is counted apart: it has no diff, and only wiki-rules.py writes the AGENTS.md block.
     Example: review_items("- [x] guard: x\\n````diff\\n- old\\n ```\\n````\\n- [x] rule r: R. (s)\\n- todo y: y")
     returns (3, 1, 1).
     """
-    items = approved = rules = 0
-    fence = ""
-    for line in review.splitlines():
-        m = FENCE.match(line)
-        if fence:
-            if m and m.group(1).startswith(fence) and not m.group(2).strip():
-                fence = ""
-        elif m:
-            fence = m.group(1)
-        elif line.startswith("- "):
-            items += 1
-            if line.startswith(("- [x] rule ", "- [X] rule ")):
-                rules += 1
-            elif line.startswith(("- [x]", "- [X]")):
-                approved += 1
-    return items, approved, rules
+    bullets = review_bullets(review)
+    rules = sum(line.startswith(("- [x] rule ", "- [X] rule ")) for line in bullets)
+    approved = sum(line.startswith(("- [x]", "- [X]")) for line in bullets) - rules
+    return len(bullets), approved, rules
 
 
 def pending_notes(omoikane: Path) -> str:
