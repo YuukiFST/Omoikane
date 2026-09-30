@@ -65,19 +65,16 @@ def compact_index(text: str, budget: int) -> str:
 
 
 def review_items(review: str) -> tuple[int, int]:
-    """Count the top-level bullets of _review.md and, among them, the ticked `- [x]` proposals.
+    """Count the top-level bullets of _review.md and, among them, the ticked `- [x]` proposals and rules.
 
     Fenced blocks are skipped: a proposal carries its diff in one, and a removed diff line starts with "- ".
     Fences follow CommonMark: at most three spaces of indent, closed by the same character repeated at least
     as often. Proposals open with four backticks so a diff context line such as " ```" cannot close them.
-    Example: review_items("- [x] guard: x
-````diff
-- old
- ```
-````
-- todo y: y") returns (2, 1).
+    A ticked rule is counted apart: it has no diff, and only wiki-rules.py writes the AGENTS.md block.
+    Example: review_items("- [x] guard: x\\n````diff\\n- old\\n ```\\n````\\n- [x] rule r: R. (s)\\n- todo y: y")
+    returns (3, 1, 1).
     """
-    items = approved = 0
+    items = approved = rules = 0
     fence = ""
     for line in review.splitlines():
         m = FENCE.match(line)
@@ -88,8 +85,11 @@ def review_items(review: str) -> tuple[int, int]:
             fence = m.group(1)
         elif line.startswith("- "):
             items += 1
-            approved += line.startswith(("- [x]", "- [X]"))
-    return items, approved
+            if line.startswith(("- [x] rule ", "- [X] rule ")):
+                rules += 1
+            elif line.startswith(("- [x]", "- [X]")):
+                approved += 1
+    return items, approved, rules
 
 
 def pending_notes(omoikane: Path) -> str:
@@ -113,12 +113,16 @@ def pending_notes(omoikane: Path) -> str:
         lines += [f"- `{p.relative_to(omoikane.parent).as_posix()}`" for p in sessions[-PENDING_SESSIONS_SHOWN:]]
     review = omoikane / "_review.md"
     if review.is_file():
-        open_items, approved = review_items(review.read_text(encoding="utf-8"))
-        if open_items - approved:
-            lines.append(f"{open_items - approved} open items in omoikane/_review.md are waiting on the human.")
+        open_items, approved, rules = review_items(review.read_text(encoding="utf-8"))
+        if open_items - approved - rules:
+            lines.append(f"{open_items - approved - rules} open items in omoikane/_review.md are waiting on the "
+                         "human.")
         if approved:
             lines.append(f"{approved} approved proposal{'s' if approved > 1 else ''} in omoikane/_review.md "
                          "ready to apply: apply the diff, run the tests, delete the bullet.")
+        if rules:
+            lines.append(f"{rules} approved rule{'s' if rules > 1 else ''} in omoikane/_review.md: the human runs "
+                         "python omoikane/bin/wiki-rules.py; do not edit the AGENTS.md block yourself.")
     return "## Pending\n\n" + "\n".join(lines) if lines else ""
 
 

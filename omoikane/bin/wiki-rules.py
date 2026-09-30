@@ -12,9 +12,12 @@ import sys
 
 from wikilib import MAX_RULES, OMOIKANE, REPO, RULES_END, managed_rules
 
-# One short imperative line; a rule that needs a paragraph is a page, not an always-loaded rule.
-MAX_RULE_CHARS = 160
-TICKED_RULE = re.compile(r"- \[[xX]\] rule ([a-z0-9-]+): (.+?)(?: \([^()]*\))?\s*$")
+# One short imperative line; a rule that needs a paragraph is a page, not an always-loaded rule. At 120, a full
+# block of MAX_RULES stays inside the AGENTS.md budget of context-budget.py.
+MAX_RULE_CHARS = 120
+TICKED = re.compile(r"- \[[xX]\] rule ")
+# The last parenthetical is the reference (`(synthesize)`, `(synthesize; replaces <slug>)`); the rule may hold others.
+TICKED_RULE = re.compile(r"- \[[xX]\] rule ([a-z0-9-]+): (.+) \([^()]*\)\s*$")
 
 
 def promote(agents: str, review: str, practices: set[str]) -> tuple[str, str, list[str]]:
@@ -35,21 +38,31 @@ def promote(agents: str, review: str, practices: set[str]) -> tuple[str, str, li
     for line in review.splitlines(keepends=True):
         m = TICKED_RULE.match(line)
         if not m:
+            if TICKED.match(line):
+                problems.append(f"{line.strip()}: no trailing (reference); not promoted")
             kept.append(line)
             continue
         slug, rule = m.group(1), m.group(2).strip()
-        entry = f"- {rule} (omoikane/wiki/practices/{slug}.md)"
+        pointer = f"(omoikane/wiki/practices/{slug}.md)"
+        entry = f"- {rule} {pointer}"
+        current = block + added
+        if entry in current:
+            continue  # promoted before; the proposal is done
         problem = ""
         if slug not in practices:
             problem = f"no page omoikane/wiki/practices/{slug}.md"
+        elif "<!--" in rule:
+            problem = "rule contains `<!--`"  # would end the managed block early
         elif len(rule) > MAX_RULE_CHARS:
             problem = f"rule is {len(rule)} chars, limit {MAX_RULE_CHARS}"
-        elif entry not in block + added and len(block) + len(added) >= MAX_RULES:
+        elif any(r.endswith(pointer) for r in current):
+            problem = f"omoikane/wiki/practices/{slug}.md already has a rule; remove it first"
+        elif len(current) >= MAX_RULES:
             problem = f"the block holds {MAX_RULES} rules, the cap; remove one from AGENTS.md first"
         if problem:
             problems.append(f"{slug}: {problem}")
             kept.append(line)
-        elif entry not in block + added:
+        else:
             added.append(entry)
     if not added:
         return agents, "".join(kept), problems

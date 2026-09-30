@@ -277,6 +277,18 @@ class PendingNotes(unittest.TestCase):
         self.assertIn("2 open items in omoikane/_review.md", out)
         self.assertIn("1 approved proposal in omoikane/_review.md", out)
 
+    def test_ticked_rule_points_at_the_promotion_script(self) -> None:
+        # A rule has no diff; an agent told to "apply the diff" would hand-edit the managed block.
+        with tempfile.TemporaryDirectory() as d:
+            omoikane = Path(d) / "omoikane"
+            omoikane.mkdir()
+            (omoikane / "_review.md").write_text("- [x] rule a: Do a. (synthesize)\n- [ ] rule b: Do b. (synthesize)\n",
+                                                 encoding="utf-8")
+            out = context.pending_notes(omoikane)
+        self.assertIn("1 open items", out)
+        self.assertIn("1 approved rule in omoikane/_review.md: the human runs python omoikane/bin/wiki-rules.py", out)
+        self.assertNotIn("approved proposal", out)
+
     def test_empty_when_nothing_is_pending(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             omoikane = Path(d) / "omoikane"

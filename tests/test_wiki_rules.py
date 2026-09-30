@@ -68,6 +68,30 @@ class Promote(unittest.TestCase):
         self.assertNotIn("eval-in-clone", review)
         self.assertEqual(problems, [])
 
+    def test_several_ticked_rules_stop_at_the_cap(self) -> None:
+        almost = agents_md(*[f"- rule {i} (omoikane/wiki/practices/r{i}.md)" for i in range(MAX_RULES - 1)])
+        review = "- [x] rule a: Do a. (synthesize)\n- [X] rule b: Do b. (synthesize)\r\n"
+        agents, left, problems = rules.promote(almost, review, {"a", "b"})
+        self.assertEqual(len(managed_rules(agents) or []), MAX_RULES)
+        self.assertEqual(left, "- [X] rule b: Do b. (synthesize)\r\n")
+        self.assertEqual(problems, [f"b: the block holds {MAX_RULES} rules, the cap; remove one from AGENTS.md first"])
+
+    def test_only_the_last_parenthetical_is_the_reference(self) -> None:
+        review = "- [x] rule p: Use pytest (not unittest). (synthesize; replaces q)\n"
+        agents, _, _ = rules.promote(agents_md(), review, {"p"})
+        self.assertEqual(managed_rules(agents), ["- Use pytest (not unittest). (omoikane/wiki/practices/p.md)"])
+
+    def test_refuses_what_it_cannot_parse_or_would_break_the_block(self) -> None:
+        once, _, _ = rules.promote(agents_md(), REVIEW, {"eval-in-clone"})
+        for review, problem in (
+                ("- [x] rule a: Do a.\n", "- [x] rule a: Do a.: no trailing (reference); not promoted"),
+                (f"- [x] rule a: Do {RULES_END} a. (synthesize)\n", "a: rule contains `<!--`"),
+                ("- [x] rule eval-in-clone: Other text. (synthesize)\n",
+                 "eval-in-clone: omoikane/wiki/practices/eval-in-clone.md already has a rule; remove it first")):
+            with self.subTest(review=review):
+                agents, left, problems = rules.promote(once, review, {"a", "eval-in-clone"})
+                self.assertEqual((agents, left, problems), (once, review, [problem]))
+
     def test_missing_block_is_an_error(self) -> None:
         with self.assertRaises(ValueError):
             rules.promote("# Manual\n", REVIEW, {"eval-in-clone"})
@@ -88,6 +112,11 @@ class ContextBudget(unittest.TestCase):
         findings = budget.check(agents_md() + "x" * 250, ["x" * 170], "x" * 340, self.LIMITS)
         self.assertEqual(len(findings), 1)
         self.assertRegex(findings[0], r"^total: \d+ tokens, limit 200")
+
+    def test_a_failing_brief_is_a_finding(self) -> None:
+        # session-context.py never exits non-zero; a crash would measure 0 tokens and pass.
+        self.assertEqual(budget.check(agents_md(), [], "", self.LIMITS, brief_error="Traceback: boom"),
+                         ["session brief: session-context.py failed: Traceback: boom"])
 
     def test_block_over_the_cap_or_missing_is_a_finding(self) -> None:
         over = agents_md(*[f"- r{i}" for i in range(MAX_RULES + 1)])

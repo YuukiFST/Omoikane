@@ -18,9 +18,11 @@ import sys
 from wikilib import FRONTMATTER, MAX_RULES, OMOIKANE, REPO, RULES_END, RULES_START, managed_rules
 
 CHARS_PER_TOKEN = 3.5
-# AGENTS.md is ~1,550 tokens; 15 promoted rules of ~40 tokens each add ~600. The brief is bounded by
-# session-context.py's own 12,000-character index budget (~3,430 tokens) plus its header and pending notes.
-LIMITS = {"AGENTS.md": 2_500, "skill frontmatter": 600, "session brief": 4_000, "total": 6_500}
+# AGENTS.md is ~1,700 tokens with an empty rules block; a full block (15 rules of at most 120 characters plus
+# the page pointer, ~50 tokens each) adds ~750. The brief is bounded by session-context.py's own 12,000-character
+# index budget (~3,430 tokens) plus its header and pending notes. In CI the wiki is empty, so the brief limit
+# bites in a repository with a real wiki, where this script also runs.
+LIMITS = {"AGENTS.md": 2_600, "skill frontmatter": 600, "session brief": 4_000, "total": 6_800}
 
 
 def tokens(text: str) -> int:
@@ -39,15 +41,19 @@ def measure(agents: str, frontmatters: list[str], brief: str) -> dict[str, int]:
     return parts
 
 
-def check(agents: str, frontmatters: list[str], brief: str, limits: dict[str, int] = LIMITS) -> list[str]:
-    """Return one finding per part over its limit, and per problem with the managed rules block.
+def check(agents: str, frontmatters: list[str], brief: str, limits: dict[str, int] = LIMITS,
+          brief_error: str = "") -> list[str]:
+    """Return one finding per part over its limit, per problem with the managed rules block, and for a brief
+    that failed: session-context.py always exits 0, so its stderr is the only sign a crash measured 0 tokens.
 
-    Example: check("x" * 10_000, [], "") returns ["AGENTS.md: 2858 tokens, limit 2500; ...", "AGENTS.md: managed
+    Example: check("x" * 10_000, [], "") returns ["AGENTS.md: 2858 tokens, limit 2600; ...", "AGENTS.md: managed
     block markers ... not found"].
     """
     parts = measure(agents, frontmatters, brief)
     findings = [f"{name}: {used} tokens, limit {limits[name]}; move text to a page or skill read on demand "
                 "before adding more" for name, used in parts.items() if used > limits[name]]
+    if brief_error.strip():
+        findings.append(f"session brief: session-context.py failed: {brief_error.strip()}")
     block = managed_rules(agents)
     if block is None:
         findings.append(f"AGENTS.md: managed block markers `{RULES_START}` ... `{RULES_END}` not found")
@@ -56,12 +62,15 @@ def check(agents: str, frontmatters: list[str], brief: str, limits: dict[str, in
     return findings
 
 
-def session_brief() -> str:
-    """Run session-context.py as the SessionStart hook does, without the variable that silences it."""
+def session_brief() -> tuple[str, str]:
+    """Run session-context.py as the SessionStart hook does, without the variable that silences it.
+
+    Returns (stdout, stderr). Example: session_brief() returns ("Omoikane wiki brief follows: ...", "").
+    """
     env = {k: v for k, v in os.environ.items() if k != "OMOIKANE_NO_CAPTURE"}
     run = subprocess.run([sys.executable, str(OMOIKANE / "bin" / "session-context.py")], capture_output=True,
                          text=True, encoding="utf-8", env=env, check=False)
-    return run.stdout
+    return run.stdout, run.stderr
 
 
 def main() -> int:
@@ -70,8 +79,8 @@ def main() -> int:
     for skill in sorted((REPO / ".claude" / "skills").glob("*/SKILL.md")):
         m = FRONTMATTER.match(skill.read_text(encoding="utf-8"))
         frontmatters.append(m.group(1) if m else "")
-    brief = session_brief()
-    findings = check(agents, frontmatters, brief)
+    brief, error = session_brief()
+    findings = check(agents, frontmatters, brief, brief_error=error)
     for name, n in measure(agents, frontmatters, brief).items():
         print(f"{name:<18} {n:>6} / {LIMITS[name]} tokens (estimated)")
     for f in findings:
