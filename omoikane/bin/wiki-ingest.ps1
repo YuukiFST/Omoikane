@@ -35,28 +35,22 @@ function Invoke-Operation([string] $op, [string] $arg) {
     $review = Join-Path $omoikane "_review.md"
     $before = Join-Path ([IO.Path]::GetTempPath()) "omoikane-review-before.md"
     if (Test-Path $review) { Copy-Item $review $before -Force } else { Set-Content $before "" }
+    # The scope (edit only the wiki, the log and _review.md; run only index and lint; no git) lives in
+    # headless-scope.py, rendered for each harness, so the two cannot drift (#39). File moves are left to this
+    # script, after the run.
+    $scope = python omoikane/bin/headless-scope.py $Agent
+    if ($LASTEXITCODE -ne 0) { throw "headless-scope.py $Agent failed" }
     if ($Agent -eq "claude") {
-        # dontAsk denies whatever the list does not allow. acceptEdits would also auto-approve rm, mv, cp and sed
-        # anywhere in the repository (#25). Edit(...) rules cover the Write tool; a leading / anchors at the
-        # repository root. Scripts are named exactly: a wildcard would run a file the agent wrote into
-        # omoikane/bin/, or one reached through `..`. File moves are left to this script, after the run.
-        # On Windows Claude Code runs shell commands through its PowerShell tool, which Bash(...) rules do not
-        # cover; without the PowerShell(...) twins the agent cannot run index and lint and never fixes a finding (#17).
-        $scripts = "python omoikane/bin/wiki-index.py", "python omoikane/bin/wiki-lint.py"
-        $allowed = @("Read", "Glob", "Grep", "Edit(/omoikane/wiki/**)", "Edit(/omoikane/log.md)", "Edit(/omoikane/_review.md)") +
-            ($scripts | ForEach-Object { "Bash($_)"; "PowerShell($_)" })
-        # --setting-sources project: allow rules and PreToolUse hooks in the user's own settings would otherwise
-        # apply here too (a user-level `Bash(git checkout:*)` or a hook answering "allow" reopens AGENTS.md and
-        # omoikane/bin/). --tools and --strict-mcp-config keep plugins and MCP servers out; git is denied outright.
         $prompt = "/$op $arg".TrimEnd()
-        claude -p $prompt --setting-sources project --strict-mcp-config --tools "Read,Glob,Grep,Edit,Write,Bash,PowerShell" `
-            --permission-mode dontAsk --allowedTools ($allowed -join ",") --disallowedTools "Bash(git *),PowerShell(git *)" `
-            2>&1 | Tee-Object -FilePath $log -Append | Out-Host
+        $flags = @($scope | ConvertFrom-Json)
+        claude -p $prompt @flags 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
     } else {
-        # OpenCode is not scoped here: its permissions live in its own config, which this repository does not ship.
+        # OPENCODE_CONFIG_CONTENT is merged over the global and project config (opencode.ai/docs/config).
         # `opencode run --command <name> <args>` runs a .opencode/command/<name>.md command (opencode run --help).
         $rest = @($arg | Where-Object { $_ })  # /synthesize takes no argument; do not pass an empty one
-        opencode run --command $op @rest 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
+        $env:OPENCODE_CONFIG_CONTENT = $scope
+        try { opencode run --command $op @rest 2>&1 | Tee-Object -FilePath $log -Append | Out-Host }
+        finally { Remove-Item Env:OPENCODE_CONFIG_CONTENT }
     }
     $ok = $LASTEXITCODE -eq 0
     python omoikane/bin/review-ticks.py --before $before | Tee-Object -FilePath $log -Append | Out-Host
