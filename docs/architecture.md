@@ -62,7 +62,7 @@ File names end in the last eight characters of the session id: Pi ids are UUIDv7
 ## What is deterministic and why
 
 - `index.md` is generated from frontmatter. An LLM-maintained index drifts; a generated one cannot.
-- `wiki-lint.py` catches broken links, orphans, missing keys, malformed dates, source pages without `dated`, and `code:` paths that no longer exist in the repository. It runs after every ingest, and its non-zero exit makes the agent fix its own mistakes inside the same call.
+- `wiki-lint.py` catches broken links, orphans, missing keys, malformed dates, source pages without `dated`, two pages sharing a slug, and `code:` paths that no longer exist in the repository. A `code:` path with a commit dated after the page's `updated` is a warning, not a finding: most code changes leave the page true, so `/lint` reads the warnings and judges. One `git log --first-parent` call, limited to the `code:` paths, serves every page, so a merged change is dated at its merge. A shallow clone or a copy without git skips the check: every file would carry the same date. It runs after every ingest, and its non-zero exit makes the agent fix its own mistakes inside the same call.
 - `wiki-ingest.ps1` moves the source file itself if the agent forgot. A re-run with an empty inbox is a no-op.
 - `session-capture.py` and `session-context.py` never exit non-zero: a failure there must not stop the harness.
 

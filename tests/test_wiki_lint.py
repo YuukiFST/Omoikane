@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -50,6 +51,97 @@ class CodePaths(unittest.TestCase):
         b = page("b", "gotcha")
         a.links, b.links = {"b"}, {"a"}
         self.assertEqual(lint.lint_pages([a, b], Path(".")), [])
+
+    def test_same_slug_in_two_folders_is_a_finding(self) -> None:
+        a = page("x", "decision")
+        b = page("x", "gotcha")
+        a.path, b.path = Path("/wiki/decisions/x.md"), Path("/wiki/gotchas/x.md")
+        a.links, b.links = {"x"}, {"x"}
+        findings = lint.lint_pages([a, b], Path("."))
+        self.assertEqual(findings, ["/wiki/gotchas/x.md: slug `x` is also /wiki/decisions/x.md; [[x]] is ambiguous"])
+
+
+class StalePages(unittest.TestCase):
+    CHANGED = {"src/a.py": "2026-09-20", "src/pkg/b.py": "2026-09-12", "src/pkg/c.py": "2026-09-18"}
+
+    def test_code_committed_after_update_is_a_warning(self) -> None:
+        g = page("g", "gotcha", updated="2026-09-15", code=["src/a.py"])
+        self.assertEqual(lint.stale_pages([g], self.CHANGED), [
+            "/wiki/g.md: `src/a.py` changed on 2026-09-20, after the page's `updated` 2026-09-15; "
+            "check the page still matches the code"])
+
+    def test_code_committed_on_or_before_update_is_fine(self) -> None:
+        g = page("g", "gotcha", updated="2026-09-20", code=["src/a.py", "src/pkg/b.py"])
+        self.assertEqual(lint.stale_pages([g], self.CHANGED), [])
+
+    def test_directory_takes_its_newest_file(self) -> None:
+        d = page("d", "decision", updated="2026-09-15", code=["src/pkg/"])
+        self.assertEqual(len(lint.stale_pages([d], self.CHANGED)), 1)
+        self.assertIn("changed on 2026-09-18", lint.stale_pages([d], self.CHANGED)[0])
+
+    def test_code_path_spellings_match_git_paths(self) -> None:
+        for spelling in (".", "./src", "src\\pkg", "./src/pkg/c.py"):
+            with self.subTest(spelling=spelling):
+                p = page("p", "concept", updated="2026-09-15", code=[spelling])
+                self.assertEqual(len(lint.stale_pages([p], self.CHANGED)), 1)
+
+    def test_code_paths_keeps_only_paths_inside_the_repository(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d) / "repo"
+            (repo / "src").mkdir(parents=True)
+            (Path(d) / "outside.py").write_text("", encoding="utf-8")
+            p = page("p", "concept", code=["./src/", "../outside.py", "gone.py"])
+            self.assertEqual(lint.code_paths([p], repo), ["src"])
+
+
+def commit(repo: Path, day: str, *args: str) -> None:
+    """Run a git command in `repo` with a fixed identity and both dates pinned to `day`."""
+    stamp = f"2026-09-{day}T12:00:00Z"
+    env = {**os.environ, "GIT_COMMITTER_DATE": stamp, "GIT_AUTHOR_DATE": stamp}
+    subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", *args],
+                   check=True, env=env, capture_output=True)
+
+
+class LastChanged(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = Path(self.tmp.name) / "repo"
+        (self.repo / "src").mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", "-b", "main", str(self.repo)], check=True)
+        (self.repo / "src" / "a.py").write_text("1", encoding="utf-8")
+        (self.repo / "other.py").write_text("1", encoding="utf-8")
+        commit(self.repo, "01", "add", ".")
+        commit(self.repo, "01", "commit", "-q", "-m", "one")
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_reads_newest_commit_per_file(self) -> None:
+        (self.repo / "src" / "a.py").write_text("2", encoding="utf-8")
+        commit(self.repo, "05", "commit", "-q", "-am", "two")
+        self.assertEqual(lint.last_changed(self.repo, ["src"]), {"src/a.py": "2026-09-05"})
+
+    def test_merged_change_carries_the_merge_date(self) -> None:
+        # A page updated on the 15th, between the side commit (10th) and its merge (20th), is stale.
+        commit(self.repo, "10", "switch", "-q", "-c", "side")
+        (self.repo / "src" / "a.py").write_text("2", encoding="utf-8")
+        commit(self.repo, "10", "commit", "-q", "-am", "side")
+        commit(self.repo, "20", "switch", "-q", "main")
+        commit(self.repo, "20", "merge", "-q", "--no-ff", "-m", "merge", "side")
+        self.assertEqual(lint.last_changed(self.repo, ["src"]), {"src/a.py": "2026-09-20"})
+
+    def test_shallow_clone_gives_no_dates(self) -> None:
+        # A depth-1 clone (actions/checkout default) dates every file at HEAD; that would warn on every page.
+        clone = Path(self.tmp.name) / "clone"
+        subprocess.run(["git", "clone", "-q", "--depth", "1", self.repo.as_uri(), str(clone)], check=True)
+        self.assertEqual(lint.last_changed(clone, ["src"]), {})
+
+    def test_no_repository_gives_no_dates(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(lint.last_changed(Path(d), ["src"]), {})
+
+    def test_no_code_paths_gives_no_dates(self) -> None:
+        self.assertEqual(lint.last_changed(Path("/nonexistent"), []), {})
 
 
 class CompactIndex(unittest.TestCase):
