@@ -15,7 +15,7 @@ Fix the findings judged real, wait for green CI, then merge with `gh pr merge <n
 
 ## Evidence
 
-- Issue #7: with CI green on PR #10, the agent noted "Code review agent still running in background; will post its findings on the PR, then merge" (source: [[session-2026-09-15-e04462b2]], turn 2). The `/code-review 10 --comment` agent posted 10 findings as inline comments; the agent triaged them, "fixing the real ones", and ran `gh pr merge 10 -R YuukiFST/Omoikane --merge --delete-branch` (source: [[session-2026-09-15-e04462b2]], turn 3).
+- Issue #7: with CI green on PR #10, the agent noted "Code review agent still running in background; will post its findings on the PR, then merge" (source: [[session-2026-09-15-e04462b2]], turn 2). The `/code-review 10 --comment` agent posted 10 findings as inline comments; the agent triaged them, "fixing the real ones", and merged PR #10 with a merge commit (source: [[session-2026-09-15-e04462b2]], turn 3).
 - Phase 2: "PR #22 (item 1) aberto ... Lanço revisão do #22 por subagente", then "Review do #22: 1 alto, 3 médios, 3 baixos. Posto no GitHub", fixes pushed before `gh pr merge 22 --merge --delete-branch` (source: [[session-2026-09-30-c14af01e]], turn 2). The final report: "Cada PR teve review de subagente postada como PR review, com os achados corrigidos antes do merge", for PRs #22 and #26 to #30 (source: [[session-2026-09-30-c14af01e]], turn 3).
 
 ## Scope

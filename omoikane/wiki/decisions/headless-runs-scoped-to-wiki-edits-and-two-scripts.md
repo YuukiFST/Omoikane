@@ -23,6 +23,15 @@ A probe with those flags was run first "para provar a brecha" (turn 2).
 - Only project settings are loaded, because user-level rules and hooks reopened `git`: [[user-settings-apply-to-headless-claude-runs]] (turn 2).
 - Any `[x]` the agent adds to `_review.md` is undone after the run with `review-ticks.py`, since the tick is the human's approval (turns 2, 3).
 
+## Alternatives rejected
+
+Added in the review of PR #36; the reasons are the comments in `omoikane/bin/wiki-ingest.ps1` at that commit, not the capture.
+
+- `--permission-mode acceptEdits`: also auto-approves `rm`, `mv`, `cp` and `sed` anywhere in the repository.
+- `Bash(python omoikane/bin/*)`: would run a script the agent wrote into `omoikane/bin/`, or one reached through `..`; the two scripts are named exactly.
+- `Bash(git mv *)`: the file move is left to `wiki-ingest.ps1`, after the run.
+- Loading user settings: user-level allow rules and hooks reopen `git`, see [[user-settings-apply-to-headless-claude-runs]].
+
 ## Evidence
 
 - Probe on the new flags: steps 1 to 5, 9 and 10 denied; 6 to 8 (wiki, lint, log) allowed, "Exatamente o escopo pretendido" (source: [[session-2026-09-30-c14af01e]], turn 2).
