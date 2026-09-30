@@ -39,7 +39,10 @@ foreach ($f in $files) {
     $dest = Join-Path $omoikane $(if ($isSession) { "raw/sources/sessions" } else { "raw/sources" })
     Log "$op start $rel"
     if ($Agent -eq "claude") {
-        claude -p "/$op $rel" --permission-mode acceptEdits --allowedTools "Read,Write,Edit,Glob,Grep,Bash(python omoikane/bin/*),Bash(git mv *)" 2>&1 | Tee-Object -FilePath $log -Append
+        # On Windows Claude Code runs shell commands through its PowerShell tool, which Bash(...) rules do not
+        # cover; without the PowerShell(...) twins the agent cannot run index and lint and never fixes a finding (#17).
+        $allowed = "Read,Write,Edit,Glob,Grep,Bash(python omoikane/bin/*),Bash(git mv *),PowerShell(python omoikane/bin/*),PowerShell(git mv *)"
+        claude -p "/$op $rel" --permission-mode acceptEdits --allowedTools $allowed 2>&1 | Tee-Object -FilePath $log -Append
     } else {
         # `opencode run --command <name> <args>` runs a .opencode/command/<name>.md command (opencode run --help).
         opencode run --command $op $rel 2>&1 | Tee-Object -FilePath $log -Append
