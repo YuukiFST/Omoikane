@@ -11,7 +11,7 @@ A practice is one of:
 
 Keep a pattern only when all of these hold:
 
-- Two or more sessions show it, each cited `(source: [[session-<date>-<id8>]], turn <n>)`. Two parts of one session are one session. A pattern from one session is distill's job, not yours; `wiki-lint.py` fails a practice page citing fewer than two sessions.
+- Two or more sessions show it, each cited `(source: [[session-<date>-<id8>]], turn <n>)`. Two parts of one session are one session. A pattern from one session is distill's job, not yours; `wiki-lint.py` fails a practice page citing fewer than two session pages that exist. A session logged `nothing kept` has no page: before citing it, write its source page from the raw capture under `omoikane/raw/sources/sessions/` as `omoikane/prompts/distill.md` step 3 does.
 - It is imperative and falsifiable: you could catch an agent breaking it.
 - It is not already in `AGENTS.md`, an Omoikane prompt, a practice page, or enforced by a check. Update the existing practice page with the new evidence instead of writing a second one.
 - The sessions did the same thing for the same reason. The same command run for two unrelated reasons is a coincidence.
@@ -22,9 +22,9 @@ Steps:
 
 1. List `omoikane/wiki/sources/session-*.md` and read the newest ones, as many as the argument says, by `dated`. Open the raw capture under `omoikane/raw/sources/sessions/` when you need a turn's exact words.
 2. Read `omoikane/log.md`. Group the `- routed (...)` and `- skipped (...)` lines by slug. A slug in two or more distill entries is a candidate however it was judged the first time: a `missing-env` or `one-off` that recurs is not an accident, so judge it again with every session in view.
-3. Read `AGENTS.md`, `omoikane/index.md` and every practice page, and grep `omoikane/log.md` for `dropped` lines of earlier synthesize runs: a slug dropped before comes back only with a session newer than that run.
+3. Read `AGENTS.md`, `omoikane/index.md`, every practice page, the proposals still open in `omoikane/_review.md`, and the `routed` and `dropped` lines of earlier synthesize entries in `omoikane/log.md`. A slug already proposed is not filed again. A slug dropped before comes back only with a session whose distill entry sits below that synthesize entry in the log.
 4. For each kept pattern, write or update `omoikane/wiki/practices/<slug>.md` with the page contract, `type: practice`. `summary`: the rule as one imperative line. `sources`: every session page cited. Body: `## Rule` (the rule, imperative, one or two lines), `## Evidence` (one bullet per session: what it did or what the user said, with the turn), `## Scope` (where the rule stops applying, when a session shows it).
-5. File guard, prompt and todo proposals in `omoikane/_review.md` in the format of `omoikane/prompts/distill.md` step 6, under the heading `## [YYYY-MM-DD] synthesize`, with `(synthesize)` in place of the session reference.
+5. File guard, prompt and todo proposals in `omoikane/_review.md` in the format of `omoikane/prompts/distill.md` step 6, under the heading `## [YYYY-MM-DD] synthesize`, ending in `(sessions <id8>, <id8>; turns <n>, <n>)` where distill writes one session.
 6. Append to `omoikane/log.md`: `## [YYYY-MM-DD] synthesize | <n> sessions` followed by the pages created and updated, the proposals filed as `- routed (<guard|prompt|todo>) <slug>: <one line>`, and one line per candidate you dropped: `- dropped (<one-session|coincidence|known|not-imperative>) <slug>: <one line>`.
 7. Run `python omoikane/bin/wiki-index.py` then `python omoikane/bin/wiki-lint.py`. Fix every finding.
 
