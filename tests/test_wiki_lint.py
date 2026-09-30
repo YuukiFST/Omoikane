@@ -63,6 +63,9 @@ class CodePaths(unittest.TestCase):
             for path, findings, git in (
                     ("src\\keep.py", [], ["src/keep.py"]),
                     (".\\src\\", [], ["src"]),
+                    # Windows resolves both to src/keep.py; Linux and git do not.
+                    ("SRC/keep.py", ["/wiki/g.md: code path `SRC/keep.py` does not exist"], []),
+                    ("src/keep.py.", ["/wiki/g.md: code path `src/keep.py.` does not exist"], []),
                     (absolute, [f"/wiki/g.md: code path `{absolute}` is absolute; write it relative to the "
                                 "repository root"], []),
                     ("C:\\src\\keep.py", ["/wiki/g.md: code path `C:\\src\\keep.py` is absolute; write it relative "

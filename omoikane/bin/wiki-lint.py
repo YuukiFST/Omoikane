@@ -6,6 +6,7 @@ Usage: python omoikane/bin/wiki-lint.py
 """
 from __future__ import annotations
 
+import os
 import posixpath
 import subprocess
 import sys
@@ -93,7 +94,7 @@ def lint_pages(pages: list[Page], repo: Path = REPO) -> list[str]:
         for path in code:
             # `code:` entries are relative to the repository root. A page about code that no longer exists is stale
             # by definition; the agent must revisit it. Paths escaping the repository are never valid.
-            if PureWindowsPath(str(path)).anchor:
+            if is_absolute(path):
                 findings.append(f"{p.rel}: code path `{path}` is absolute; write it relative to the repository root")
             elif existing_code_path(repo, path) is None:
                 findings.append(f"{p.rel}: code path `{path}` does not exist")
@@ -113,18 +114,33 @@ def git_path(path: object) -> str:
     return posixpath.normpath(str(path).replace("\\", "/"))
 
 
+def is_absolute(path: object) -> bool:
+    """True for a path that names one machine's checkout: `/x`, `\\x`, `C:\\x`, `C:x`, `\\\\server\\share`.
+
+    Example: is_absolute("C:\\src") returns True; is_absolute("src/a.py") returns False.
+    """
+    return bool(PureWindowsPath(str(path)).anchor)
+
+
 def existing_code_path(repo: Path, path: object) -> str | None:
     """The `code:` entry in git spelling when it names something inside the repository, else None.
 
-    Resolved from its git spelling, never the raw string, so Windows and Linux agree (#32): `src\\a.py` is
-    `src/a.py` on both. Absolute paths are None on every OS, since they name one machine's checkout.
+    Resolved from its git spelling, never the raw string, and every component must exist with its exact name,
+    so Windows and Linux agree (#32): `src\\a.py` is `src/a.py` on both, while `SRC/a.py` and `src/a.py.`,
+    which Windows would resolve, exist on neither. Absolute paths are None on every OS.
     Example: existing_code_path(repo, ".\\src\\") returns "src"; existing_code_path(repo, "C:\\src") returns None.
     """
-    if PureWindowsPath(str(path)).anchor:
+    if is_absolute(path):
         return None
     spelled = git_path(path)
-    target = (repo / spelled).resolve()
-    return spelled if target.is_relative_to(repo.resolve()) and target.exists() else None
+    if not (repo / spelled).resolve().is_relative_to(repo.resolve()):
+        return None
+    here = repo
+    for part in [] if spelled == "." else spelled.split("/"):
+        if not here.is_dir() or part not in os.listdir(here):
+            return None
+        here = here / part
+    return spelled
 
 
 def code_paths(pages: list[Page], repo: Path = REPO) -> list[str]:
