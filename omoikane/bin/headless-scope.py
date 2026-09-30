@@ -36,20 +36,31 @@ def claude_args() -> list[str]:
             "--disallowedTools", "Bash(git *),PowerShell(git *)"]
 
 
+OPENCODE_AGENT = "omoikane-headless"
+
+
 def opencode_config() -> dict[str, object]:
-    """OpenCode config (schema https://opencode.ai/config.json, rules https://opencode.ai/docs/permissions/).
+    """OpenCode config (schema https://opencode.ai/config.json, rules https://opencode.ai/docs/permissions/),
+    defining the agent wiki-ingest.ps1 runs with `--agent omoikane-headless`.
 
     `*` matches any run of characters, `/` included, and the last matching rule wins, so every map opens with
-    `"*": "deny"`. `edit` covers the edit, write and patch tools. The top-level `"*"` denies every permission not
-    named, among them webfetch, task (subagents) and external_directory (paths outside the repository).
-    Example: opencode_config()["permission"]["bash"]["*"] returns "deny".
+    `"*": "deny"`. `edit` covers the edit, write and patch tools. The `"*"` permission denies every one not named,
+    among them webfetch, task (subagents) and external_directory (paths outside the repository).
+    The scope is an agent's, not the top-level `permission`: OpenCode merges config maps key by key, so a user's
+    `"bash": {"*": "allow", "git *": "allow"}` kept `git *` after our `"*": "deny"` and git ran again (#39);
+    agent rules are evaluated after every config rule (`opencode debug agent` lists them in that order).
+    Example: opencode_config()["agent"]["omoikane-headless"]["permission"]["bash"]["*"] returns "deny".
     """
-    return {"permission": {
-        "*": "deny",
-        "read": "allow", "glob": "allow", "grep": "allow", "list": "allow", "todowrite": "allow",
-        "edit": {"*": "deny", **{path.replace("**", "*"): "allow" for path in EDITABLE}},
-        "bash": {"*": "deny", **{script: "allow" for script in SCRIPTS}},
-    }}
+    return {"agent": {OPENCODE_AGENT: {
+        "mode": "primary",
+        "description": "Scheduled Omoikane run: edits the wiki, runs index and lint, nothing else.",
+        "permission": {
+            "*": "deny",
+            "read": "allow", "glob": "allow", "grep": "allow", "list": "allow", "todowrite": "allow",
+            "edit": {"*": "deny", **{path.replace("**", "*"): "allow" for path in EDITABLE}},
+            "bash": {"*": "deny", **{script: "allow" for script in SCRIPTS}},
+        },
+    }}}
 
 
 def main(argv: list[str]) -> int:

@@ -22,41 +22,53 @@ NOT_RUNNABLE = ("git status", "git mv a b", "git commit -m x", "python omoikane/
                 "python omoikane/bin/x.py", "rm -rf omoikane/wiki", "mv a b", "python -c 'print(1)'", "curl x")
 
 
-def opencode_decides(rules: object, subject: str) -> str:
-    """OpenCode's documented matching (opencode.ai/docs/permissions): `*` any run of characters, `?` one, the
-    last matching rule wins; a permission given as a string applies to every subject."""
-    if isinstance(rules, str):
-        return rules
+def flatten(permission: dict[str, object]) -> list[tuple[str, str, str]]:
+    """(permission, pattern, action) rules in config order, as `opencode debug agent` lists them."""
+    return [(key, pattern, action) for key, rules in permission.items()
+            for pattern, action in (rules.items() if isinstance(rules, dict) else [("*", rules)])]
+
+
+def opencode_decides(rules: list[tuple[str, str, str]], key: str, subject: str) -> str:
+    """OpenCode's documented matching (opencode.ai/docs/permissions): `*` any run of characters, `?` one, and the
+    last matching rule wins; a rule for permission `*` applies to every permission."""
     verdict = ""
-    for pattern, action in dict(rules).items():
+    for permission, pattern, action in rules:
         regex = "".join(".*" if c == "*" else "." if c == "?" else re.escape(c) for c in pattern)
-        if re.fullmatch(regex, subject, re.DOTALL):
+        if permission in ("*", key) and re.fullmatch(regex, subject, re.DOTALL):
             verdict = action
     return verdict
 
 
-class OpenCodeScope(unittest.TestCase):
-    # The OpenCode run had no scope at all (#39): its defaults allow edits and bash anywhere.
-    PERMISSION = scope.opencode_config()["permission"]
+# A user config that allows everything, including through a `*` key our scope also uses: map keys merge in place,
+# so the user's `git *` would sit after our `"*": "deny"` in a merged top-level `permission`.
+HOSTILE_USER = {"*": "allow", "bash": {"*": "allow", "git *": "allow"}, "edit": {"*": "allow", "AGENTS.md": "allow"}}
 
-    def rule(self, key: str) -> object:
-        return self.PERMISSION.get(key, self.PERMISSION["*"])
+
+class OpenCodeScope(unittest.TestCase):
+    # The OpenCode run had no scope at all (#39): its defaults allow edits and bash anywhere. Agent rules come
+    # after every config rule, so the user's rules are evaluated first and ours win.
+    AGENT = scope.opencode_config()["agent"][scope.OPENCODE_AGENT]
+    RULES = flatten(HOSTILE_USER) + flatten(AGENT["permission"])
 
     def test_edits_only_the_wiki_the_log_and_the_review_queue(self) -> None:
         for path, verdict in [(p, "allow") for p in EDITABLE] + [(p, "deny") for p in NOT_EDITABLE]:
             with self.subTest(path=path):
-                self.assertEqual(opencode_decides(self.rule("edit"), path), verdict)
+                self.assertEqual(opencode_decides(self.RULES, "edit", path), verdict)
 
     def test_runs_only_the_index_and_lint_scripts(self) -> None:
         for command, verdict in [(c, "allow") for c in RUNNABLE] + [(c, "deny") for c in NOT_RUNNABLE]:
             with self.subTest(command=command):
-                self.assertEqual(opencode_decides(self.rule("bash"), command), verdict)
+                self.assertEqual(opencode_decides(self.RULES, "bash", command), verdict)
 
     def test_reads_and_denies_everything_else(self) -> None:
         for key in ("read", "glob", "grep", "list"):
-            self.assertEqual(opencode_decides(self.rule(key), "omoikane/wiki/x.md"), "allow", key)
+            self.assertEqual(opencode_decides(self.RULES, key, "omoikane/wiki/x.md"), "allow", key)
         for key in ("webfetch", "websearch", "task", "skill", "external_directory", "question", "doom_loop", "lsp"):
-            self.assertEqual(opencode_decides(self.rule(key), "x"), "deny", key)
+            self.assertEqual(opencode_decides(self.RULES, key, "x"), "deny", key)
+
+    def test_wiki_ingest_runs_opencode_with_the_scoped_agent(self) -> None:
+        script = (BIN / "wiki-ingest.ps1").read_text(encoding="utf-8")
+        self.assertIn(f"opencode run --agent {scope.OPENCODE_AGENT} ", script)
 
 
 class ClaudeScope(unittest.TestCase):

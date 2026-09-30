@@ -45,11 +45,12 @@ function Invoke-Operation([string] $op, [string] $arg) {
         $flags = @($scope | ConvertFrom-Json)
         claude -p $prompt @flags 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
     } else {
-        # OPENCODE_CONFIG_CONTENT is merged over the global and project config (opencode.ai/docs/config).
-        # `opencode run --command <name> <args>` runs a .opencode/command/<name>.md command (opencode run --help).
+        # OPENCODE_CONFIG_CONTENT is merged over the global and project config (opencode.ai/docs/config); it
+        # defines the agent that carries the scope. `opencode run --command <name> <args>` runs a
+        # .opencode/command/<name>.md command (opencode run --help).
         $rest = @($arg | Where-Object { $_ })  # /synthesize takes no argument; do not pass an empty one
         $env:OPENCODE_CONFIG_CONTENT = $scope
-        try { opencode run --command $op @rest 2>&1 | Tee-Object -FilePath $log -Append | Out-Host }
+        try { opencode run --agent omoikane-headless --command $op @rest 2>&1 | Tee-Object -FilePath $log -Append | Out-Host }
         finally { Remove-Item Env:OPENCODE_CONFIG_CONTENT }
     }
     $ok = $LASTEXITCODE -eq 0
