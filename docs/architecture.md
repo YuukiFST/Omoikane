@@ -28,6 +28,10 @@ omoikane/raw/inbox/*           --Task Scheduler (omoikane/bin/install-schedule.p
 The agent's semantic pass (`/lint`) runs on demand or weekly and writes to `omoikane/_review.md`.
 It changes no page, so an unattended run cannot damage the wiki.
 
+`/distill` routes each lesson it keeps to one destination: a guard (a `wiki-lint.py` rule, a test, a hook), a fix to an Omoikane prompt, a wiki page, or a todo.
+Why not a page for everything: a page prevents a mistake only when a later agent reads it, and a guard fails every time the mistake is made. A lesson about how distill or ingest runs is a defect in the prompt, not knowledge about the system being built.
+Guards and prompt fixes reach `omoikane/_review.md` as diffs and wait for the human: a scheduled run that rewrites its own prompt or checks changes every later run with nobody having read the change.
+
 ## Session capture (build mode)
 
 ```
@@ -69,7 +73,7 @@ File names end in the last eight characters of the session id: Pi ids are UUIDv7
 ## Where the human stays
 
 - Curating what enters `omoikane/raw/inbox/`.
-- `omoikane/_review.md`: contradictions and gaps the agent refuses to resolve alone.
+- `omoikane/_review.md`: contradictions and gaps the agent refuses to resolve alone, and the guards and prompt changes it proposes. Ticking `[x]` is the approval.
 - `AGENTS.md` Domain section: what the wiki is about, what to emphasise.
 - Reading the wiki in Obsidian (open `omoikane/` as the vault). The graph view shows hubs and orphans faster than any script.
 
