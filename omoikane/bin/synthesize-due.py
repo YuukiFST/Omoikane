@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from pathlib import Path
 
 from wikilib import OMOIKANE
 
@@ -33,11 +34,10 @@ def distills_since_synthesis(log: str) -> int:
     return count
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, log: Path = OMOIKANE / "log.md") -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--every", type=int, default=5, help="distills between two cross-session passes")
     args = parser.parse_args(argv)
-    log = OMOIKANE / "log.md"
     count = distills_since_synthesis(log.read_text(encoding="utf-8")) if log.is_file() else 0
     print(f"synthesize-due: {count} distills since the last synthesize, due at {args.every}")
     return 0 if count >= args.every else 1

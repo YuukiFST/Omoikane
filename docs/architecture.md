@@ -26,8 +26,8 @@ omoikane/raw/inbox/*           --Task Scheduler (omoikane/bin/install-schedule.p
 ```
 
 The agent's semantic pass (`/lint`) runs on demand or weekly and writes to `omoikane/_review.md`.
-After every `-SynthesizeEvery` distills (5 by default; `omoikane/bin/synthesize-due.py` counts them in `log.md`), the same script runs `/synthesize` once.
 It changes no page, so an unattended run cannot damage the wiki.
+After every `-SynthesizeEvery` distills (5 by default; `omoikane/bin/synthesize-due.py` counts them in `log.md`), the same script runs `/synthesize` once. When that run writes no `synthesize` heading, the script appends one, or every later run would start it again.
 
 `/distill` routes each lesson it keeps to one destination: a guard (a `wiki-lint.py` rule, a test, a hook), a fix to an Omoikane prompt, a wiki page, or a todo.
 Why not a page for everything: a page prevents a mistake only when a later agent reads it, and a guard fails every time the mistake is made. A lesson about how distill or ingest runs is a defect in the prompt, not knowledge about the system being built.

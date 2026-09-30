@@ -78,7 +78,13 @@ if ($SynthesizeEvery -gt 0) {
     python omoikane/bin/synthesize-due.py --every $SynthesizeEvery | Tee-Object -FilePath $log -Append
     if ($LASTEXITCODE -eq 0) {
         Log "synthesize start"
-        if (Invoke-Operation "synthesize" "") { Complete-Operation "synthesize" "sessions"; Log "synthesize done" }
-        else { Log "synthesize FAILED" }
+        if (Invoke-Operation "synthesize" "") { Log "synthesize done" } else { Log "synthesize FAILED" }
+        # The log heading is the counter. A run that did not write it would trigger again on every schedule.
+        python omoikane/bin/synthesize-due.py --every $SynthesizeEvery | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Add-Content -Path (Join-Path $omoikane "log.md") -Encoding utf8 -Value "`n## [$(Get-Date -Format yyyy-MM-dd)] synthesize | ended without a log entry"
+            Log "synthesize wrote no log entry; heading appended so the next run waits"
+        }
+        Complete-Operation "synthesize" "sessions"
     }
 }

@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import importlib
+import contextlib
+import io
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -32,6 +35,19 @@ class DistillsSinceSynthesis(unittest.TestCase):
     def test_ignores_distill_mentioned_outside_a_heading(self) -> None:
         self.assertEqual(due.distills_since_synthesis("- see ## [2026-09-10] distill | session x\n"), 0)
 
+
+
+class ExitCode(unittest.TestCase):
+    # wiki-ingest.ps1 runs /synthesize only on exit 0.
+    def test_due_at_the_threshold_and_not_below_or_without_a_log(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            log = Path(d) / "log.md"
+            log.write_text(LOG, encoding="utf-8")
+            for every, code in (("2", 0), ("3", 1)):
+                with self.subTest(every=every), contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(due.main(["--every", every], log), code)
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(due.main(["--every", "1"], Path(d) / "missing.md"), 1)
 
 if __name__ == "__main__":
     unittest.main()
