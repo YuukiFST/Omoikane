@@ -177,7 +177,7 @@ def claude_session(d: Path, first: str, later: str) -> capture.Session:
     return capture.read_claude_transcript(write_transcript(d, entries))
 
 
-def pi_session(d: Path, first: str, later: str) -> capture.Session:
+def pi_session(d: Path, first: str | list[dict[str, str]], later: str) -> capture.Session:
     entries = [json.loads(line) for line in (FIXTURES / "pi-session.jsonl").read_text(encoding="utf-8").splitlines()
                if line.startswith("{")]
     for entry in entries:
@@ -217,6 +217,28 @@ class OperationOnlyFromTheFirstPrompt(unittest.TestCase):
             with self.subTest(harness=harness), tempfile.TemporaryDirectory() as d:
                 s = read(Path(d), "/distill", "Now add a test")
                 self.assertEqual(capture.skip_reason(s, [" M a.py"]), "omoikane operation /distill")
+
+    def test_claude_command_entries_before_the_first_real_prompt(self) -> None:
+        # Claude Code writes /clear, /effort or /model as the first entry of a transcript (4 of 25 real ones), and
+        # writes <command-message> before or after <command-name> depending on the command.
+        edit = assistant({"type": "tool_use", "name": "Edit", "input": {"file_path": "C:/proj/a.py"}})
+        clear = user("<command-name>/clear</command-name>\n<command-message>clear</command-message>\n<command-args></command-args>")
+        distill = user("<command-message>distill</command-message>\n<command-name>/distill</command-name>\n"
+                       "<command-args>x.md</command-args>")
+        pasted = user("Why did this fail?\n<command-name>/ingest</command-name>")
+        for name, entries, reason in (
+                ("builtin then operation", [clear, distill, edit], "omoikane operation /distill"),
+                ("builtin then coding", [clear, user("Fix the parser"), edit], None),
+                ("command-message first", [distill, edit], "omoikane operation /distill"),
+                ("tag pasted into prose", [pasted, edit], None)):
+            with self.subTest(name), tempfile.TemporaryDirectory() as d:
+                s = capture.read_claude_transcript(write_transcript(Path(d), entries))
+                self.assertEqual(capture.skip_reason(s, [" M a.py"]), reason)
+
+    def test_pi_first_prompt_as_a_content_list(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            s = pi_session(Path(d), [{"type": "text", "text": "/distill x.md"}], "Now add a test")
+            self.assertEqual(capture.skip_reason(s, [" M a.py"]), "omoikane operation /distill")
 
 
 class Render(unittest.TestCase):
