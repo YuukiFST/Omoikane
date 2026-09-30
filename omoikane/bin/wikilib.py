@@ -11,7 +11,11 @@ REPO = OMOIKANE.parent
 WIKI = OMOIKANE / "wiki"
 REQUIRED_KEYS = ("title", "type", "summary", "tags", "created", "updated", "sources")
 # Order matters: wiki-index.py and session-context.py emit groups in this order, most useful to a coding agent first.
-PAGE_TYPES = ("decision", "gotcha", "concept", "entity", "source", "query")
+PAGE_TYPES = ("decision", "gotcha", "practice", "concept", "entity", "source", "query")
+# A practice page must cite at least this many distinct sessions: one session is distill's job, not a pattern.
+PRACTICE_MIN_SESSIONS = 2
+# wiki/sources/session-<YYYY-MM-DD>-<id8>[-part<n>].md; the id tail names the session across its parts.
+SESSION_PAGE = re.compile(r"wiki/sources/session-\d{4}-\d{2}-\d{2}-([0-9A-Za-z]+)(?:-part\d+)?\.md\Z")
 # Source pages carry `dated`: the date the source itself bears. Not in REQUIRED_KEYS so older pages of other types keep passing.
 SOURCE_KEYS = ("dated",)
 # Optional on any page: repository paths the page is about. wiki-lint.py fails when one no longer exists.

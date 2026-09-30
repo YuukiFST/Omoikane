@@ -70,6 +70,19 @@ class CodePaths(unittest.TestCase):
                 hub.links, g.links = {"g"}, {"hub"}
                 self.assertEqual(lint.lint_pages([hub, g], Path(".")), [finding])
 
+    def test_practice_needs_evidence_from_two_sessions(self) -> None:
+        one = ["wiki/sources/session-2026-09-15-aaaaaaaa.md", "wiki/sources/article.md"]
+        two = ["wiki/sources/session-2026-09-15-aaaaaaaa.md", "wiki/sources/session-2026-09-20-bbbbbbbb-part2.md"]
+        # Two parts of one session are one session: the continuation file repeats the same id tail.
+        parts = ["wiki/sources/session-2026-09-15-aaaaaaaa.md", "wiki/sources/session-2026-09-15-aaaaaaaa-part2.md"]
+        needs_two = ["/wiki/p.md: practice cites 1 session, needs 2 or more"]
+        for sources, findings in ((one, needs_two), (parts, needs_two), (two, [])):
+            with self.subTest(sources=sources):
+                p = page("p", "practice", sources=sources)
+                hub = page("hub", "concept")
+                hub.links, p.links = {"p"}, {"hub"}
+                self.assertEqual(lint.lint_pages([hub, p], Path(".")), findings)
+
     def test_same_slug_in_two_folders_is_a_finding(self) -> None:
         a = page("x", "decision")
         b = page("x", "gotcha")
