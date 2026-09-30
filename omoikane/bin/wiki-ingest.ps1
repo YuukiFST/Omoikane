@@ -4,6 +4,7 @@ Ingest every file in omoikane/raw/inbox through the agent, one headless call per
 
 Plain sources go through /ingest; captured coding sessions under raw/inbox/sessions go through /distill.
 A session file modified less than -QuietMinutes ago may still be growing (Stop fires on every turn), so it waits.
+After -SynthesizeEvery distills since the last cross-session pass, /synthesize runs once; 0 turns it off.
 
 .EXAMPLE
 omoikane/bin/wiki-ingest.ps1                      # Claude Code
@@ -13,7 +14,8 @@ omoikane/bin/wiki-ingest.ps1 -Commit              # git commit after each succes
 param(
     [ValidateSet("claude", "opencode")] [string] $Agent = "claude",
     [switch] $Commit,
-    [int] $QuietMinutes = 30
+    [int] $QuietMinutes = 30,
+    [int] $SynthesizeEvery = 5
 )
 $ErrorActionPreference = "Stop"
 $omoikane = Split-Path -Parent $PSScriptRoot
@@ -25,9 +27,35 @@ $env:OMOIKANE_NO_CAPTURE = "1"
 
 function Log([string] $msg) { "$(Get-Date -Format s) $msg" | Tee-Object -FilePath $log -Append }
 
+# One headless agent call; returns $true when the agent exited 0. Output goes to the host, not the pipeline,
+# or it would become part of the return value.
+function Invoke-Operation([string] $op, [string] $arg) {
+    if ($Agent -eq "claude") {
+        # On Windows Claude Code runs shell commands through its PowerShell tool, which Bash(...) rules do not
+        # cover; without the PowerShell(...) twins the agent cannot run index and lint and never fixes a finding (#17).
+        $allowed = "Read,Write,Edit,Glob,Grep,Bash(python omoikane/bin/*),Bash(git mv *),PowerShell(python omoikane/bin/*),PowerShell(git mv *)"
+        $prompt = "/$op $arg".TrimEnd()
+        claude -p $prompt --permission-mode acceptEdits --allowedTools $allowed 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
+    } else {
+        # `opencode run --command <name> <args>` runs a .opencode/command/<name>.md command (opencode run --help).
+        $rest = @($arg | Where-Object { $_ })  # /synthesize takes no argument; do not pass an empty one
+        opencode run --command $op @rest 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
+    }
+    return $LASTEXITCODE -eq 0
+}
+
+function Complete-Operation([string] $op, [string] $name) {
+    python omoikane/bin/wiki-index.py | Tee-Object -FilePath $log -Append
+    python omoikane/bin/wiki-lint.py | Tee-Object -FilePath $log -Append
+    if ($Commit) {
+        git add -A
+        git commit -q -m "feat(wiki): $op $name" 2>&1 | Tee-Object -FilePath $log -Append
+    }
+}
+
 $inbox = Join-Path $omoikane "raw/inbox"
 $files = Get-ChildItem $inbox -File -Recurse | Where-Object { $_.Name -ne ".gitkeep" }
-if (-not $files) { Log "nothing in inbox"; exit 0 }
+if (-not $files) { Log "nothing in inbox" }
 
 foreach ($f in $files) {
     $isSession = $f.DirectoryName -eq (Join-Path $inbox "sessions")
@@ -38,23 +66,25 @@ foreach ($f in $files) {
     $rel = [IO.Path]::GetRelativePath($root, $f.FullName) -replace "\\", "/"
     $dest = Join-Path $omoikane $(if ($isSession) { "raw/sources/sessions" } else { "raw/sources" })
     Log "$op start $rel"
-    if ($Agent -eq "claude") {
-        # On Windows Claude Code runs shell commands through its PowerShell tool, which Bash(...) rules do not
-        # cover; without the PowerShell(...) twins the agent cannot run index and lint and never fixes a finding (#17).
-        $allowed = "Read,Write,Edit,Glob,Grep,Bash(python omoikane/bin/*),Bash(git mv *),PowerShell(python omoikane/bin/*),PowerShell(git mv *)"
-        claude -p "/$op $rel" --permission-mode acceptEdits --allowedTools $allowed 2>&1 | Tee-Object -FilePath $log -Append
-    } else {
-        # `opencode run --command <name> <args>` runs a .opencode/command/<name>.md command (opencode run --help).
-        opencode run --command $op $rel 2>&1 | Tee-Object -FilePath $log -Append
-    }
-    if ($LASTEXITCODE -ne 0) { Log "$op FAILED $rel"; continue }
+    if (-not (Invoke-Operation $op $rel)) { Log "$op FAILED $rel"; continue }
     # Agent skipped the move step of the prompt: move the source so the next run does not process it again.
     if (Test-Path $f.FullName) { New-Item -ItemType Directory -Force $dest | Out-Null; Move-Item $f.FullName $dest }
-    python omoikane/bin/wiki-index.py | Tee-Object -FilePath $log -Append
-    python omoikane/bin/wiki-lint.py | Tee-Object -FilePath $log -Append
-    if ($Commit) {
-        git add -A
-        git commit -q -m "feat(wiki): $op $($f.BaseName)" 2>&1 | Tee-Object -FilePath $log -Append
-    }
+    Complete-Operation $op $f.BaseName
     Log "$op done $rel"
+}
+
+# The cross-session pass reads distilled session pages, so it runs after the inbox, never before.
+if ($SynthesizeEvery -gt 0) {
+    python omoikane/bin/synthesize-due.py --every $SynthesizeEvery | Tee-Object -FilePath $log -Append
+    if ($LASTEXITCODE -eq 0) {
+        Log "synthesize start"
+        if (Invoke-Operation "synthesize" "") { Log "synthesize done" } else { Log "synthesize FAILED" }
+        # The log heading is the counter. A run that did not write it would trigger again on every schedule.
+        python omoikane/bin/synthesize-due.py --every $SynthesizeEvery | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Add-Content -Path (Join-Path $omoikane "log.md") -Encoding utf8 -Value "`n## [$(Get-Date -Format yyyy-MM-dd)] synthesize | ended without a log entry"
+            Log "synthesize wrote no log entry; heading appended so the next run waits"
+        }
+        Complete-Operation "synthesize" "sessions"
+    }
 }

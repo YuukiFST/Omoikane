@@ -12,8 +12,8 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path
 
-from wikilib import (CODE_KEY, DATE, GUARD_KEY, GUARDS, PAGE_TYPES, REPO, REQUIRED_KEYS, SOURCE_KEYS, UNDATED, WIKI,
-                     Page, load_pages)
+from wikilib import (CODE_KEY, DATE, GUARD_KEY, GUARDS, PAGE_TYPES, PRACTICE_MIN_SESSIONS, REPO, REQUIRED_KEYS,
+                     SESSION_PAGE, SOURCE_KEYS, UNDATED, WIKI, Page, load_pages)
 
 GUARD_CHOICES = f"{', '.join(GUARDS[:-1])} or {GUARDS[-1]}"
 # Days a gotcha may rely on being read before the lint asks for a check. Long enough for the human to act on
@@ -54,6 +54,14 @@ def lint_pages(pages: list[Page], repo: Path = REPO) -> list[str]:
                 findings.append(f"{p.rel}: `{GUARD_KEY}` is `{guard}`, expected {GUARD_CHOICES}")
         elif GUARD_KEY in p.meta:
             findings.append(f"{p.rel}: `{GUARD_KEY}` belongs on gotcha pages only")
+        if p.meta.get("type") == "practice":
+            cited = p.meta.get("sources")
+            # Only session pages that exist count: a cited path is not evidence until the page is there.
+            sessions = {m.group(1) for s in (cited if isinstance(cited, list) else [])
+                        if (m := SESSION_PAGE.match(str(s))) and posixpath.basename(str(s))[:-3] in slugs}
+            if len(sessions) < PRACTICE_MIN_SESSIONS:
+                findings.append(f"{p.rel}: practice cites {len(sessions)} session, "
+                                f"needs {PRACTICE_MIN_SESSIONS} or more")
         if p.meta.get("type") == "source":
             for key in SOURCE_KEYS:
                 if key not in p.meta:

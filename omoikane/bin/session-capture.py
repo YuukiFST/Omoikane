@@ -33,8 +33,9 @@ from wikilib import OMOIKANE, parse_frontmatter
 INBOX = OMOIKANE / "raw" / "inbox" / "sessions"
 INGESTED = OMOIKANE / "raw" / "sources" / "sessions"
 NO_CAPTURE_ENV = "OMOIKANE_NO_CAPTURE"
-# Headless runs of these commands are Omoikane maintaining itself; capturing them would loop forever.
-OMOIKANE_COMMANDS = {"/ingest", "/ask", "/lint", "/distill"}
+# Headless runs of these commands are Omoikane maintaining itself; capturing them would loop forever. Read from
+# the prompt files so a new operation cannot be left out of the list.
+OMOIKANE_COMMANDS = {f"/{p.stem}" for p in (OMOIKANE / "prompts").glob("*.md")}
 # Lower-cased tool names: Claude Code capitalises (Edit, Bash), Pi and OpenCode do not (edit, bash).
 EDIT_TOOLS = {"edit", "write", "multiedit", "notebookedit"}
 SHELL_TOOLS = {"bash", "powershell"}

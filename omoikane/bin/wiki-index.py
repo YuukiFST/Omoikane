@@ -10,6 +10,7 @@ from wikilib import CODE_KEY, OMOIKANE, PAGE_TYPES, load_pages
 HEADINGS = {
     "decision": "Decisions",
     "gotcha": "Gotchas",
+    "practice": "Practices",
     "concept": "Concepts",
     "entity": "Entities",
     "source": "Sources",
