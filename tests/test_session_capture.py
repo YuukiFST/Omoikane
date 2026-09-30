@@ -170,6 +170,55 @@ class SkipRules(unittest.TestCase):
         self.assertIsNone(capture.skip_reason(s, [" M a.py"]))
 
 
+def claude_session(d: Path, first: str, later: str) -> capture.Session:
+    command = lambda text: f"<command-name>/{text[1:]}</command-name>" if text.startswith("/") else text  # noqa: E731
+    entries = [user(command(first)), assistant({"type": "tool_use", "name": "Edit", "input": {"file_path": "C:/proj/a.py"}}),
+               user(command(later)), assistant({"type": "text", "text": "Answered."})]
+    return capture.read_claude_transcript(write_transcript(d, entries))
+
+
+def pi_session(d: Path, first: str, later: str) -> capture.Session:
+    entries = [json.loads(line) for line in (FIXTURES / "pi-session.jsonl").read_text(encoding="utf-8").splitlines()
+               if line.startswith("{")]
+    for entry in entries:
+        if entry.get("id") == "e1":
+            entry["message"]["content"] = first
+        elif entry.get("id") == "e7":
+            entry["message"]["content"] = [{"type": "text", "text": later}]
+    return capture.read_pi_transcript(write_transcript(d, entries))
+
+
+def opencode_session(d: Path, first: str, later: str) -> capture.Session:
+    template = lambda text: (f"Read `omoikane/prompts/{text[1:]}.md` and follow it. Argument: q"  # noqa: E731
+                             if text.startswith("/") else text)
+    doc = json.loads((FIXTURES / "opencode-export.json").read_text(encoding="utf-8"))
+    user_texts = [p for m in doc["messages"] if m["info"]["role"] == "user"
+                  for p in m["parts"] if p.get("type") == "text" and not p.get("synthetic")]
+    user_texts[0]["text"], user_texts[-1]["text"] = template(first), template(later)
+    path = d / "doc.json"
+    path.write_text(json.dumps(doc), encoding="utf-8")
+    return capture.read_opencode_export(path)
+
+
+class OperationOnlyFromTheFirstPrompt(unittest.TestCase):
+    # One rule for every harness (#34): the Claude reader latched a command from any turn, so a coding session
+    # that ran /ask in turn 4 was dropped whole, while the Pi and OpenCode readers read the first prompt only.
+    READERS = {"claude": claude_session, "pi": pi_session, "opencode": opencode_session}
+
+    def test_command_in_a_later_turn_keeps_the_session(self) -> None:
+        for harness, read in self.READERS.items():
+            with self.subTest(harness=harness), tempfile.TemporaryDirectory() as d:
+                s = read(Path(d), "Fix the parser", "/ask")
+                self.assertEqual(s.first_command, "")
+                self.assertIsNone(capture.skip_reason(s, [" M a.py"]))
+
+    def test_command_as_the_first_prompt_skips_the_session(self) -> None:
+        for harness, read in self.READERS.items():
+            with self.subTest(harness=harness), tempfile.TemporaryDirectory() as d:
+                s = read(Path(d), "/distill", "Now add a test")
+                self.assertEqual(capture.skip_reason(s, [" M a.py"]), "omoikane operation /distill")
+
+
 class Render(unittest.TestCase):
     def test_markdown_has_frontmatter_and_sections(self) -> None:
         with tempfile.TemporaryDirectory() as d:
