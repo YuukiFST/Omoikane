@@ -70,7 +70,7 @@ python omoikane/bin/wiki-index.py
 python omoikane/bin/wiki-lint.py
 ```
 
-`wiki-lint.py` exits non-zero on broken wikilinks, missing frontmatter, undated source pages, orphan pages, two pages sharing a slug or `code:` paths that no longer exist. Fix every finding before you report done. Its `warning:` lines (code committed after a page's `updated` date) do not fail; `/lint` checks them.
+`wiki-lint.py` exits non-zero on broken wikilinks, missing frontmatter, undated source pages, orphan pages, two pages sharing a slug or `code:` paths that no longer exist or are absolute. Fix every finding before you report done. Its `warning:` lines (code committed after a page's `updated` date) do not fail; `/lint` checks them.
 
 ## Coding sessions (build mode)
 

@@ -41,9 +41,13 @@ EDIT_TOOLS = {"edit", "write", "multiedit", "notebookedit"}
 SHELL_TOOLS = {"bash", "powershell"}
 # Path argument per harness: Claude Code file_path/notebook_path, OpenCode filePath, Pi path.
 PATH_KEYS = ("file_path", "notebook_path", "filePath", "path")
-COMMAND_TAG = re.compile(r"<command-name>(/[\w:-]+)</command-name>")
-# OpenCode stores a command as its expanded template; every .opencode/command/*.md in this repository starts this way.
-OPENCODE_COMMAND = re.compile(r"\s*Read `omoikane/prompts/(\w+)\.md` and follow it")
+# Claude Code's command entry, with <command-message> before or after <command-name>. Anchored at the start: a
+# prompt that pastes a transcript excerpt is prose, not a command.
+COMMAND_TAG = re.compile(r"\s*(?:<command-message>[^<]*</command-message>\s*)?<command-name>(/[\w:-]+)</command-name>")
+# A prompt that starts with /name. Claude Code and OpenCode run such a prompt as the command, whatever follows it.
+SLASH_COMMAND = re.compile(r"(/[\w:-]+)(?:\s|\Z)")
+# A command stored as its expanded template (OpenCode does this); every .opencode/command/*.md starts this way.
+COMMAND_TEMPLATE = re.compile(r"\s*Read `omoikane/prompts/(\w+)\.md` and follow it")
 NOTE_CHARS = 1500
 PROMPT_CHARS = 2000
 ERROR_CHARS = 400
@@ -68,7 +72,6 @@ class Session:
     branch: str = ""
     started: str = ""
     ended: str = ""
-    first_command: str = ""
     parent: str = ""  # id of the session that spawned this one (OpenCode subagent); such sessions are skipped
     turns: list[Turn] = field(default_factory=list)
 
@@ -85,6 +88,35 @@ class Session:
     @property
     def files(self) -> list[str]:
         return sorted({f for t in self.turns for f in t.files})
+
+    @property
+    def first_command(self) -> str:
+        """The command the first prompt runs, "" when it runs none.
+
+        Only the first prompt counts, and it is read here rather than in each reader: the Claude reader once
+        latched a command from any turn and dropped a coding session that ran /ask in turn 4 (#34). Harness
+        commands the agent never answered (/clear, /effort, /model typed before the task) are not the first
+        prompt: Claude Code writes them at the head of the transcript, where they would hide a /distill after them.
+        Example: Session(..., turns=[Turn("/clear"), Turn("/ingest"), Turn("/ask")]).first_command returns "/ingest".
+        """
+        for turn in self.turns:
+            command = command_of(turn.prompt)
+            answered = turn.notes or turn.files or turn.commands or turn.errors
+            if command and command not in OMOIKANE_COMMANDS and not answered:
+                continue
+            return command
+        return ""
+
+
+def command_of(prompt: str) -> str:
+    """The command a prompt runs, "" for prose: Claude Code stores the command name, OpenCode the expanded template.
+
+    Example: command_of("Read `omoikane/prompts/distill.md` and follow it.") returns "/distill".
+    """
+    if template := COMMAND_TEMPLATE.match(prompt):
+        return f"/{template.group(1)}"
+    slash = SLASH_COMMAND.match(prompt.lstrip())
+    return slash.group(1) if slash else ""
 
 
 def clip(text: str, limit: int) -> str:
@@ -169,9 +201,7 @@ def read_claude_transcript(path: Path, session_id: str = "") -> Session:
         if kind == "user" and isinstance(content, str):
             if entry.get("isMeta") or content.lstrip().startswith("<local-command-"):
                 continue
-            command = COMMAND_TAG.search(content)
-            if command and not session.first_command:
-                session.first_command = command.group(1)
+            command = COMMAND_TAG.match(content)
             current = Turn(prompt=clip(command.group(1) if command else content, PROMPT_CHARS))
             session.turns.append(current)
             continue
@@ -283,9 +313,6 @@ def read_opencode_export(path: Path, session_id: str = "") -> Session:
             prompt = "\n".join(str(p.get("text", "")) for p in parts if p.get("type") == "text" and not p.get("synthetic"))
             if not prompt.strip():
                 continue
-            command = OPENCODE_COMMAND.match(prompt)
-            if command and not session.turns:
-                session.first_command = f"/{command.group(1)}"
             current = Turn(prompt=clip(prompt, PROMPT_CHARS))
             session.turns.append(current)
             continue
@@ -323,7 +350,7 @@ def record_tool_use(turn: Turn, name: str, tool_input: object, cwd: str) -> None
 def skip_reason(session: Session, worktree: list[str]) -> str | None:
     """Return why the session is not worth a source file, or None when it is.
 
-    Example: skip_reason(Session(first_command="/ingest", ...), []) returns "omoikane operation /ingest".
+    Example: skip_reason(Session(..., turns=[Turn("/ingest")]), []) returns "omoikane operation /ingest".
     """
     if session.first_command in OMOIKANE_COMMANDS:
         return f"omoikane operation {session.first_command}"
