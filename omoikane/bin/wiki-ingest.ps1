@@ -60,6 +60,8 @@ function Invoke-Operation([string] $op, [string] $arg) {
     }
     $ok = $LASTEXITCODE -eq 0
     python omoikane/bin/review-ticks.py --before $before | Tee-Object -FilePath $log -Append | Out-Host
+    # A bullet the run deleted would be recorded as the human's decision by the next review-removals.py (#41).
+    if ($LASTEXITCODE -ne 0) { throw "the $op run deleted or rewrote bullets in _review.md; nothing was committed" }
     return $ok
 }
 
@@ -74,7 +76,7 @@ function Complete-Operation([string] $op, [string] $name) {
 
 # Before any operation reads the log: proposals the human deleted from _review.md are decided, and /distill
 # must see that before it files the same lesson again (#41).
-python omoikane/bin/review-removals.py | Tee-Object -FilePath $log -Append
+python omoikane/bin/review-removals.py 2>&1 | Tee-Object -FilePath $log -Append
 
 $inbox = Join-Path $omoikane "raw/inbox"
 $files = Get-ChildItem $inbox -File -Recurse | Where-Object { $_.Name -ne ".gitkeep" }

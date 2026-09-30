@@ -61,7 +61,7 @@ def compact_index(text: str, budget: int) -> str:
     return "\n\n".join(kept)
 
 
-def review_items(review: str) -> tuple[int, int]:
+def review_items(review: str) -> tuple[int, int, int]:
     """Count the top-level bullets of _review.md (review_bullets: diff lines in fences are not bullets) and,
     among them, the ticked `- [x]` proposals and rules.
 

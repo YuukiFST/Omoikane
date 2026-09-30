@@ -56,6 +56,30 @@ class Removed(unittest.TestCase):
         review = REVIEW.replace("- todo pi-live-verification: run the Pi extension live (session aaaaaaaa, turn 4)\n", "")
         self.assertEqual(removals.removed(LOG, review), [("todo", "pi-live-verification")])
 
+    def test_other_bullet_shapes_still_count_as_open(self) -> None:
+        # A shape the matcher misses would read as a rejection and silence a lesson the human never saw.
+        log = "- routed (todo) a: x\n- routed (guard) b: y\n- routed (prompt) c: z\n"
+        for review in ("   - todo a: x\n- [X] guard (lint) b: y\n- [ ] prompt (distill.md) c: z\n",
+                       "- todo `a`: x\n- [ ] guard (test) `b`: y\n- [ ] prompt (distill.md) `c`: z\n"):
+            with self.subTest(review=review):
+                self.assertEqual(removals.removed(log, review), [])
+
+    def test_one_slug_under_two_kinds_is_tracked_per_kind(self) -> None:
+        log = "- routed (guard) a: x\n- routed (rule) a: Do a. (synthesize)\n"
+        self.assertEqual(removals.removed(log, "- [ ] guard (test) a: x\n"), [("rule", "a")])
+
+    def test_a_guard_lint_filed_is_tracked_too(self) -> None:
+        self.assertEqual(removals.removed("- unguarded g\n", "# Review queue\n"), [("guard", "g")])
+
+    def test_an_unclosed_fence_records_nothing(self) -> None:
+        # Everything after an unclosed fence would read as deleted; a diff context line " ````" closes a
+        # four-backtick fence early and leaves the real closing line open.
+        log = "- routed (todo) a: x\n- routed (todo) b: y\n"
+        for review in ("````diff\n- x\n- todo a: x\n- todo b: y\n",
+                       "- todo a: x\n````diff\n ````\n````\n- todo b: y\n"):
+            with self.subTest(review=review), self.assertRaises(ValueError):
+                removals.removed(log, review)
+
     def test_a_removal_is_recorded_once(self) -> None:
         log = removals.record(LOG, [("rule", "review-each-pr")], "2026-10-01")
         self.assertIn("## [2026-10-01] review | removed from _review.md\n\n- removed (rule) review-each-pr\n", log)
