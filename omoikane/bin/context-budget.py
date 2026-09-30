@@ -10,19 +10,25 @@ Usage: python omoikane/bin/context-budget.py
 """
 from __future__ import annotations
 
+import importlib
 import math
 import os
 import subprocess
 import sys
+import tempfile
+from pathlib import Path
 
-from wikilib import FRONTMATTER, MAX_RULES, OMOIKANE, REPO, RULES_END, RULES_START, managed_rules
+from wikilib import FRONTMATTER, MAX_RULES, OMOIKANE, PAGE_TYPES, REPO, RULES_END, RULES_START, managed_rules
+
+session_context = importlib.import_module("session-context")
+wiki_index = importlib.import_module("wiki-index")
 
 CHARS_PER_TOKEN = 3.5
 # AGENTS.md is ~1,700 tokens with an empty rules block; a full block (15 rules of at most 120 characters plus a
 # page pointer of up to ~90, ~65 tokens each) adds ~950, which tests/test_wiki_rules.py checks against the real
 # file. The brief is bounded by session-context.py's own 12,000-character index budget (~3,430 tokens) plus its
-# header and pending notes. In CI the wiki is empty, so the brief limit bites in a repository with a real wiki,
-# where this script also runs.
+# header and pending notes; the gate measures that bound on a generated tree (worst_case_brief), since this
+# repository's wiki may be small or empty (#37).
 LIMITS = {"AGENTS.md": 2_800, "skill frontmatter": 600, "session brief": 4_000, "total": 7_000}
 
 
@@ -63,15 +69,50 @@ def check(agents: str, frontmatters: list[str], brief: str, limits: dict[str, in
     return findings
 
 
-def session_brief() -> tuple[str, str]:
+def session_brief(*args: str) -> tuple[str, str]:
     """Run session-context.py as the SessionStart hook does, without the variable that silences it.
 
     Returns (stdout, stderr). Example: session_brief() returns ("Omoikane wiki brief follows: ...", "").
     """
     env = {k: v for k, v in os.environ.items() if k != "OMOIKANE_NO_CAPTURE"}
-    run = subprocess.run([sys.executable, str(OMOIKANE / "bin" / "session-context.py")], capture_output=True,
+    run = subprocess.run([sys.executable, str(OMOIKANE / "bin" / "session-context.py"), *args], capture_output=True,
                          text=True, encoding="utf-8", env=env, check=False)
     return run.stdout, run.stderr
+
+
+def write_worst_case(omoikane: Path) -> None:
+    """Fill an omoikane/ tree past every bound of the brief: more index entries per section than the index
+    budget holds, each at its longest (120 characters is the lint limit for a summary), four-digit omitted
+    counts, 100 more pending captures than the brief lists, and every kind of `_review.md` line it counts.
+    The index part stops within one entry (~250 characters) of its budget, since filling stops at the first
+    entry that does not fit.
+
+    Example: write_worst_case(Path(tmp) / "omoikane") writes index.md, _review.md and raw/inbox/sessions/*.md.
+    """
+    entry = "- [[{slug}]] — " + "s" * 120 + " `src/module/a.py, src/module/b.py` `2026-09-30` `prune: low-value`"
+    lines = ["# Index", ""]
+    for kind in PAGE_TYPES:
+        lines += [f"## {wiki_index.HEADINGS[kind]} (1000)", ""]
+        lines += [entry.format(slug=f"{kind}-{i:04d}-" + "x" * 60) for i in range(1000)] + [""]
+    sessions = omoikane / "raw" / "inbox" / "sessions"
+    sessions.mkdir(parents=True)
+    (omoikane / "index.md").write_text("\n".join(lines), encoding="utf-8")
+    for i in range(session_context.PENDING_SESSIONS_SHOWN + 100):
+        (sessions / f"2026-09-30-{i:08d}-part10.md").write_text("", encoding="utf-8")
+    (omoikane / "_review.md").write_text(
+        "- [ ] guard (test) a: open\n- [x] guard (test) b: approved\n- [x] prompt (distill.md) c: approved\n"
+        "- [x] rule d: Do d. (synthesize)\n- [x] rule e: Do e. (synthesize)\n- todo f: open\n", encoding="utf-8")
+
+
+def worst_case_brief(*args: str) -> tuple[str, str]:
+    """The brief session-context.py prints for a tree past every bound, whatever this wiki holds (#37).
+
+    Example: worst_case_brief() returns ("Omoikane wiki brief follows: ... Omitted by budget: ...", "").
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        tree = Path(tmp) / "omoikane"
+        write_worst_case(tree)
+        return session_brief("--omoikane", str(tree), *args)
 
 
 def main() -> int:
@@ -80,10 +121,18 @@ def main() -> int:
     for skill in sorted((REPO / ".claude" / "skills").glob("*/SKILL.md")):
         m = FRONTMATTER.match(skill.read_text(encoding="utf-8"))
         frontmatters.append(m.group(1) if m else "")
-    brief, error = session_brief()
-    findings = check(agents, frontmatters, brief, brief_error=error)
+    here, here_error = session_brief()
+    worst, worst_error = worst_case_brief()
+    # The worst case bounds this wiki's brief. A longer brief here means the generated tree misses a bound of
+    # session-context.py: measure the longer one and say so, so the tree gets fixed instead of the gate drifting.
+    brief = max(here, worst, key=len)
+    findings = check(agents, frontmatters, brief, brief_error="\n".join(e for e in (here_error, worst_error) if e))
+    if len(here) > len(worst):
+        findings.append("session brief: this wiki's brief is longer than the worst case; write_worst_case misses a "
+                        "bound of session-context.py")
     for name, n in measure(agents, frontmatters, brief).items():
         print(f"{name:<18} {n:>6} / {LIMITS[name]} tokens (estimated)")
+    print(f"{'':<18} session brief of this wiki: {tokens(here)} tokens")
     for f in findings:
         print(f)
     print(f"context-budget: {len(findings)} findings")

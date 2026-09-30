@@ -90,7 +90,7 @@ A practice page reaches an agent only when the agent opens it. The few practices
 `/synthesize` proposes them as `- [ ] rule` bullets in `_review.md`; the human ticks one and runs `python omoikane/bin/wiki-rules.py`, which moves it into the block with a pointer to its page.
 
 Why a script and not the agent: approval must be a human act. The scheduled run's permissions do not include `wiki-rules.py`, so an agent cannot tick a box and promote in the same run.
-Why a cap of 15 and a budget gate: `AGENTS.md` is a shared budget, and adherence drops for every rule as it grows, not only for the new ones. `wiki-rules.py` refuses at the cap, so admitting a rule means retiring one. `context-budget.py` estimates the tokens of `AGENTS.md`, the skill descriptions and the `session-context.py` output at 3.5 characters each and fails CI above the limits in the script.
+Why a cap of 15 and a budget gate: `AGENTS.md` is a shared budget, and adherence drops for every rule as it grows, not only for the new ones. `wiki-rules.py` refuses at the cap, so admitting a rule means retiring one. `context-budget.py` estimates the tokens of `AGENTS.md`, the skill descriptions and the `session-context.py` output at 3.5 characters each and fails CI above the limits in the script. The brief is measured on a generated tree past every bound (an index past its budget in every section, more pending captures than the brief lists; within one index entry of the cap), not only on this repository's wiki: the wiki was empty in CI, so a raised cap would have passed.
 
 ## What is deterministic and why
 
