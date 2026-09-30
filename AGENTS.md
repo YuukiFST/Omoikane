@@ -18,6 +18,7 @@ Everything Omoikane owns lives under `omoikane/`; the repository root belongs to
 - `omoikane/wiki/sources/` — one page per ingested source or distilled session.
 - `omoikane/wiki/decisions/` — a choice made, the alternatives rejected, the reason.
 - `omoikane/wiki/gotchas/` — behaviour learned by running something, and the workaround.
+- `omoikane/wiki/practices/` — a procedure or a user preference seen in two or more sessions, written by `/synthesize`.
 - `omoikane/wiki/entities/` — people, organisations, products, places, modules, libraries.
 - `omoikane/wiki/concepts/` — ideas, methods, recurring themes, comparisons.
 - `omoikane/wiki/queries/` — filed answers to questions.
@@ -32,7 +33,7 @@ Every page under `omoikane/wiki/` starts with this frontmatter; `wiki-index.py` 
 ```yaml
 ---
 title: Exact page title
-type: source | entity | concept | query | decision | gotcha
+type: source | entity | concept | query | decision | gotcha | practice
 summary: One line, under 120 characters, used verbatim in index.md
 tags: [tag-a, tag-b]
 created: YYYY-MM-DD                 # when this wiki page was written, not the source
@@ -58,6 +59,7 @@ Prompts live in `omoikane/prompts/`; each is reachable as a slash command in Cla
 - Distill a captured coding session: `omoikane/prompts/distill.md`.
 - Answer a question and file it: `omoikane/prompts/ask.md`.
 - Semantic health check: `omoikane/prompts/lint.md`.
+- Find practices repeated across sessions: `omoikane/prompts/synthesize.md`. `wiki-ingest.ps1` runs it after every 5 distills.
 
 After any operation that touches `omoikane/wiki/`, finish with:
 

@@ -26,6 +26,7 @@ omoikane/raw/inbox/*           --Task Scheduler (omoikane/bin/install-schedule.p
 ```
 
 The agent's semantic pass (`/lint`) runs on demand or weekly and writes to `omoikane/_review.md`.
+After every `-SynthesizeEvery` distills (5 by default; `omoikane/bin/synthesize-due.py` counts them in `log.md`), the same script runs `/synthesize` once.
 It changes no page, so an unattended run cannot damage the wiki.
 
 `/distill` routes each lesson it keeps to one destination: a guard (a `wiki-lint.py` rule, a test, a hook), a fix to an Omoikane prompt, a wiki page, or a todo.
@@ -62,6 +63,20 @@ Where each harness registers the hooks, and why that shape:
 - OpenCode: `.opencode/plugins/omoikane.ts`. `experimental.chat.system.transform` adds the index to the system prompt (once per session). `session.idle` fires once per prompt; event handlers are not awaited by OpenCode, so `dispose` also captures every session not yet captured, which is what makes `opencode run` capture before it exits. A command is stored as its expanded template, so the reader recognises `/ingest` and friends from the first prompt text. Sessions with a `parentID` are subagents and are skipped.
 
 File names end in the last eight characters of the session id: Pi ids are UUIDv7 and OpenCode ids are time-ordered, so the head is shared by sessions started close together.
+
+## Cross-session pass
+
+`/distill` reads one session, so it cannot see a workflow four sessions repeated, a preference the user keeps restating, or a candidate it skipped as a one-off that keeps coming back.
+`/synthesize` reads the last N session pages side by side, plus the `routed` and `skipped` lines of `log.md` grouped by slug, and writes what two or more sessions show.
+
+Why a new page type, `practice`, and one rather than two (`procedure` and `principle`):
+
+- A procedure (steps in an order that matters) and a preference (the user's own words) share everything the loop cares about: evidence from two or more sessions, an imperative rule you can catch an agent breaking, and candidacy for the managed block of `AGENTS.md`. Two types would split one lifecycle.
+- The existing types do not fit. A decision records alternatives rejected once; a practice recurs. A concept page is not imperative, and filing practices there hides them among themes.
+- A type of its own lets code enforce the floor: `wiki-lint.py` fails a practice citing fewer than two distinct sessions (two parts of one session count once), and `session-context.py` ranks practices right after decisions and gotchas.
+
+Why every N distills and not on each one: a pattern needs sessions to cross, and one LLM call per batch costs less than one per session.
+Why the log is the counter: it is already the append-only chronology, so no state file can drift from it.
 
 ## What is deterministic and why
 
