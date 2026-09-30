@@ -79,6 +79,16 @@ class ReadTranscript(unittest.TestCase):
         self.assertEqual(s.first_command, "/ingest")
         self.assertEqual(s.turns[0].prompt, "/ingest")
 
+    def test_every_omoikane_operation_is_skipped(self) -> None:
+        # A new prompt missing from the skip list gets its sessions captured and distilled, which loops.
+        prompts = sorted((Path(capture.OMOIKANE) / "prompts").glob("*.md"))
+        self.assertTrue(prompts)
+        for prompt in prompts:
+            with self.subTest(op=prompt.stem), tempfile.TemporaryDirectory() as d:
+                entries = [user(f"<command-name>/{prompt.stem}</command-name>")]
+                s = capture.read_claude_transcript(write_transcript(Path(d), entries))
+                self.assertEqual(capture.skip_reason(s, ["M x.py"]), f"omoikane operation /{prompt.stem}")
+
 
 class ReadPiTranscript(unittest.TestCase):
     """Fixture follows docs/session-format.md of @earendil-works/pi-coding-agent 0.85.1 (v3 tree)."""
