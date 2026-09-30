@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import importlib
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -49,6 +51,53 @@ class CodePaths(unittest.TestCase):
         b = page("b", "gotcha")
         a.links, b.links = {"b"}, {"a"}
         self.assertEqual(lint.lint_pages([a, b], Path(".")), [])
+
+    def test_same_slug_in_two_folders_is_a_finding(self) -> None:
+        a = page("x", "decision")
+        b = page("x", "gotcha")
+        a.path, b.path = Path("/wiki/decisions/x.md"), Path("/wiki/gotchas/x.md")
+        a.links, b.links = {"x"}, {"x"}
+        findings = lint.lint_pages([a, b], Path("."))
+        self.assertEqual(findings, ["/wiki/gotchas/x.md: slug `x` is also /wiki/decisions/x.md; [[x]] is ambiguous"])
+
+
+class StalePages(unittest.TestCase):
+    CHANGED = {"src/a.py": "2026-09-20", "src/pkg/b.py": "2026-09-12", "src/pkg/c.py": "2026-09-18"}
+
+    def test_code_committed_after_update_is_a_warning(self) -> None:
+        g = page("g", "gotcha", updated="2026-09-15", code=["src/a.py"])
+        self.assertEqual(lint.stale_pages([g], self.CHANGED), [
+            "/wiki/g.md: `src/a.py` changed on 2026-09-20, after the page's `updated` 2026-09-15; "
+            "check the page still matches the code"])
+
+    def test_code_committed_on_or_before_update_is_fine(self) -> None:
+        g = page("g", "gotcha", updated="2026-09-20", code=["src/a.py", "src/pkg/b.py"])
+        self.assertEqual(lint.stale_pages([g], self.CHANGED), [])
+
+    def test_directory_takes_its_newest_file(self) -> None:
+        d = page("d", "decision", updated="2026-09-15", code=["src/pkg/"])
+        self.assertEqual(len(lint.stale_pages([d], self.CHANGED)), 1)
+        self.assertIn("changed on 2026-09-18", lint.stale_pages([d], self.CHANGED)[0])
+
+    def test_last_changed_reads_git_history(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            git = ["git", "-C", d, "-c", "user.name=t", "-c", "user.email=t@t"]
+            subprocess.run(["git", "init", "-q", d], check=True)
+            (repo / "src").mkdir()
+            (repo / "src" / "a.py").write_text("1", encoding="utf-8")
+            (repo / "other.py").write_text("1", encoding="utf-8")
+            subprocess.run([*git, "add", "."], check=True)
+            env = {**os.environ, "GIT_COMMITTER_DATE": "2026-09-01T12:00:00Z", "GIT_AUTHOR_DATE": "2026-09-01T12:00:00Z"}
+            subprocess.run([*git, "commit", "-q", "-m", "one"], check=True, env=env)
+            (repo / "src" / "a.py").write_text("2", encoding="utf-8")
+            env = {**os.environ, "GIT_COMMITTER_DATE": "2026-09-05T12:00:00Z", "GIT_AUTHOR_DATE": "2026-09-05T12:00:00Z"}
+            subprocess.run([*git, "commit", "-q", "-am", "two"], check=True, env=env)
+            changed = lint.last_changed(repo, ["src"])
+        self.assertEqual(changed, {"src/a.py": "2026-09-05"})
+
+    def test_last_changed_skips_git_without_code_paths(self) -> None:
+        self.assertEqual(lint.last_changed(Path("/nonexistent"), []), {})
 
 
 class CompactIndex(unittest.TestCase):

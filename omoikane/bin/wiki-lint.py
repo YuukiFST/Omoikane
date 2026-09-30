@@ -1,10 +1,12 @@
 """Structural checks that need no LLM.
 
-Exit 1 on any finding so agents and CI stop on it.
+Exit 1 on any finding so agents and CI stop on it. Warnings print but keep exit 0: they need a judgement
+the script cannot make, and the semantic /lint pass reads them.
 Usage: python omoikane/bin/wiki-lint.py
 """
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -20,6 +22,12 @@ def lint_pages(pages: list[Page], repo: Path = REPO) -> list[str]:
     slugs = {p.slug for p in pages}
     inbound: dict[str, int] = {s: 0 for s in slugs}
     findings: list[str] = []
+    # A wikilink names a slug, not a folder: `decisions/x.md` and `gotchas/x.md` would both answer [[x]].
+    first_with_slug: dict[str, Page] = {}
+    for p in pages:
+        if p.slug in first_with_slug:
+            findings.append(f"{p.rel}: slug `{p.slug}` is also {first_with_slug[p.slug].rel}; [[{p.slug}]] is ambiguous")
+        first_with_slug.setdefault(p.slug, p)
 
     for p in pages:
         if not p.meta:
@@ -67,12 +75,63 @@ def lint_pages(pages: list[Page], repo: Path = REPO) -> list[str]:
     return findings
 
 
+def code_paths(pages: list[Page]) -> list[str]:
+    return sorted({str(path) for p in pages if isinstance(p.meta.get(CODE_KEY), list) for path in p.meta[CODE_KEY]})
+
+
+def last_changed(repo: Path, paths: list[str]) -> dict[str, str]:
+    """Map each file under `paths` to the date (YYYY-MM-DD) of its newest commit, from one `git log` call.
+
+    Limited to the `code:` paths so a long history outside them costs nothing.
+    Example: last_changed(repo, ["src"]) returns {"src/a.py": "2026-09-05"}.
+    """
+    if not paths:
+        return {}
+    out = subprocess.run(
+        ["git", "-C", str(repo), "-c", "core.quotePath=false", "log", "--format=>%cs", "--name-only", "--", *paths],
+        capture_output=True, text=True, encoding="utf-8", check=True,
+    ).stdout
+    dates: dict[str, str] = {}
+    current = ""
+    for line in out.splitlines():
+        if line.startswith(">"):
+            current = line[1:]
+        elif line:
+            dates.setdefault(line, current)  # git log lists newest first
+    return dates
+
+
+def stale_pages(pages: list[Page], changed: dict[str, str]) -> list[str]:
+    """Warn about pages whose `code:` paths have a commit dated after the page's `updated` date.
+
+    Most code changes leave the page true, so this is a warning for /lint to judge, not a finding.
+    Example: stale_pages([gotcha with updated 2026-09-15, code [src/a.py]], {"src/a.py": "2026-09-20"})
+    returns ["...: `src/a.py` changed on 2026-09-20, after the page's `updated` 2026-09-15; ..."].
+    """
+    warnings: list[str] = []
+    for p in pages:
+        updated = str(p.meta.get("updated", ""))
+        code = p.meta.get(CODE_KEY) or []
+        if not isinstance(code, list) or not DATE.match(updated):
+            continue
+        for path in code:
+            prefix = str(path).rstrip("/")
+            latest = max((d for f, d in changed.items() if f == prefix or f.startswith(prefix + "/")), default="")
+            if latest > updated:
+                warnings.append(f"{p.rel}: `{path}` changed on {latest}, after the page's `updated` {updated}; "
+                                "check the page still matches the code")
+    return warnings
+
+
 def main() -> int:
     pages = load_pages()
     findings = lint_pages(pages)
+    warnings = stale_pages(pages, last_changed(REPO, code_paths(pages)))
     for f in findings:
         print(f)
-    print(f"wiki-lint: {len(pages)} pages, {len(findings)} findings")
+    for w in warnings:
+        print(f"warning: {w}")
+    print(f"wiki-lint: {len(pages)} pages, {len(findings)} findings, {len(warnings)} warnings")
     return 1 if findings else 0
 
 
