@@ -113,6 +113,15 @@ class ContextBudget(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertRegex(findings[0], r"^total: \d+ tokens, limit 200")
 
+    def test_a_full_block_of_long_rules_fits_the_agents_limit(self) -> None:
+        # A promotion the cap allows must not turn CI red. Slugs come from page titles, so 60 characters is real.
+        agents = (Path(budget.REPO) / "AGENTS.md").read_text(encoding="utf-8")
+        slugs = [f"{i:02d}-" + "s" * 57 for i in range(MAX_RULES)]
+        review = "".join(f"- [x] rule {s}: {'r' * rules.MAX_RULE_CHARS} (synthesize)\n" for s in slugs)
+        full, _, problems = rules.promote(agents, review, set(slugs))
+        self.assertEqual((len(managed_rules(full) or []), problems), (MAX_RULES, []))
+        self.assertEqual([f for f in budget.check(full, [], "") if f.startswith("AGENTS.md")], [])
+
     def test_a_failing_brief_is_a_finding(self) -> None:
         # session-context.py never exits non-zero; a crash would measure 0 tokens and pass.
         self.assertEqual(budget.check(agents_md(), [], "", self.LIMITS, brief_error="Traceback: boom"),

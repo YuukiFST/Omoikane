@@ -18,11 +18,12 @@ import sys
 from wikilib import FRONTMATTER, MAX_RULES, OMOIKANE, REPO, RULES_END, RULES_START, managed_rules
 
 CHARS_PER_TOKEN = 3.5
-# AGENTS.md is ~1,700 tokens with an empty rules block; a full block (15 rules of at most 120 characters plus
-# the page pointer, ~50 tokens each) adds ~750. The brief is bounded by session-context.py's own 12,000-character
-# index budget (~3,430 tokens) plus its header and pending notes. In CI the wiki is empty, so the brief limit
-# bites in a repository with a real wiki, where this script also runs.
-LIMITS = {"AGENTS.md": 2_600, "skill frontmatter": 600, "session brief": 4_000, "total": 6_800}
+# AGENTS.md is ~1,700 tokens with an empty rules block; a full block (15 rules of at most 120 characters plus a
+# page pointer of up to ~90, ~65 tokens each) adds ~950, which tests/test_wiki_rules.py checks against the real
+# file. The brief is bounded by session-context.py's own 12,000-character index budget (~3,430 tokens) plus its
+# header and pending notes. In CI the wiki is empty, so the brief limit bites in a repository with a real wiki,
+# where this script also runs.
+LIMITS = {"AGENTS.md": 2_800, "skill frontmatter": 600, "session brief": 4_000, "total": 7_000}
 
 
 def tokens(text: str) -> int:
@@ -46,7 +47,7 @@ def check(agents: str, frontmatters: list[str], brief: str, limits: dict[str, in
     """Return one finding per part over its limit, per problem with the managed rules block, and for a brief
     that failed: session-context.py always exits 0, so its stderr is the only sign a crash measured 0 tokens.
 
-    Example: check("x" * 10_000, [], "") returns ["AGENTS.md: 2858 tokens, limit 2600; ...", "AGENTS.md: managed
+    Example: check("x" * 10_000, [], "") returns ["AGENTS.md: 2858 tokens, limit 2800; ...", "AGENTS.md: managed
     block markers ... not found"].
     """
     parts = measure(agents, frontmatters, brief)
