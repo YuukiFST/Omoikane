@@ -38,22 +38,29 @@ function Invoke-Operation([string] $op, [string] $arg) {
     # The scope (edit only the wiki, the log and _review.md; run only index and lint; no git) lives in
     # headless-scope.py, rendered for each harness, so the two cannot drift (#39). File moves are left to this
     # script, after the run.
-    $scope = python omoikane/bin/headless-scope.py $Agent
-    if ($LASTEXITCODE -ne 0) { throw "headless-scope.py $Agent failed" }
+    $snapshot = Join-Path ([IO.Path]::GetTempPath()) "omoikane-scope-before.json"
+    python omoikane/bin/headless-scope.py snapshot | Set-Content -Encoding utf8NoBOM $snapshot
     if ($Agent -eq "claude") {
         $prompt = "/$op $arg".TrimEnd()
-        $flags = @($scope | ConvertFrom-Json)
+        $flags = @(python omoikane/bin/headless-scope.py claude | ConvertFrom-Json)
         claude -p $prompt @flags 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
     } else {
         # OPENCODE_CONFIG_CONTENT is merged over the global and project config (opencode.ai/docs/config); it
-        # defines the agent that carries the scope. `opencode run --command <name> <args>` runs a
-        # .opencode/command/<name>.md command (opencode run --help).
-        $rest = @($arg | Where-Object { $_ })  # /synthesize takes no argument; do not pass an empty one
-        $env:OPENCODE_CONFIG_CONTENT = $scope
-        try { opencode run --agent omoikane-headless --command $op @rest 2>&1 | Tee-Object -FilePath $log -Append | Out-Host }
-        finally { Remove-Item Env:OPENCODE_CONFIG_CONTENT }
+        # defines the agent that carries the scope, under a name no other config can know. The prompt goes in
+        # as the message, not through --command: a command's own `agent` overrides --agent (#39). --pure keeps
+        # user plugins out, whose config hook could rewrite the agent.
+        $agentName = "omoikane-headless-" + [guid]::NewGuid().ToString("N").Substring(0, 8)
+        $message = "Read ``omoikane/prompts/$op.md`` and follow it."
+        if ($arg) { $message += " Argument: $arg" }
+        $saved = $env:OPENCODE_CONFIG_CONTENT
+        $env:OPENCODE_CONFIG_CONTENT = python omoikane/bin/headless-scope.py opencode --agent-name $agentName
+        try { opencode run --pure --agent $agentName $message 2>&1 | Tee-Object -FilePath $log -Append | Out-Host }
+        finally { $env:OPENCODE_CONFIG_CONTENT = $saved }
     }
     $ok = $LASTEXITCODE -eq 0
+    # The harness's permission rules have holes of their own; the tree is the ground truth, whichever harness ran.
+    python omoikane/bin/headless-scope.py verify --before $snapshot | Tee-Object -FilePath $log -Append | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "the $op run changed files outside its scope; nothing was committed" }
     python omoikane/bin/review-ticks.py --before $before | Tee-Object -FilePath $log -Append | Out-Host
     return $ok
 }
