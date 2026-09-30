@@ -16,6 +16,9 @@ PAGE_TYPES = ("decision", "gotcha", "concept", "entity", "source", "query")
 SOURCE_KEYS = ("dated",)
 # Optional on any page: repository paths the page is about. wiki-lint.py fails when one no longer exists.
 CODE_KEY = "code"
+# Required on gotcha pages: the check that catches the mistake today, `none` when only the page does.
+GUARD_KEY = "guard"
+GUARDS = ("lint", "test", "hook", "none")
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}\Z")
 UNDATED = "unknown"
 WIKILINK = re.compile(r"\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
