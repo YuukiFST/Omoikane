@@ -71,17 +71,24 @@ class CodePaths(unittest.TestCase):
                 self.assertEqual(lint.lint_pages([hub, g], Path(".")), [finding])
 
     def test_practice_needs_evidence_from_two_sessions(self) -> None:
-        one = ["wiki/sources/session-2026-09-15-aaaaaaaa.md", "wiki/sources/article.md"]
-        two = ["wiki/sources/session-2026-09-15-aaaaaaaa.md", "wiki/sources/session-2026-09-20-bbbbbbbb-part2.md"]
-        # Two parts of one session are one session: the continuation file repeats the same id tail.
-        parts = ["wiki/sources/session-2026-09-15-aaaaaaaa.md", "wiki/sources/session-2026-09-15-aaaaaaaa-part2.md"]
+        a, b, a2 = "session-2026-09-15-aaaaaaaa", "session-2026-09-20-bbbbbbbb-part2", "session-2026-09-15-aaaaaaaa-part2"
+        cite = lambda *slugs: [f"wiki/sources/{s}.md" for s in slugs]  # noqa: E731
         needs_two = ["/wiki/p.md: practice cites 1 session, needs 2 or more"]
-        for sources, findings in ((one, needs_two), (parts, needs_two), (two, [])):
+        cases = (
+            (cite(a, "article"), needs_two),
+            # Two parts of one session are one session: the continuation file repeats the same id tail.
+            (cite(a, a2), needs_two),
+            # A cited session with no page is no evidence: a model can write any path.
+            (cite(a, "session-2026-09-21-cccccccc"), needs_two),
+            (cite(a, b), []),
+        )
+        for sources, findings in cases:
             with self.subTest(sources=sources):
                 p = page("p", "practice", sources=sources)
                 hub = page("hub", "concept")
-                hub.links, p.links = {"p"}, {"hub"}
-                self.assertEqual(lint.lint_pages([hub, p], Path(".")), findings)
+                hub.links, p.links = {"p", a, a2, b}, {"hub"}
+                pages = [hub, p] + [page(s, "source", dated="2026-09-15", sources=[]) for s in (a, a2, b)]
+                self.assertEqual(lint.lint_pages(pages, Path(".")), findings)
 
     def test_same_slug_in_two_folders_is_a_finding(self) -> None:
         a = page("x", "decision")

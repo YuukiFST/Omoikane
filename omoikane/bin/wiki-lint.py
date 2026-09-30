@@ -56,8 +56,9 @@ def lint_pages(pages: list[Page], repo: Path = REPO) -> list[str]:
             findings.append(f"{p.rel}: `{GUARD_KEY}` belongs on gotcha pages only")
         if p.meta.get("type") == "practice":
             cited = p.meta.get("sources")
+            # Only session pages that exist count: a cited path is not evidence until the page is there.
             sessions = {m.group(1) for s in (cited if isinstance(cited, list) else [])
-                        if (m := SESSION_PAGE.match(str(s)))}
+                        if (m := SESSION_PAGE.match(str(s))) and posixpath.basename(str(s))[:-3] in slugs}
             if len(sessions) < PRACTICE_MIN_SESSIONS:
                 findings.append(f"{p.rel}: practice cites {len(sessions)} session, "
                                 f"needs {PRACTICE_MIN_SESSIONS} or more")
