@@ -29,7 +29,9 @@ def compact_index(text: str, budget: int) -> str:
     """Drop the generated header and fill the budget entry by entry, sections in index order (PAGE_TYPES).
 
     A section larger than the budget keeps its first entries instead of vanishing, so decisions and gotchas
-    survive a long list of sources (#11). A last line names how many entries each section lost.
+    survive a long list of sources (#11). Priority is strict: filling stops at the first entry that does not
+    fit, so no source takes the room a longer decision needed. A last line names how many entries each
+    section lost.
 
     Example: compact_index("# Index\\n\\nGenerated...\\n\\n## Decisions (2)\\n\\n- [[x]] — a\\n- [[y]] — b", 40)
     returns "## Decisions (2)\\n\\n- [[x]] — a\\n\\nOmitted by budget: Decisions 1. Read omoikane/index.md for them."
@@ -37,13 +39,15 @@ def compact_index(text: str, budget: int) -> str:
     kept: list[str] = []
     omitted: list[str] = []
     used = 0
+    full = False
     for section in [s for s in text.split("\n## ") if s.strip()][1:]:
         heading, *lines = section.rstrip().splitlines()
         entries = [line for line in lines if line.startswith("- ")]
         cost = len(heading) + 4  # "## " plus the blank line after the heading
         fit = 0
         for entry in entries:
-            if used + cost + len(entry) + 1 > budget:
+            if full or used + cost + len(entry) + 1 > budget:
+                full = True
                 break
             cost += len(entry) + 1
             fit += 1
@@ -67,10 +71,11 @@ def pending_notes(omoikane: Path) -> str:
     "## Pending\\n\\nCaptured sessions not yet distilled, ...\\n- `omoikane/raw/inbox/sessions/2026-09-15-e04462b2.md`".
     """
     lines: list[str] = []
-    # File names start with the capture date, so name order is date order.
-    sessions = sorted((omoikane / "raw" / "inbox" / "sessions").glob("*.md"))
+    # Not name order: names carry the start day and a random id tail. The Stop hook rewrites a capture on
+    # every turn, so modification time is the last activity.
+    sessions = sorted((omoikane / "raw" / "inbox" / "sessions").glob("*.md"), key=lambda p: p.stat().st_mtime)
     if sessions:
-        lines.append("Captured sessions not yet distilled, oldest first; the last one is where the previous "
+        lines.append("Captured sessions not yet distilled, by last activity; the last one is where the previous "
                      "session stopped:")
         if len(sessions) > PENDING_SESSIONS_SHOWN:
             lines.append(f"- ... {len(sessions) - PENDING_SESSIONS_SHOWN} older")

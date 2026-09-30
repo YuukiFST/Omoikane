@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib
+import os
 import sys
 import tempfile
 import unittest
@@ -68,6 +69,12 @@ class CompactIndex(unittest.TestCase):
         self.assertNotIn("## Sources", out)
         self.assertIn("Omitted by budget: Decisions 1, Sources 1. Read omoikane/index.md", out)
 
+    def test_a_long_decision_is_not_skipped_for_shorter_sources(self) -> None:
+        index = f"# Index\n\n## Decisions (1)\n\n- [[d]] — {'x' * 200}\n\n## Sources (1)\n\n- [[s]] — y\n"
+        out = context.compact_index(index, 60)
+        self.assertNotIn("[[s]]", out)
+        self.assertIn("Omitted by budget: Decisions 1, Sources 1.", out)
+
     def test_no_omitted_line_when_everything_fits(self) -> None:
         self.assertNotIn("Omitted", context.compact_index(self.INDEX, 12_000))
 
@@ -79,12 +86,15 @@ class PendingNotes(unittest.TestCase):
             sessions = omoikane / "raw" / "inbox" / "sessions"
             sessions.mkdir(parents=True)
             (sessions / ".gitkeep").write_text("", encoding="utf-8")
-            (sessions / "2026-09-02-bbbbbbbb.md").write_text("", encoding="utf-8")
+            # Same start day, ids in the opposite order of activity: the brief must follow the last write.
+            (sessions / "2026-09-01-bbbbbbbb.md").write_text("", encoding="utf-8")
             (sessions / "2026-09-01-aaaaaaaa.md").write_text("", encoding="utf-8")
+            os.utime(sessions / "2026-09-01-bbbbbbbb.md", (1_000, 1_000))
+            os.utime(sessions / "2026-09-01-aaaaaaaa.md", (2_000, 2_000))
             (omoikane / "_review.md").write_text("# Review queue\n\nIntro.\n\n- one\n- two\n", encoding="utf-8")
             out = context.pending_notes(omoikane)
-        self.assertLess(out.index("2026-09-01-aaaaaaaa.md"), out.index("2026-09-02-bbbbbbbb.md"))
-        self.assertIn("`omoikane/raw/inbox/sessions/2026-09-02-bbbbbbbb.md`", out)
+        self.assertLess(out.index("2026-09-01-bbbbbbbb.md"), out.index("2026-09-01-aaaaaaaa.md"))
+        self.assertIn("`omoikane/raw/inbox/sessions/2026-09-01-aaaaaaaa.md`", out)
         self.assertNotIn(".gitkeep", out)
         self.assertIn("2 open items in omoikane/_review.md", out)
 
