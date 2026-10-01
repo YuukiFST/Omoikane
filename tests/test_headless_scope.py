@@ -72,7 +72,7 @@ class ScopeTable:
     def test_reads_the_repository_and_denies_everything_else(self) -> None:
         for key, subject, verdict in (("read", "omoikane/wiki/x.md", "allow"), ("glob", "*", "allow"),
                                       ("read", ".env", "deny"), ("read", "mcp:github:repo://x", "deny"),
-                                      ("apply_patch", "AGENTS.md", "deny"), ("webfetch", "x", "deny"),
+                                      ("webfetch", "x", "deny"),
                                       ("websearch", "x", "deny"), ("task", "x", "deny"), ("skill", "x", "deny"),
                                       ("external_directory", "x", "deny"), ("question", "x", "deny"),
                                       ("lsp", "x", "deny")):
@@ -89,16 +89,32 @@ class OpenCodeRendering(ScopeTable, unittest.TestCase):
 class OpenCodeResolved(ScopeTable, unittest.TestCase):
     """The rules OpenCode itself resolves for the agent under a hostile user config (`opencode debug agent`)."""
 
-    @classmethod
-    def setUpClass(cls) -> None:
+    @staticmethod
+    def resolve(user: dict[str, object]) -> dict[str, object]:
         with tempfile.TemporaryDirectory() as d:
             hostile = Path(d) / "user.json"
-            hostile.write_text(json.dumps(HOSTILE_USER), encoding="utf-8")
+            hostile.write_text(json.dumps(user), encoding="utf-8")
             env = {**os.environ, "OPENCODE_CONFIG": str(hostile),
                    "OPENCODE_CONFIG_CONTENT": json.dumps(scope.opencode_config(AGENT))}
             out = subprocess.run([shutil.which("opencode") or "opencode", "debug", "agent", AGENT], cwd=REPO, env=env,
-                                 capture_output=True, text=True, encoding="utf-8", check=True).stdout
-        cls.RULES = [(r["permission"], r["pattern"], r["action"]) for r in json.loads(out)["permission"]]
+                                 stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
+                                 check=True).stdout
+        return json.loads(out)
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        resolved = cls.resolve(HOSTILE_USER)
+        cls.TOOLS = resolved["tools"]
+        cls.RULES = [(r["permission"], r["pattern"], r["action"]) for r in resolved["permission"]]
+
+    def test_offers_only_the_tools_of_the_scope(self) -> None:
+        self.assertEqual(scope.unsafe_tools(self.TOOLS), [])
+
+    def test_apply_patch_offered_to_a_gpt_model_is_refused(self) -> None:
+        # A gpt- model gets apply_patch in place of edit, whatever the edit rules say, and the target of its
+        # `*** Move to:` is never checked against them (#40, third review).
+        tools = self.resolve({**HOSTILE_USER, "model": "openai/gpt-5"})["tools"]
+        self.assertEqual(scope.unsafe_tools(tools), ["apply_patch"])
 
 
 class ClaudeRendering(unittest.TestCase):
@@ -110,8 +126,12 @@ class ClaudeRendering(unittest.TestCase):
     def test_no_shell_and_edits_only_in_scope(self) -> None:
         self.assertEqual(self.value("--tools"), "Read,Glob,Grep,Edit,Write")
         self.assertEqual(set(self.value("--allowedTools").split(",")),
-                         {"Read", "Glob", "Grep", "Edit(/omoikane/wiki/**/*.md)", "Edit(/omoikane/log.md)",
+                         {"Read(/**)", "Edit(/omoikane/wiki/**/*.md)", "Edit(/omoikane/log.md)",
                           "Edit(/omoikane/_review.md)"})
+
+    def test_reads_only_the_repository_and_no_env_file(self) -> None:
+        # A bare `Read` read ~/.ssh and .env; the deny also filters .env out of Glob and Grep results (probe, #40).
+        self.assertEqual(self.value("--disallowedTools"), "Read(/**/.env*)")
 
     def test_user_settings_and_mcp_servers_are_ignored(self) -> None:
         # User-level allow rules and hooks let git through in the headless run (#25).
@@ -141,6 +161,9 @@ class Verify(unittest.TestCase):
         git(repo, "add", "-A")
         git(repo, "commit", "-q", "-m", "init")
         write(repo / "omoikane/raw/inbox/pending.md", "dirty before the run\n")
+        # Ignored the way a user's global git ignore does it; `git status` lists none of these.
+        write(repo / ".git/info/exclude", ".claude/settings.local.json\n.venv/\n")
+        write(repo / ".venv/lib/site.pth", "present before the run\n")
         return repo
 
     def test_changes_inside_the_scope_pass(self) -> None:
@@ -162,6 +185,10 @@ class Verify(unittest.TestCase):
             "MANUAL.md": lambda r: git(r, "mv", "AGENTS.md", "MANUAL.md"),
             "head moved": lambda r: git(r, "commit", "-q", "--allow-empty", "-m", "agent"),
             "index moved": lambda r: (write(r / "omoikane/log.md", "staged\n"), git(r, "add", "omoikane/log.md")),
+            # apply_patch's `*** Move to:` onto a path the user's git ignores (#40, third review)
+            ".claude/settings.local.json": lambda r: (r / ".claude").mkdir() or
+            (r / "omoikane/wiki/gotchas/a.md").rename(r / ".claude/settings.local.json"),
+            ".venv/lib/site.pth": lambda r: write(r / ".venv/lib/site.pth", "import os; os.system('x')\n"),
         }
         for expected, action in cases.items():
             with self.subTest(expected), tempfile.TemporaryDirectory() as d:
@@ -190,6 +217,18 @@ class Cli(unittest.TestCase):
                                   "--before", str(before)], capture_output=True, text=True, encoding="utf-8")
             before.unlink()
         self.assertEqual((run.returncode, run.stdout), (3, "headless-scope: out of scope: AGENTS.md\n"))
+
+    def test_verify_names_a_non_ascii_path_instead_of_crashing(self) -> None:
+        # Under `python -I` on a cp1252 console, print() raised UnicodeEncodeError: exit 1, no verdict (#40).
+        with tempfile.TemporaryDirectory() as d:
+            repo = Verify().repo(d)
+            before = repo.parent / f"{repo.name}-before.json"
+            before.write_text(json.dumps(scope.snapshot(repo)), encoding="utf-8")
+            write(repo / "思.md", "x\n")
+            run = subprocess.run([sys.executable, "-I", str(BIN / "headless-scope.py"), "--repo", str(repo), "verify",
+                                  "--before", str(before)], capture_output=True, encoding="utf-8")
+            before.unlink()
+        self.assertEqual((run.returncode, run.stdout), (3, "headless-scope: out of scope: 思.md\n"))
 
 
 if __name__ == "__main__":

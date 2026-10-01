@@ -26,6 +26,9 @@ $log = Join-Path $omoikane ".wiki-ingest.log"
 $blocked = Join-Path $omoikane ".wiki-ingest.blocked"
 # The agent runs started here maintain the wiki; the session hooks must neither capture nor inject context for them.
 $env:OMOIKANE_NO_CAPTURE = "1"
+# The scope check watches ignored files too; a __pycache__ written by lint between two agent calls would read as
+# the agent's change.
+$env:PYTHONDONTWRITEBYTECODE = "1"
 # Lint findings handed back to the agent before the operation is committed as it stands.
 $LintRounds = 2
 
@@ -66,7 +69,16 @@ function Invoke-Agent([string] $claudePrompt, [string] $message) {
     $agentName = "omoikane-headless-" + [guid]::NewGuid().ToString("N").Substring(0, 8)
     $saved = $env:OPENCODE_CONFIG_CONTENT
     $env:OPENCODE_CONFIG_CONTENT = Invoke-Scope @("opencode", "--agent-name", $agentName)
-    try { opencode run --pure --agent $agentName $message 2>&1 | Tee-Object -FilePath $log -Append | Out-Host }
+    try {
+        # The tools OpenCode resolves for the agent, without calling a model: a gpt- model gets apply_patch,
+        # which no rule restricts (headless-scope.py unsafe_tools).
+        $resolved = Join-Path $runTmp "agent.json"
+        opencode debug agent $agentName | Set-Content -Encoding utf8NoBOM $resolved
+        if ($LASTEXITCODE -ne 0) { throw "opencode debug agent failed" }
+        python -I $scopeScript opencode-tools --resolved $resolved | Tee-Object -FilePath $log -Append | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "OpenCode offers the agent a tool outside the scope; pin a model that is not gpt-" }
+        opencode run --pure --agent $agentName $message 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
+    }
     finally { $env:OPENCODE_CONFIG_CONTENT = $saved }
     return $LASTEXITCODE -eq 0
 }
@@ -74,12 +86,14 @@ function Invoke-Agent([string] $claudePrompt, [string] $message) {
 # After every agent call: compare the tree with the snapshot, then undo the ticks the agent added (ticking is
 # the human's approval). The harness's permission rules have holes of their own; the tree is the ground truth.
 # The isolated check comes first: review-ticks.py imports from omoikane/bin/, which must be known clean. A run
-# stopped here keeps its ticks; the block makes the human read the tree anyway.
+# stopped here keeps its ticks; the block makes the human read the tree anyway. Either check failing to give a
+# verdict blocks too: a crash once failed open, and the next snapshot absorbed the change (#40).
 function Assert-Scope([string] $op, [string] $reviewBefore, [string] $snapshot) {
-    python -I $scopeScript --repo $root verify --before $snapshot | Tee-Object -FilePath $log -Append | Out-Host
+    python -I $scopeScript --repo $root verify --before $snapshot 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
     if ($LASTEXITCODE -eq 3) { Stop-Run "the $op run changed files outside its scope" }
-    if ($LASTEXITCODE -ne 0) { throw "headless-scope.py verify failed" }
+    if ($LASTEXITCODE -ne 0) { Stop-Run "headless-scope.py verify failed after the $op run" }
     python omoikane/bin/review-ticks.py --before $reviewBefore 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
+    if ($LASTEXITCODE -ne 0) { Stop-Run "review-ticks.py failed after the $op run; a tick the agent added may stand" }
 }
 
 function Invoke-Operation([string] $op, [string] $arg) {
@@ -109,14 +123,25 @@ function Invoke-Operation([string] $op, [string] $arg) {
     return $ok
 }
 
-function Complete-Operation([string] $op, [string] $name) {
-    python omoikane/bin/wiki-index.py | Tee-Object -FilePath $log -Append
-    python omoikane/bin/wiki-lint.py | Tee-Object -FilePath $log -Append
-    if ($Commit) {
-        # Only what an operation may change: anything else in the tree is not the run's to commit.
-        git add -- omoikane/wiki omoikane/log.md omoikane/_review.md omoikane/index.md omoikane/raw
-        git commit -q -m "feat(wiki): $op $name" 2>&1 | Tee-Object -FilePath $log -Append
-    }
+# $moved: the source and its new place, when the operation had a source; staged by name, not as omoikane/raw,
+# which would also take every capture still in the inbox.
+function Complete-Operation([string] $op, [string] $name, [string[]] $moved = @()) {
+    python omoikane/bin/wiki-index.py 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
+    if ($LASTEXITCODE -ne 0) { Stop-Run "wiki-index.py failed after the $op run" }
+    # Findings left after the lint rounds are committed as they stand; the next /lint or human sees them.
+    python omoikane/bin/wiki-lint.py 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
+    if (-not $Commit) { return }
+    # Only what an operation may change: anything else in the tree is not the run's to commit. A source never
+    # committed has no deletion to stage.
+    $paths = @("omoikane/wiki", "omoikane/log.md", "omoikane/_review.md", "omoikane/index.md") + @($moved | Where-Object {
+        (Test-Path -LiteralPath $_) -or (git ls-files -- $_)
+    })
+    git add -- @paths 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
+    if ($LASTEXITCODE -ne 0) { Stop-Run "git add failed after the $op run" }
+    git diff --cached --quiet
+    if ($LASTEXITCODE -eq 0) { Log "$op $name changed nothing to commit" | Out-Host; return }
+    git commit -q -m "feat(wiki): $op $name" 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
+    if ($LASTEXITCODE -ne 0) { Stop-Run "git commit failed after the $op run" }
 }
 
 try {
@@ -136,7 +161,8 @@ try {
         if (-not (Invoke-Operation $op $rel)) { Log "$op FAILED $rel"; continue }
         # The headless agent may not move files (#25): move the source so the next run does not process it again.
         if (Test-Path $f.FullName) { New-Item -ItemType Directory -Force $dest | Out-Null; Move-Item $f.FullName $dest }
-        Complete-Operation $op $f.BaseName
+        $movedTo = [IO.Path]::GetRelativePath($root, (Join-Path $dest $f.Name)) -replace "\\", "/"
+        Complete-Operation $op $f.BaseName @($rel, $movedTo)
         Log "$op done $rel"
     }
 

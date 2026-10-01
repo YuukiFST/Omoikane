@@ -1,7 +1,8 @@
-"""End-to-end tests of omoikane/bin/wiki-ingest.ps1 with a fake `claude` on PATH. Run: python -m unittest discover -s tests
+"""End-to-end tests of omoikane/bin/wiki-ingest.ps1 with a fake `claude` and `opencode` on PATH.
+Run: python -m unittest discover -s tests
 
-The fake stands for the headless agent: it records the flags it was given and edits the throwaway repository the
-way a run that goes well, or one that leaves its scope, would.
+The fake stands for the headless agent: it records the arguments and the OpenCode config it was given, and edits
+the throwaway repository the way a run that goes well, or one that leaves its scope, would.
 """
 from __future__ import annotations
 
@@ -12,25 +13,43 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 PWSH = shutil.which("pwsh")
 
-FAKE_CLAUDE = textwrap.dedent('''
-    import json, os, sys
+FAKE_AGENT = textwrap.dedent('''
+    import json, os, re, sys
     from pathlib import Path
-    prompt = sys.argv[sys.argv.index("-p") + 1]
+    harness, args = sys.argv[1], sys.argv[2:]
     with open(os.environ["FAKE_LOG"], "a", encoding="utf-8") as log:
-        log.write(json.dumps(sys.argv[1:]) + "\\n")
+        log.write(json.dumps({"argv": args, "config": os.environ.get("OPENCODE_CONFIG_CONTENT")}) + "\\n")
+    if harness == "opencode" and args[:2] == ["debug", "agent"]:
+        # What `opencode debug agent` resolves: a gpt- model gets apply_patch in place of edit and write.
+        tools = {"bash": False, "read": True, "glob": True, "grep": True, "todowrite": True}
+        tools.update({"apply_patch": True} if os.environ.get("FAKE_MODEL") == "gpt" else {"edit": True, "write": True})
+        print(json.dumps({"name": args[2], "mode": "primary", "tools": tools}))
+        sys.exit(0)
+    prompt = args[-1] if harness == "opencode" else args[args.index("-p") + 1]
+    m = re.match(r"/(\\w+)|Read `omoikane/prompts/(\\w+)\\.md`", prompt)
+    op = (m.group(1) or m.group(2)) if m else "fix"
     page = "---\\ntitle: {0}\\ntype: concept\\nsummary: s\\ntags: []\\ncreated: 2026-10-01\\nupdated: 2026-10-01\\nsources: []\\n---\\n{1}\\n"
     mode = os.environ["FAKE_MODE"]
+    review = Path("omoikane/_review.md")
     if mode == "escape":
         Path("AGENTS.md").write_text("# Manual, rewritten by the agent\\n", encoding="utf-8")
-    elif mode == "orphan" and prompt.startswith("/ingest"):
-        Path("omoikane/wiki/concepts/lonely.md").write_text(page.format("lonely", "Alone."), encoding="utf-8")
-    elif mode == "orphan-then-fail" and prompt.startswith("/ingest"):
+    elif mode == "corrupt-index":
+        Path(".git/index").write_bytes(b"not an index")
+    elif mode == "tick":
+        review.write_text(review.read_text(encoding="utf-8").replace("- [ ] ", "- [x] "), encoding="utf-8")
+    elif mode == "undecodable-review":
+        review.write_bytes(b"# Review queue\\n- [x] \\xff\\xfe\\n")
+    elif mode == "distill" and op == "distill":
+        with open("omoikane/log.md", "a", encoding="utf-8") as f:
+            f.write("\\n## [2026-10-01] distill | session\\n")
+    elif mode in ("orphan", "orphan-then-fail") and op == "ingest":
         Path("omoikane/wiki/concepts/lonely.md").write_text(page.format("lonely", "Alone."), encoding="utf-8")
     elif mode == "orphan-then-fail":
         sys.exit(1)
@@ -59,7 +78,7 @@ class WikiIngest(unittest.TestCase):
             (self.repo / "omoikane/wiki" / folder).mkdir(parents=True)
             (self.repo / "omoikane/wiki" / folder / ".gitkeep").write_text("", encoding="utf-8")
         (self.repo / "omoikane/log.md").write_text("# Log\n", encoding="utf-8")
-        (self.repo / "omoikane/_review.md").write_text("# Review queue\n", encoding="utf-8")
+        (self.repo / "omoikane/_review.md").write_text("# Review queue\n\n- [ ] rule a: A. (s)\n", encoding="utf-8")
         git(self.repo, "init", "-q")
         git(self.repo, "config", "user.name", "t")
         git(self.repo, "config", "user.email", "t@example.invalid")
@@ -68,48 +87,68 @@ class WikiIngest(unittest.TestCase):
         (self.repo / "omoikane/raw/inbox").mkdir(parents=True)
         (self.repo / "omoikane/raw/inbox/article.md").write_text("a source\n", encoding="utf-8")
         shims.mkdir()
-        (shims / "fake_claude.py").write_text(FAKE_CLAUDE, encoding="utf-8")
-        # pwsh finds `claude.ps1` by its base name on Windows, the extensionless script on Linux.
-        (shims / "claude.ps1").write_text(f'& "{sys.executable}" "{shims / "fake_claude.py"}" @args\nexit $LASTEXITCODE\n',
-                                          encoding="utf-8")
-        (shims / "claude").write_text(f'#!/bin/sh\nexec "{sys.executable}" "{shims / "fake_claude.py"}" "$@"\n',
-                                      encoding="utf-8")
-        (shims / "claude").chmod(0o755)
+        (shims / "fake_agent.py").write_text(FAKE_AGENT, encoding="utf-8")
+        for harness in ("claude", "opencode"):
+            # pwsh finds `<name>.ps1` by its base name on Windows, the extensionless script on Linux.
+            (shims / f"{harness}.ps1").write_text(
+                f'& "{sys.executable}" "{shims / "fake_agent.py"}" {harness} @args\nexit $LASTEXITCODE\n', encoding="utf-8")
+            (shims / harness).write_text(
+                f'#!/bin/sh\nexec "{sys.executable}" "{shims / "fake_agent.py"}" {harness} "$@"\n', encoding="utf-8")
+            (shims / harness).chmod(0o755)
         self.env = {**os.environ, "PATH": f"{shims}{os.pathsep}{os.environ['PATH']}", "FAKE_LOG": str(self.calls)}
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def ingest(self, mode: str) -> subprocess.CompletedProcess[str]:
+    def ingest(self, mode: str, *args: str, **env: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run([str(PWSH), "-NoProfile", "-File", str(self.repo / "omoikane/bin/wiki-ingest.ps1"),
-                               "-SynthesizeEvery", "0", "-Commit"], env={**self.env, "FAKE_MODE": mode},
-                              stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8", timeout=300)
+                               "-Commit", *(args or ("-SynthesizeEvery", "0"))],
+                              env={**self.env, "FAKE_MODE": mode, **env}, stdin=subprocess.DEVNULL,
+                              capture_output=True, text=True, encoding="utf-8", timeout=300)
 
-    def calls_made(self) -> list[list[str]]:
+    def calls_made(self) -> list[dict[str, object]]:
         return [json.loads(line) for line in self.calls.read_text(encoding="utf-8").splitlines()] if self.calls.exists() else []
+
+    def prompts(self) -> list[str]:
+        return [str(call["argv"][call["argv"].index("-p") + 1]) for call in self.calls_made()]  # type: ignore[union-attr]
+
+    def commits(self) -> list[str]:
+        return git(self.repo, "log", "--format=%s").splitlines()
+
+    def assert_blocked(self, run: subprocess.CompletedProcess[str]) -> None:
+        self.assertNotEqual(run.returncode, 0, run.stdout)
+        self.assertTrue((self.repo / "omoikane/.wiki-ingest.blocked").is_file(), run.stdout + run.stderr)
+        self.assertEqual(self.commits(), ["init"])  # nothing committed
+        self.assertTrue((self.repo / "omoikane/raw/inbox/article.md").is_file())  # not marked as processed
 
     def test_a_run_that_leaves_its_scope_blocks_every_later_run(self) -> None:
         run = self.ingest("escape")
-        self.assertNotEqual(run.returncode, 0, run.stdout)
-        self.assertTrue((self.repo / "omoikane/.wiki-ingest.blocked").is_file())
+        self.assert_blocked(run)
         self.assertIn("AGENTS.md", (self.repo / "omoikane/.wiki-ingest.log").read_text(encoding="utf-8"))
-        self.assertEqual(git(self.repo, "rev-list", "--count", "HEAD").strip(), "1")  # nothing committed
-        self.assertTrue((self.repo / "omoikane/raw/inbox/article.md").is_file())  # not marked as processed
         self.assertEqual(self.ingest("escape").returncode, 1)
         self.assertEqual(len(self.calls_made()), 1)  # the blocked run never called the agent
 
-    def test_lint_findings_go_back_to_the_agent_and_the_operation_is_committed(self) -> None:
+    def test_a_scope_check_that_crashes_blocks_the_run(self) -> None:
+        # A crash of verify once failed open: exit 1, no block, and the next snapshot absorbed the file (#40).
+        self.assert_blocked(self.ingest("corrupt-index"))
+
+    def test_lint_findings_go_back_to_the_agent_and_only_the_operation_is_committed(self) -> None:
+        active = self.repo / "omoikane/raw/inbox/sessions/2026-10-01-active01.md"
+        active.parent.mkdir()
+        active.write_text("a coding session still being captured\n", encoding="utf-8")
         run = self.ingest("orphan")
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
         first, fix = self.calls_made()
-        self.assertEqual(first[first.index("--tools") + 1], "Read,Glob,Grep,Edit,Write")
-        self.assertEqual(first[first.index("--setting-sources") + 1], "project")
-        self.assertIn("orphan page, no inbound wikilink", fix[fix.index("-p") + 1])
-        self.assertEqual(git(self.repo, "log", "-1", "--format=%s").strip(), "feat(wiki): ingest article")
+        self.assertEqual(first["argv"][first["argv"].index("--tools") + 1], "Read,Glob,Grep,Edit,Write")  # type: ignore[union-attr,index]
+        self.assertIn("orphan page, no inbound wikilink", self.prompts()[1])
+        self.assertEqual(self.commits()[0], "feat(wiki): ingest article")
         committed = git(self.repo, "show", "--name-only", "--format=", "HEAD").split()
         for path in ("omoikane/wiki/concepts/hub.md", "omoikane/wiki/concepts/lonely.md",
                      "omoikane/raw/sources/article.md", "omoikane/index.md"):
             self.assertIn(path, committed)
+        # Not the run's to commit: `git add omoikane/raw` once took every capture still in the inbox.
+        self.assertIn("?? omoikane/raw/inbox/sessions/2026-10-01-active01.md",
+                      git(self.repo, "status", "--porcelain", "--untracked-files=all"))
 
     def test_only_findings_go_back_not_warnings(self) -> None:
         # Warnings need /lint's judgement; 25 of them once buried the one finding the agent had to fix.
@@ -118,14 +157,63 @@ class WikiIngest(unittest.TestCase):
             "---\ntitle: old\ntype: gotcha\nsummary: s\ntags: []\ncreated: 2026-01-01\nupdated: 2026-01-01\n"
             "sources: []\nguard: none\n---\nSee [[old]].\n", encoding="utf-8")
         self.ingest("orphan")
-        fix = self.calls_made()[1]
-        self.assertNotIn("warning:", fix[fix.index("-p") + 1])
+        self.assertNotIn("warning:", self.prompts()[1])
 
     def test_an_agent_that_fails_after_a_lint_round_fails_the_operation(self) -> None:
         run = self.ingest("orphan-then-fail")
         self.assertIn("ingest FAILED omoikane/raw/inbox/article.md", run.stdout)
-        self.assertEqual(git(self.repo, "rev-list", "--count", "HEAD").strip(), "1")
+        self.assertEqual(self.commits(), ["init"])
         self.assertTrue((self.repo / "omoikane/raw/inbox/article.md").is_file())
+
+    def test_a_tick_the_agent_adds_is_undone_before_the_commit(self) -> None:
+        run = self.ingest("tick")
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertIn("- [ ] rule a: A. (s)", git(self.repo, "show", "HEAD:omoikane/_review.md"))
+
+    def test_a_review_queue_the_tick_check_cannot_read_blocks_the_run(self) -> None:
+        # Unchecked, review-ticks.py failed and the agent's tick was committed as the human's approval (#40).
+        self.assert_blocked(self.ingest("undecodable-review"))
+
+    def test_the_opencode_run_carries_the_scope_in_a_fresh_agent_and_restores_the_user_config(self) -> None:
+        hook, seen = self.repo / ".git/hooks/pre-commit", Path(self.tmp.name) / "hook.txt"
+        hook.write_text(f'#!/bin/sh\nprintf "%s" "${{OPENCODE_CONFIG_CONTENT-unset}}" > "{seen.as_posix()}"\n',
+                        encoding="utf-8", newline="\n")
+        hook.chmod(0o755)
+        git(self.repo, "config", "core.hooksPath", ".git/hooks")  # over a global hooksPath
+        run = self.ingest("none", "-Agent", "opencode", "-SynthesizeEvery", "0", OPENCODE_CONFIG_CONTENT='{"user": 1}')
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        resolve, agent = self.calls_made()
+        name = resolve["argv"][2]  # type: ignore[index]
+        self.assertEqual(resolve["argv"], ["debug", "agent", name])
+        self.assertEqual(agent["argv"][:4], ["run", "--pure", "--agent", name])  # type: ignore[index]
+        self.assertTrue(agent["argv"][-1].startswith("Read `omoikane/prompts/ingest.md` and follow it."))  # type: ignore[index,union-attr]
+        config = json.loads(str(agent["config"]))
+        self.assertEqual(config["agent"][name]["permission"]["*"], "deny")
+        self.assertEqual(self.commits()[0], "feat(wiki): ingest article")
+        self.assertEqual(seen.read_text(encoding="utf-8"), '{"user": 1}')  # restored after the agent call
+
+    def test_an_opencode_agent_offered_apply_patch_never_runs(self) -> None:
+        # apply_patch checks edit rules on the source of a move only; a gpt- model always gets it (#40).
+        run = self.ingest("escape", "-Agent", "opencode", "-SynthesizeEvery", "0", FAKE_MODEL="gpt")
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn("apply_patch", run.stdout)
+        self.assertEqual([call["argv"][0] for call in self.calls_made()], ["debug"])  # type: ignore[index]
+        self.assertEqual(self.commits(), ["init"])
+        self.assertEqual((self.repo / "AGENTS.md").read_text(encoding="utf-8"), (REPO / "AGENTS.md").read_text(encoding="utf-8"))
+
+    def test_synthesize_runs_after_the_distills_that_make_it_due(self) -> None:
+        (self.repo / "omoikane/raw/inbox/article.md").unlink()
+        session = self.repo / "omoikane/raw/inbox/sessions/2026-09-30-quiet001.md"
+        session.parent.mkdir()
+        session.write_text("a finished coding session\n", encoding="utf-8")
+        old = time.time() - 3600
+        os.utime(session, (old, old))
+        run = self.ingest("distill", "-SynthesizeEvery", "1")
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertEqual([p.split()[0] for p in self.prompts()], ["/distill", "/synthesize"])
+        self.assertEqual(self.commits(), ["feat(wiki): synthesize sessions", "feat(wiki): distill 2026-09-30-quiet001", "init"])
+        # The fake wrote no synthesize heading, so the script did, or every later run would start it again.
+        self.assertIn("synthesize | ended without a log entry", git(self.repo, "show", "HEAD:omoikane/log.md"))
 
 
 if __name__ == "__main__":
