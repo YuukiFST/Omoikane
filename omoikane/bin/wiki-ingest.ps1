@@ -94,9 +94,12 @@ function Invoke-Operation([string] $op, [string] $arg) {
     Assert-Scope $op $reviewBefore $snapshot
     # The agent has no shell, so it cannot run index and lint itself: run lint here and hand the findings back.
     for ($round = 1; $ok -and $round -le $LintRounds; $round++) {
-        $findings = python omoikane/bin/wiki-lint.py 2>&1
+        $lint = python omoikane/bin/wiki-lint.py 2>&1
         if ($LASTEXITCODE -eq 0) { break }
-        Log "$op lint round ${round}: $(@($findings).Count - 1) findings handed back"
+        # Findings only: warnings need /lint's judgement, and 25 of them once buried the one finding to fix.
+        $findings = @($lint | Where-Object { $_ -notmatch "^(warning: |wiki-lint: )" })
+        # Out-Host: anything this function writes to the pipeline becomes part of its return value.
+        Log "$op lint round ${round}: $($findings.Count) findings handed back" | Out-Host
         $fix = "omoikane/bin/wiki-lint.py reports these findings after the /$op run. Fix each one by editing " +
             "the pages, omoikane/log.md or omoikane/_review.md. You cannot run commands; lint runs again after you.`n`n" +
             ($findings -join "`n")

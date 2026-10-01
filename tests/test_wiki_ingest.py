@@ -30,6 +30,10 @@ FAKE_CLAUDE = textwrap.dedent('''
         Path("AGENTS.md").write_text("# Manual, rewritten by the agent\\n", encoding="utf-8")
     elif mode == "orphan" and prompt.startswith("/ingest"):
         Path("omoikane/wiki/concepts/lonely.md").write_text(page.format("lonely", "Alone."), encoding="utf-8")
+    elif mode == "orphan-then-fail" and prompt.startswith("/ingest"):
+        Path("omoikane/wiki/concepts/lonely.md").write_text(page.format("lonely", "Alone."), encoding="utf-8")
+    elif mode == "orphan-then-fail":
+        sys.exit(1)
     elif mode == "orphan" and "orphan page" in prompt:
         Path("omoikane/wiki/concepts/lonely.md").write_text(page.format("lonely", "See [[hub]]."), encoding="utf-8")
         Path("omoikane/wiki/concepts/hub.md").write_text(page.format("hub", "See [[lonely]]."), encoding="utf-8")
@@ -106,6 +110,22 @@ class WikiIngest(unittest.TestCase):
         for path in ("omoikane/wiki/concepts/hub.md", "omoikane/wiki/concepts/lonely.md",
                      "omoikane/raw/sources/article.md", "omoikane/index.md"):
             self.assertIn(path, committed)
+
+    def test_only_findings_go_back_not_warnings(self) -> None:
+        # Warnings need /lint's judgement; 25 of them once buried the one finding the agent had to fix.
+        (self.repo / "omoikane/wiki/gotchas").mkdir()
+        (self.repo / "omoikane/wiki/gotchas/old.md").write_text(
+            "---\ntitle: old\ntype: gotcha\nsummary: s\ntags: []\ncreated: 2026-01-01\nupdated: 2026-01-01\n"
+            "sources: []\nguard: none\n---\nSee [[old]].\n", encoding="utf-8")
+        self.ingest("orphan")
+        fix = self.calls_made()[1]
+        self.assertNotIn("warning:", fix[fix.index("-p") + 1])
+
+    def test_an_agent_that_fails_after_a_lint_round_fails_the_operation(self) -> None:
+        run = self.ingest("orphan-then-fail")
+        self.assertIn("ingest FAILED omoikane/raw/inbox/article.md", run.stdout)
+        self.assertEqual(git(self.repo, "rev-list", "--count", "HEAD").strip(), "1")
+        self.assertTrue((self.repo / "omoikane/raw/inbox/article.md").is_file())
 
 
 if __name__ == "__main__":
