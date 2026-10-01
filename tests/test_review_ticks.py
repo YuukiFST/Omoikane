@@ -26,5 +26,19 @@ class UntickNew(unittest.TestCase):
         self.assertEqual(ticks.untick_new(BEFORE, after), (after, 0))
 
 
+class LostBullets(unittest.TestCase):
+    # Filing is append-only. A bullet the run deleted would be recorded by review-removals.py as the human's
+    # decision, forever (#41).
+    def test_bullets_the_run_deleted_or_rewrote_are_named(self) -> None:
+        after = BEFORE.replace("- [ ] rule b: Do b. (synthesize)\n", "- [ ] rule b: Do b better. (synthesize)\n")
+        after = after.replace("- [x] guard (test) a: approved by the human (session 1, turn 1)\n", "")
+        self.assertEqual(ticks.lost_bullets(BEFORE, after + "- todo new: appended\n"),
+                         ["- [x] guard (test) a: approved by the human (session 1, turn 1)",
+                          "- [ ] rule b: Do b. (synthesize)"])
+
+    def test_appending_loses_nothing(self) -> None:
+        self.assertEqual(ticks.lost_bullets(BEFORE, BEFORE + "\n## [2026-10-01] distill\n\n- todo new: x\n"), [])
+
+
 if __name__ == "__main__":
     unittest.main()

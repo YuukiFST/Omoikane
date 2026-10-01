@@ -117,8 +117,12 @@ function Assert-Scope([string] $op, [string] $reviewBefore, [string] $snapshot) 
     python -I $scopeScript --repo $root verify --before $snapshot 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
     if ($LASTEXITCODE -eq 3) { Stop-Run "the $op run changed files outside its scope" }
     if ($LASTEXITCODE -ne 0) { Stop-Run "headless-scope.py verify failed after the $op run" }
+    # review-ticks.py also fails when the run deleted or rewrote a bullet: the next review-removals.py would record
+    # it as the human's decision (#41).
     python omoikane/bin/review-ticks.py --before $reviewBefore 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
-    if ($LASTEXITCODE -ne 0) { Stop-Run "review-ticks.py failed after the $op run; a tick the agent added may stand" }
+    if ($LASTEXITCODE -ne 0) {
+        Stop-Run "review-ticks.py failed after the $op run: a tick the agent added may stand, or it deleted or rewrote a bullet"
+    }
 }
 
 # Whether the paths an operation commits hold changes no commit took. With -Commit, they would be swept into the
@@ -127,13 +131,16 @@ function Test-WikiChanged {
     return [bool](git status --porcelain --untracked-files=all -- @WikiPaths)
 }
 
+function Assert-WikiCommitted([string] $what) {
+    if (-not $Commit -or -not (Test-WikiChanged)) { return }
+    # Logged, not only thrown: a scheduled run's stderr reaches nobody.
+    $refusal = "uncommitted changes under the wiki before $what; commit or discard them"
+    Log $refusal | Out-Host
+    throw $refusal
+}
+
 function Invoke-Operation([string] $op, [string] $arg) {
-    if ($Commit -and (Test-WikiChanged)) {
-        # Logged, not only thrown: a scheduled run's stderr reaches nobody.
-        $refusal = "uncommitted changes under the wiki before the $op run; commit or discard them"
-        Log $refusal | Out-Host
-        throw $refusal
-    }
+    Assert-WikiCommitted "the $op run"
     $review = Join-Path $omoikane "_review.md"
     $reviewBefore = Join-Path $runTmp "review-before.md"
     if (Test-Path $review) { Copy-Item $review $reviewBefore -Force } else { Set-Content $reviewBefore "" }
@@ -186,6 +193,22 @@ try {
     if ($Agent -eq "opencode") {
         opencode --pure debug config | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "opencode debug config failed" }
+    }
+    # Before any operation reads the log: proposals the human deleted from _review.md are decided, and /distill
+    # must see that before it files the same lesson again (#41). Its log lines are committed on their own, or the
+    # first operation would refuse over them. Over uncommitted wiki changes it waits: a deletion counts once the
+    # human commits it, and a run with nothing else to do must not fail for it.
+    if ($Commit -and (Test-WikiChanged)) {
+        Log "uncommitted changes under the wiki: review-removals.py waits for them to be committed" | Out-Host
+    } else {
+        python omoikane/bin/review-removals.py 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
+        # A failure records nothing, which errs towards "still open"; the operations can run all the same.
+        if ($LASTEXITCODE -ne 0) { Log "review-removals.py recorded nothing; see its message above" | Out-Host }
+        if ($Commit -and (Test-WikiChanged)) {
+            git commit -q -m "feat(wiki): record the review items the human removed" -- omoikane/log.md 2>&1 |
+                Tee-Object -FilePath $log -Append | Out-Host
+            if ($LASTEXITCODE -ne 0) { Stop-Run "git commit of the review-removals.py log lines failed" }
+        }
     }
     $inbox = Join-Path $omoikane "raw/inbox"
     $files = Get-ChildItem $inbox -File -Recurse | Where-Object { $_.Name -ne ".gitkeep" }

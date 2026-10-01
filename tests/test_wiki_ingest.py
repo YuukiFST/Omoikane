@@ -63,6 +63,8 @@ FAKE_AGENT = textwrap.dedent('''
         review.write_text(review.read_text(encoding="utf-8").replace("- [ ] ", "- [x] "), encoding="utf-8")
     elif mode == "undecodable-review":
         review.write_bytes(b"# Review queue\\n- [x] \\xff\\xfe\\n")
+    elif mode == "delete-bullet":
+        review.write_text("# Review queue\\n", encoding="utf-8")
     elif mode == "distill" and op == "distill":
         with open("omoikane/log.md", "a", encoding="utf-8") as f:
             f.write("\\n## [2026-10-01] distill | session\\n")
@@ -226,6 +228,38 @@ class WikiIngest(IngestFixture, unittest.TestCase):
         run = self.ingest("tick")
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
         self.assertIn("- [ ] rule a: A. (s)", git(self.repo, "show", "HEAD:omoikane/_review.md"))
+
+    def test_a_bullet_the_agent_deletes_blocks_the_run(self) -> None:
+        # The next review-removals.py would record the deletion as the human's rejection (#41).
+        self.assert_blocked(self.ingest("delete-bullet"))
+
+    def test_the_items_the_human_removed_are_logged_and_committed_before_the_first_operation(self) -> None:
+        log = self.repo / "omoikane/log.md"
+        log.write_text("# Log\n\n## [2026-09-30] distill | session aaaa0001\n- routed (todo) gone-item: x (turn 1)\n",
+                       encoding="utf-8")
+        git(self.repo, "commit", "-q", "-am", "a distill that filed gone-item, since deleted by the human")
+        run = self.ingest("none")
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertEqual(self.commits()[:2], ["feat(wiki): ingest article",
+                                              "feat(wiki): record the review items the human removed"])
+        self.assertIn("- removed (todo) gone-item", git(self.repo, "show", "HEAD~1:omoikane/log.md"))
+
+    def test_an_uncommitted_review_edit_does_not_fail_a_run_with_nothing_to_do(self) -> None:
+        # The human deleting a bullet and not yet committing is the feature's own input (#44 review).
+        (self.repo / "omoikane/raw/inbox/article.md").unlink()
+        (self.repo / "omoikane/_review.md").write_text("# Review queue\n", encoding="utf-8")
+        run = self.ingest("none")
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertIn("nothing in inbox", run.stdout)
+
+    def test_a_review_queue_with_an_open_fence_records_nothing_and_the_run_goes_on(self) -> None:
+        (self.repo / "omoikane/_review.md").write_text("# Review queue\n\n````diff\n- [ ] rule a: A. (s)\n",
+                                                       encoding="utf-8")
+        git(self.repo, "commit", "-q", "-am", "an unclosed fence")
+        run = self.ingest("none")
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertIn("review-removals.py recorded nothing", run.stdout)
+        self.assertEqual(self.commits()[0], "feat(wiki): ingest article")
 
     def test_a_review_queue_the_tick_check_cannot_read_blocks_the_run(self) -> None:
         # Unchecked, review-ticks.py failed and the agent's tick was committed as the human's approval (#40).
