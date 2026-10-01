@@ -1,4 +1,4 @@
-"""Undo the `[x]` ticks a headless run added to _review.md.
+"""Undo the `[x]` ticks a headless run added to _review.md, and fail when it deleted or rewrote a bullet.
 
 Ticking a proposal is the human's approval. The scheduled run may edit _review.md to file proposals, so it
 could also tick one; wiki-ingest.ps1 saves the file before each run and calls this after it.
@@ -11,7 +11,7 @@ import re
 import sys
 from pathlib import Path
 
-from wikilib import OMOIKANE
+from wikilib import OMOIKANE, review_bullets
 
 TICK = re.compile(r"- \[[xX]\] ")
 
@@ -32,6 +32,16 @@ def untick_new(before: str, after: str) -> tuple[str, int]:
     return "".join(out), undone
 
 
+def lost_bullets(before: str, after: str) -> list[str]:
+    """The bullets of `before` missing from `after`: deleted or rewritten by the run.
+
+    Filing is append-only. A bullet the run deleted would read to review-removals.py as the human's decision (#41).
+    Example: lost_bullets("- todo a: x\\n", "- todo a: y\\n") returns ["- todo a: x"].
+    """
+    kept = set(review_bullets(after))
+    return [line for line in review_bullets(before) if line not in kept]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--before", type=Path, required=True)
@@ -44,7 +54,10 @@ def main(argv: list[str] | None = None) -> int:
     if undone:
         review.write_text(text, encoding="utf-8", newline="\n")
         print(f"review-ticks: undid {undone} tick(s) the agent added to _review.md")
-    return 0
+    lost = lost_bullets(before, text)
+    for line in lost:
+        print(f"review-ticks: the run deleted or rewrote: {line}")
+    return 1 if lost else 0
 
 
 if __name__ == "__main__":
