@@ -5,15 +5,19 @@ Ingest every file in omoikane/raw/inbox through the agent, one headless call per
 Plain sources go through /ingest; captured coding sessions under raw/inbox/sessions go through /distill.
 A session file modified less than -QuietMinutes ago may still be growing (Stop fires on every turn), so it waits.
 After -SynthesizeEvery distills since the last cross-session pass, /synthesize runs once; 0 turns it off.
+-Commit goes through the review gate (review-gate.py, #45): the run happens in a worktree on wiki/auto beside the
+repository, one commit per operation, and the branch is pushed as a PR to main. The human's checkout is not touched.
 
 .EXAMPLE
-omoikane/bin/wiki-ingest.ps1                      # Claude Code
+omoikane/bin/wiki-ingest.ps1                      # Claude Code, changes left in the working tree
 omoikane/bin/wiki-ingest.ps1 -Agent opencode      # OpenCode
-omoikane/bin/wiki-ingest.ps1 -Commit              # git commit after each successful run
+omoikane/bin/wiki-ingest.ps1 -Commit              # through the review gate: commits on wiki/auto, one PR
+omoikane/bin/wiki-ingest.ps1 -Commit -NoGate      # commits on the checked-out branch (what the gate runs inside)
 #>
 param(
     [ValidateSet("claude", "opencode")] [string] $Agent = "claude",
     [switch] $Commit,
+    [switch] $NoGate,
     [int] $QuietMinutes = 30,
     [int] $SynthesizeEvery = 5
 )
@@ -43,6 +47,23 @@ function Stop-Run([string] $reason) {
 }
 
 if (Test-Path $blocked) { Log "blocked since $(Get-Content -Raw $blocked)"; exit 1 }
+
+if ($Commit -and -not $NoGate) {
+    # The worktree's own copy runs, at the version just merged from main; its log and block marker live there.
+    $prepared = @(python omoikane/bin/review-gate.py prepare --quiet-minutes $QuietMinutes 2>&1)
+    $prepared | ForEach-Object { Log "$_" } | Out-Host
+    if ($LASTEXITCODE -ne 0) { Log "review gate: prepare failed; nothing ran"; exit 1 }
+    # Its stdout is the worktree path; the moved files come on stderr, as ErrorRecords under 2>&1.
+    $worktree = "$($prepared | Where-Object { $_ -isnot [Management.Automation.ErrorRecord] } | Select-Object -Last 1)".Trim()
+    & pwsh -NoProfile -File (Join-Path $worktree "omoikane/bin/wiki-ingest.ps1") -Agent $Agent -Commit -NoGate `
+        -QuietMinutes $QuietMinutes -SynthesizeEvery $SynthesizeEvery | Out-Host
+    if ($LASTEXITCODE -ne 0) { Log "review gate: the run in $worktree failed; nothing published"; exit 1 }
+    # By path: review-gate.py starts gh as a process, which on Windows finds gh.exe only.
+    $gh = (Get-Command gh -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+    python omoikane/bin/review-gate.py publish --worktree $worktree --gh $gh 2>&1 | ForEach-Object { Log "$_" } | Out-Host
+    if ($LASTEXITCODE -ne 0) { Log "review gate: publish failed"; exit 1 }
+    exit 0
+}
 
 # The scope check runs from a private copy with `python -I`: the agent writes into this repository, and nothing
 # it writes may sit on the checker's path. Per-run temp files: two runs or two repositories must not share them.

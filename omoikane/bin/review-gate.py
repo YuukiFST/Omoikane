@@ -141,6 +141,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("action", choices=("prepare", "publish"))
     parser.add_argument("--worktree", type=Path, default=default_worktree(REPO))
     parser.add_argument("--quiet-minutes", type=int, default=30)
+    parser.add_argument("--gh", default="gh", help="the gh executable, by path on Windows (wiki-ingest.ps1 resolves it)")
     args = parser.parse_args(argv)
     try:
         if args.action == "prepare":
@@ -148,7 +149,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"review-gate: moved {rel}", file=sys.stderr)
             print(args.worktree)
         else:
-            print(f"review-gate: {publish(args.worktree)}")
+            print(f"review-gate: {publish(args.worktree, (args.gh,))}")
     except (GateError, subprocess.CalledProcessError) as exc:
         print(f"review-gate: {exc}", file=sys.stderr)
         return 1
