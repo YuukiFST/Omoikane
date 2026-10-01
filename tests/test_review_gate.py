@@ -309,6 +309,36 @@ class Gate(unittest.TestCase):
         review = self.land_then_delete_c_and_d("squash-earlier")
         self.assertEqual(review, "# Review queue\n\n- [ ] rule a: A. (s)\n- [ ] rule d: D. (s)\n")
         self.assertIn("## distill | y", (self.work / "omoikane/log.md").read_text(encoding="utf-8"))
+        # The rest lands by a second squash; the record of the first must not hide it (#56 review 6).
+        gate.publish(self.work, self.gh)
+        self.squash_merge()
+        self.human_pushes_to_main("omoikane/_review.md", "# Review queue\n\n- [ ] rule a: A. (s)\n")
+        self.prepare()
+        self.assertEqual((self.work / "omoikane/_review.md").read_text(encoding="utf-8"),
+                         "# Review queue\n\n- [ ] rule a: A. (s)\n")
+        self.assertEqual(gate.publish(self.work, self.gh), "nothing to publish")
+
+    def test_a_human_revert_right_after_a_rebase_is_not_recorded_with_it(self) -> None:
+        # x'^..revert of y' equals x's own patch; the longest window ended on the revert (#56 review 6).
+        self.human_pushes_to_main("omoikane/_review.md", "# Review queue\n\n- [ ] rule a: A. (s)\n")
+        self.prepare()
+        self.commit_in_worktree("omoikane/_review.md", "# Review queue\n\n- [ ] rule a: A. (s)\n- [ ] rule c: C. (s)\n",
+                                "feat(wiki): distill c")
+        x = git(self.work, "rev-parse", "HEAD").strip()
+        self.commit_in_worktree("omoikane/_review.md",
+                                "# Review queue\n\n- [ ] rule a: A. (s)\n- [ ] rule c: C. (s)\n- [ ] rule d: D. (s)\n",
+                                "feat(wiki): distill d")
+        y = git(self.work, "rev-parse", "HEAD").strip()
+        self.commit_in_worktree("omoikane/log.md", "# Log\n\n## distill | z\n", "feat(wiki): distill z")
+        gate.publish(self.work, self.gh)
+        git(self.repo, "pull", "-q", "--ff-only")
+        git(self.repo, "fetch", "-q", "origin")
+        git(self.repo, "cherry-pick", f"{x}^..{y}")
+        git(self.repo, "revert", "--no-edit", "HEAD")
+        git(self.repo, "push", "-q", "origin", "main")
+        self.prepare()
+        self.assertEqual((self.work / "omoikane/_review.md").read_text(encoding="utf-8"),
+                         "# Review queue\n\n- [ ] rule a: A. (s)\n- [ ] rule c: C. (s)\n")
 
     def test_a_run_lands_after_the_lines_it_followed_not_an_earlier_twin(self) -> None:
         # Every proposal ends in the same closing fence; one anchor line once put a todo inside another section.

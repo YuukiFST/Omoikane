@@ -164,15 +164,25 @@ def find_landed(worktree: Path) -> tuple[str, str] | None:
         base = git(worktree, "merge-base", commit, "origin/main").strip()
         wanted.add(patch_id(worktree, base, commit))
     wanted.discard("")
-    longest = len(git(worktree, "rev-list", "--no-merges", "HEAD", *exclude).split())
-    if not wanted or not longest:
+    own = {patch_id(worktree, f"{c}^", c)
+           for c in git(worktree, "rev-list", "--no-merges", "HEAD", *exclude).split()}
+    if not wanted or not own:
         return None
     chain = git(worktree, "rev-list", "--first-parent", "--reverse", "origin/main", "^HEAD").split()
     merges = set(git(worktree, "rev-list", "--merges", "--first-parent", "origin/main", "^HEAD").split())
+    single: dict[str, str] = {}
+
+    def replayed(commit: str) -> bool:
+        if commit not in single:
+            single[commit] = patch_id(worktree, f"{commit}^", commit)
+        return single[commit] in own
+
     for i, first in enumerate(chain):
+        # A run longer than one is a rebase: each commit in it replays a branch commit, so a human revert right
+        # after it is not swallowed by a combined patch that happens to match (#56 review 6).
         run = []
-        for commit in chain[i:i + longest]:
-            if commit in merges:
+        for commit in chain[i:i + len(own)]:
+            if commit in merges or (run and not (replayed(first) and replayed(commit))):
                 break
             run.append(commit)
         for last in reversed(run):
@@ -182,19 +192,19 @@ def find_landed(worktree: Path) -> tuple[str, str] | None:
 
 
 def settled(worktree: Path) -> str | None:
-    """The newest first-parent merge of a main commit after which the branch held nothing main had not taken:
-    a recorded landing (`-s ours`, tree unchanged) or a merge whose tree is main's. Branch commits before it are
-    no longer candidates; kept, they matched a human revert on main and grew the scan every run (#56 review 5).
+    """The newest first-parent merge of a main commit whose tree is main's: after it the branch held nothing main
+    had not taken. Branch commits before it are no longer candidates; kept, they matched a human revert on main and
+    grew the scan every run (#56 review 5). A tree equal to the branch side is not enough: a `-s ours` record of
+    an earlier head has it while later commits are still unlanded (#56 review 6).
 
-    Example: settled(work) returns "<sha>" of the last "Record the landing" merge, None on a fresh branch.
+    Example: settled(work) returns "<sha>" of the merge that synced the branch with main, None on a fresh branch.
     """
     for line in git(worktree, "rev-list", "--first-parent", "--parents", "HEAD", "^origin/main").splitlines():
         commit, *parents = line.split()
         if len(parents) != 2 or not git_ok(worktree, "merge-base", "--is-ancestor", parents[1], "origin/main"):
             continue
-        trees = git(worktree, "rev-parse", f"{commit}^{{tree}}", f"{parents[0]}^{{tree}}",
-                    f"{parents[1]}^{{tree}}").split()
-        if trees[0] in trees[1:]:
+        trees = git(worktree, "rev-parse", f"{commit}^{{tree}}", f"{parents[1]}^{{tree}}").split()
+        if trees[0] == trees[1]:
             return commit
     return None
 
