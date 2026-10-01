@@ -69,18 +69,20 @@ def evidence(system: str, root: Path) -> list[Evidence]:
     return entries
 
 
-def repository_identity(root: Path) -> Path:
-    """The git common directory of `root` when `root` is the top of a checkout, so a repository and its worktrees
-    are one system; otherwise the resolved path (two folders inside one repository are two systems).
+def repository_identity(root: Path) -> tuple[Path, str]:
+    """The git common directory of `root` and its place inside the checkout, so a repository and its worktrees
+    are one system while two folders of one repository stay two; the resolved path where git cannot tell (no git,
+    not a repository).
 
-    Example: repository_identity(Path("../billing-wiki-auto")) returns Path(".../billing/.git").
+    Example: repository_identity(Path("../billing-wiki-auto")) returns (Path(".../billing/.git"), "").
     """
-    run = subprocess.run(["git", "-C", str(root), "rev-parse", "--path-format=absolute", "--show-toplevel",
-                          "--git-common-dir"], capture_output=True, text=True, encoding="utf-8", check=False)
+    try:
+        run = subprocess.run(["git", "-C", str(root), "rev-parse", "--path-format=absolute", "--git-common-dir",
+                              "--show-prefix"], capture_output=True, text=True, encoding="utf-8", check=False)
+    except OSError:  # git not installed
+        return root.resolve(), ""
     lines = run.stdout.split("\n") if run.returncode == 0 else []
-    if len(lines) >= 2 and Path(lines[0]).resolve() == root.resolve():
-        return Path(lines[1]).resolve()
-    return root.resolve()
+    return (Path(lines[0]).resolve(), lines[1]) if len(lines) >= 2 and lines[0] else (root.resolve(), "")
 
 
 def candidates(systems: dict[str, Path]) -> list[Candidate]:
@@ -90,7 +92,7 @@ def candidates(systems: dict[str, Path]) -> list[Candidate]:
 
     Example: candidates({"a": Path("../a"), "b": Path("../b")})[0]["systems"] returns 2.
     """
-    seen: set[Path] = set()
+    seen: set[tuple[Path, str]] = set()
     by_key: dict[str, list[Evidence]] = {}
     for system, root in systems.items():
         identity = repository_identity(root)
