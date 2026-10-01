@@ -29,6 +29,12 @@ BLOCKED = {
     "python -u heredoc": "python -u - <<'EOF'\nprint('a\\nb')\nEOF",
     "heredoc piped into python": "cat <<'EOF' | python -\nprint('a\\nb')\nEOF",
     "heredoc inside python -c": "python -c \"$(cat <<'EOF'\nprint('a\\nb')\nEOF\n)\"",
+    "python heredoc with a .py in a comment": "python - <<'EOF'  # edits wikilib.py\nprint('a\\nb')\nEOF",
+    "python heredoc redirected to a .py": "python - <<'EOF' > out.py\nprint('a\\nb')\nEOF",
+    "sed -i in a for loop": "for f in *.py; do sed -i 's/a/b/' \"$f\"; done",
+    "sed -i in an if": "if true; then sed -i 's/a/b/' x.py; fi",
+    "sed -i in a group": "{ sed -i 's/a/b/' x.py; }",
+    "uv run python heredoc": "uv run python - <<'EOF'\nprint('a\\nb')\nEOF",
 }
 ALLOWED = {
     "sed without -i": "sed -n 1,5p x.py",
@@ -46,6 +52,8 @@ ALLOWED = {
     "python -c with \\n": "python -c \"print('a\\nb')\"",
     "python script reading a heredoc": "python tool.py <<'EOF'\na\\nb\nEOF",
     "a word ending in sed": "echo used -i",
+    "PR title naming python": "gh pr create --title \"fix(hooks): block python heredocs\" --body-file - <<'EOF'\na\\nb\nEOF",
+    "backslash-quoted heredoc about sed -i": "git commit -F - <<\\EOF\nsed -i is blocked\nEOF",
 }
 
 
