@@ -72,7 +72,7 @@ python omoikane/bin/wiki-lint.py
 
 `wiki-lint.py` exits non-zero on broken wikilinks, missing frontmatter, undated source pages, orphan pages, two pages sharing a slug or `code:` paths that no longer exist or are absolute. Fix every finding before you report done. Its `warning:` lines (code committed after a page's `updated` date) do not fail; `/lint` checks them.
 
-A scheduled run (`wiki-ingest.ps1`) has no shell: skip these two commands and any other; the script runs lint after you and sends back each finding to fix.
+A scheduled run (`wiki-ingest.ps1`) has no shell: skip these commands; lint runs after you and sends the findings back. A run that left its scope leaves `omoikane/.wiki-ingest.blocked`: later runs refuse until the human reads the tree and deletes it.
 
 ## Coding sessions (build mode)
 

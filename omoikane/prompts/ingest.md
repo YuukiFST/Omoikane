@@ -11,6 +11,6 @@ Steps:
    - Omission is disagreement when the source claims completeness. A source that presents itself as the full list, the whole schema, or the thing to read instead of the code, and leaves out what another source asserts, contradicts that source. Record it as a contradiction, not as "not covered".
 5. Append to `omoikane/log.md`: `## [YYYY-MM-DD] ingest | <title>` followed by the list of pages created and updated.
 6. Move the source file from `omoikane/raw/inbox/` to `omoikane/raw/sources/` with `git mv` when tracked, plain move otherwise. A scheduled run may not move files: when `git mv` is denied, do not try another way; leave the file, `wiki-ingest.ps1` moves it after the run.
-7. Run `python omoikane/bin/wiki-index.py` then `python omoikane/bin/wiki-lint.py`. Fix every finding.
+7. Run `python omoikane/bin/wiki-index.py` then `python omoikane/bin/wiki-lint.py`. Fix every finding. In a scheduled run (`wiki-ingest.ps1`) skip this step: you have no shell, and lint runs after you and sends its findings back.
 
 Report: pages created, pages updated, contradictions filed, in that order. Cite `file:line` for each contradiction.
