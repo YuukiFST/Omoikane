@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib
+import io
 import json
 import os
 import re
@@ -96,14 +97,15 @@ class OpenCodeResolved(ScopeTable, unittest.TestCase):
             hostile.write_text(json.dumps(user), encoding="utf-8")
             env = {**os.environ, "OPENCODE_CONFIG": str(hostile),
                    "OPENCODE_CONFIG_CONTENT": json.dumps(scope.opencode_config(AGENT))}
-            out = subprocess.run([shutil.which("opencode") or "opencode", "debug", "agent", AGENT], cwd=REPO, env=env,
+            out = subprocess.run([shutil.which("opencode") or "opencode", "--pure", "debug", "agent", AGENT], cwd=REPO, env=env,
                                  stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
                                  check=True).stdout
         return json.loads(out)
 
     @classmethod
     def setUpClass(cls) -> None:
-        resolved = cls.resolve(HOSTILE_USER)
+        # An explicit model: the default comes from the developer's own OpenCode state, and may be a gpt- one.
+        resolved = cls.resolve({**HOSTILE_USER, "model": "anthropic/claude-sonnet-4-5"})
         cls.TOOLS = resolved["tools"]
         cls.RULES = [(r["permission"], r["pattern"], r["action"]) for r in resolved["permission"]]
 
@@ -189,6 +191,11 @@ class Verify(unittest.TestCase):
             ".claude/settings.local.json": lambda r: (r / ".claude").mkdir() or
             (r / "omoikane/wiki/gotchas/a.md").rename(r / ".claude/settings.local.json"),
             ".venv/lib/site.pth": lambda r: write(r / ".venv/lib/site.pth", "import os; os.system('x')\n"),
+            # Exempt is the script's own log, not every name that starts like it.
+            "omoikane/.wiki-ingest.log.ps1": lambda r: write(r / "omoikane/.wiki-ingest.log.ps1", "x"),
+            # git status and git commit run right after the agent, and they run hooks and read the config.
+            ".git/hooks/pre-commit": lambda r: write(r / ".git/hooks/pre-commit", "#!/bin/sh\ncurl x\n"),
+            ".git/config": lambda r: git(r, "config", "core.fsmonitor", "./omoikane/wiki/x.md"),
         }
         for expected, action in cases.items():
             with self.subTest(expected), tempfile.TemporaryDirectory() as d:
@@ -219,16 +226,23 @@ class Cli(unittest.TestCase):
         self.assertEqual((run.returncode, run.stdout), (3, "headless-scope: out of scope: AGENTS.md\n"))
 
     def test_verify_names_a_non_ascii_path_instead_of_crashing(self) -> None:
-        # Under `python -I` on a cp1252 console, print() raised UnicodeEncodeError: exit 1, no verdict (#40).
+        # Under `python -I` on a cp1252 console, print() raised UnicodeEncodeError: exit 1, no verdict (#40). In
+        # process, with a cp1252 stdout, so the Linux CI's UTF-8 console cannot hide it.
         with tempfile.TemporaryDirectory() as d:
             repo = Verify().repo(d)
             before = repo.parent / f"{repo.name}-before.json"
             before.write_text(json.dumps(scope.snapshot(repo)), encoding="utf-8")
             write(repo / "思.md", "x\n")
-            run = subprocess.run([sys.executable, "-I", str(BIN / "headless-scope.py"), "--repo", str(repo), "verify",
-                                  "--before", str(before)], capture_output=True, encoding="utf-8")
+            console, saved = io.TextIOWrapper(io.BytesIO(), encoding="cp1252", newline="\n"), sys.stdout
+            sys.stdout = console
+            try:
+                code = scope.main(["--repo", str(repo), "verify", "--before", str(before)])
+            finally:
+                sys.stdout = saved
             before.unlink()
-        self.assertEqual((run.returncode, run.stdout), (3, "headless-scope: out of scope: 思.md\n"))
+        console.flush()
+        self.assertEqual((code, console.buffer.getvalue().decode("utf-8")),  # type: ignore[attr-defined]
+                         (3, "headless-scope: out of scope: 思.md\n"))
 
 
 if __name__ == "__main__":

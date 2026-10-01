@@ -17,6 +17,7 @@ Usage: python -I headless-scope.py --repo DIR claude
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 import sys
@@ -25,8 +26,11 @@ from pathlib import Path
 # Repository-relative, gitignore style.
 EDITABLE = ("omoikane/wiki/**/*.md", "omoikane/log.md", "omoikane/_review.md")
 # Written while the run lasts by someone other than the agent: the Stop hook of a coding session in the same tree,
-# and wiki-ingest.ps1's own log.
-WRITTEN_BY_OTHERS = ("omoikane/raw/inbox/", "omoikane/.wiki-ingest.log")
+# and wiki-ingest.ps1's own log, matched exactly (a prefix let `omoikane/.wiki-ingest.log.ps1` through).
+WRITTEN_BY_OTHERS = ("omoikane/raw/inbox/",)
+WRITTEN_BY_SCRIPT = "omoikane/.wiki-ingest.log"
+# Under the git directory, what the git commands run after the agent read or execute: hooks, config, excludes.
+GIT_RUNS = ("config", "hooks", "info")
 # The OpenCode tools the scope needs. Any other tool OpenCode offers the agent is one its rules may not cover.
 OPENCODE_TOOLS = {"read", "glob", "grep", "list", "edit", "write", "todowrite"}
 
@@ -88,7 +92,7 @@ def in_scope(path: str) -> bool:
 
     Example: in_scope("omoikane/wiki/gotchas/a.md") returns True; in_scope("omoikane/wiki/a.py") returns False.
     """
-    if path in EDITABLE or path.startswith(WRITTEN_BY_OTHERS):
+    if path in EDITABLE or path == WRITTEN_BY_SCRIPT or path.startswith(WRITTEN_BY_OTHERS):
         return True
     return path.startswith("omoikane/wiki/") and path.endswith(".md") and ".." not in path.split("/")
 
@@ -102,7 +106,9 @@ def snapshot(repo: Path) -> dict[str, object]:
     """HEAD, the staged tree, a content hash of every changed or untracked file, and the size and mtime of every
     ignored one. `git status` lists no ignored file, and a page moved onto `.claude/settings.local.json` (ignored
     by a user's global git ignore) or a `.pth` under `.venv/` went unnoticed (#40, third review). Ignored trees
-    such as `node_modules/` hold thousands of files, so those are not hashed.
+    such as `node_modules/` hold thousands of files, so those are not hashed. Also the git config, hooks and
+    excludes: `git status` and `git commit` run right after the agent, and they read the first and run the second.
+    Not seen: paths outside the repository, and the inside of a nested repository (listed as a directory).
 
     Example: snapshot(repo) returns {"head": "<sha>", "index": "<tree sha>", "files": {"omoikane/log.md": "<sha>"}}.
     """
@@ -120,6 +126,11 @@ def snapshot(repo: Path) -> dict[str, object]:
     for path in filter(None, git(repo, "ls-files", "-z", "--others", "--ignored", "--exclude-standard").split("\0")):
         stat = (repo / path).lstat()
         files[path] = f"ignored {stat.st_size} {stat.st_mtime_ns}"
+    common = Path(git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir").strip())
+    for top in GIT_RUNS:
+        for full in sorted(p for p in [common / top, *(common / top).rglob("*")] if p.is_file()):
+            name = full.relative_to(repo).as_posix() if full.is_relative_to(repo) else full.as_posix()
+            files[name] = hashlib.sha256(full.read_bytes()).hexdigest()
     return {"head": git(repo, "rev-parse", "HEAD").strip(), "index": git(repo, "write-tree").strip(), "files": files}
 
 

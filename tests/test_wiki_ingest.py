@@ -26,11 +26,26 @@ FAKE_AGENT = textwrap.dedent('''
     harness, args = sys.argv[1], sys.argv[2:]
     with open(os.environ["FAKE_LOG"], "a", encoding="utf-8") as log:
         log.write(json.dumps({"argv": args, "config": os.environ.get("OPENCODE_CONFIG_CONTENT")}) + "\\n")
+    pure = "--pure" in args
+    args = [a for a in args if a != "--pure"]
+    if harness == "opencode":
+        # The first OpenCode start writes .opencode/.gitignore; without --pure, starts also install plugin deps.
+        Path(".opencode").mkdir(exist_ok=True)
+        if not Path(".opencode/.gitignore").exists():
+            Path(".opencode/.gitignore").write_text(".gitignore\\nnode_modules\\n", encoding="utf-8")
+        if not pure:
+            Path(".opencode/node_modules").mkdir(exist_ok=True)
+            Path(".opencode/node_modules/dep.js").write_text("x", encoding="utf-8")
     if harness == "opencode" and args[:2] == ["debug", "agent"]:
-        # What `opencode debug agent` resolves: a gpt- model gets apply_patch in place of edit and write.
+        # What `opencode debug agent` resolves: a gpt- model gets apply_patch in place of edit and write. Without
+        # --pure a user plugin's config hook may set another model, which the pure run never sees.
         tools = {"bash": False, "read": True, "glob": True, "grep": True, "todowrite": True}
-        tools.update({"apply_patch": True} if os.environ.get("FAKE_MODEL") == "gpt" else {"edit": True, "write": True})
+        gpt = os.environ.get("FAKE_MODEL") == "gpt" and pure
+        tools.update({"apply_patch": True} if gpt else {"edit": True, "write": True})
         print(json.dumps({"name": args[2], "mode": "primary", "tools": tools}))
+        sys.exit(0)
+    if harness == "opencode" and args[0] == "debug":
+        print("{}")
         sys.exit(0)
     prompt = args[-1] if harness == "opencode" else args[args.index("-p") + 1]
     m = re.match(r"/(\\w+)|Read `omoikane/prompts/(\\w+)\\.md`", prompt)
@@ -49,6 +64,9 @@ FAKE_AGENT = textwrap.dedent('''
     elif mode == "distill" and op == "distill":
         with open("omoikane/log.md", "a", encoding="utf-8") as f:
             f.write("\\n## [2026-10-01] distill | session\\n")
+    elif mode == "fail-with-edits" and "article" in prompt:
+        Path("omoikane/wiki/concepts/half.md").write_text(page.format("half", "Half done."), encoding="utf-8")
+        sys.exit(1)
     elif mode in ("orphan", "orphan-then-fail") and op == "ingest":
         Path("omoikane/wiki/concepts/lonely.md").write_text(page.format("lonely", "Alone."), encoding="utf-8")
     elif mode == "orphan-then-fail":
@@ -156,6 +174,8 @@ class WikiIngest(unittest.TestCase):
         (self.repo / "omoikane/wiki/gotchas/old.md").write_text(
             "---\ntitle: old\ntype: gotcha\nsummary: s\ntags: []\ncreated: 2026-01-01\nupdated: 2026-01-01\n"
             "sources: []\nguard: none\n---\nSee [[old]].\n", encoding="utf-8")
+        git(self.repo, "add", "-A", "omoikane/wiki")
+        git(self.repo, "commit", "-q", "-m", "old gotcha")
         self.ingest("orphan")
         self.assertNotIn("warning:", self.prompts()[1])
 
@@ -164,6 +184,21 @@ class WikiIngest(unittest.TestCase):
         self.assertIn("ingest FAILED omoikane/raw/inbox/article.md", run.stdout)
         self.assertEqual(self.commits(), ["init"])
         self.assertTrue((self.repo / "omoikane/raw/inbox/article.md").is_file())
+
+    def test_what_the_human_staged_stays_out_of_the_run_commits(self) -> None:
+        (self.repo / "notes.txt").write_text("staged by the human before the run\n", encoding="utf-8")
+        git(self.repo, "add", "notes.txt")
+        run = self.ingest("orphan")
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertNotIn("notes.txt", git(self.repo, "show", "--name-only", "--format=", "HEAD").split())
+        self.assertIn("A  notes.txt", git(self.repo, "status", "--porcelain"))
+
+    def test_a_failed_operation_that_left_edits_blocks_the_run(self) -> None:
+        # The next operation's `git add omoikane/wiki` once committed them under its own message.
+        (self.repo / "omoikane/raw/inbox/later.md").write_text("another source\n", encoding="utf-8")
+        run = self.ingest("fail-with-edits")
+        self.assert_blocked(run)
+        self.assertTrue((self.repo / "omoikane/wiki/concepts/half.md").is_file())  # left for the human to read
 
     def test_a_tick_the_agent_adds_is_undone_before_the_commit(self) -> None:
         run = self.ingest("tick")
@@ -180,11 +215,15 @@ class WikiIngest(unittest.TestCase):
                         encoding="utf-8", newline="\n")
         hook.chmod(0o755)
         git(self.repo, "config", "core.hooksPath", ".git/hooks")  # over a global hooksPath
+        # A fresh clone: OpenCode writes .opencode/ on its first start, which must happen outside the scope check.
         run = self.ingest("none", "-Agent", "opencode", "-SynthesizeEvery", "0", OPENCODE_CONFIG_CONTENT='{"user": 1}')
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
-        resolve, agent = self.calls_made()
-        name = resolve["argv"][2]  # type: ignore[index]
-        self.assertEqual(resolve["argv"], ["debug", "agent", name])
+        calls = self.calls_made()
+        (resolve,) = [c for c in calls if c["argv"][1:3] == ["debug", "agent"]]  # type: ignore[index]
+        (agent,) = [c for c in calls if c["argv"][0] == "run"]  # type: ignore[index]
+        name = resolve["argv"][3]  # type: ignore[index]
+        # --pure on both: a user plugin's config hook must not change what the check sees.
+        self.assertEqual(resolve["argv"], ["--pure", "debug", "agent", name])
         self.assertEqual(agent["argv"][:4], ["run", "--pure", "--agent", name])  # type: ignore[index]
         self.assertTrue(agent["argv"][-1].startswith("Read `omoikane/prompts/ingest.md` and follow it."))  # type: ignore[index,union-attr]
         config = json.loads(str(agent["config"]))
@@ -197,7 +236,7 @@ class WikiIngest(unittest.TestCase):
         run = self.ingest("escape", "-Agent", "opencode", "-SynthesizeEvery", "0", FAKE_MODEL="gpt")
         self.assertNotEqual(run.returncode, 0)
         self.assertIn("apply_patch", run.stdout)
-        self.assertEqual([call["argv"][0] for call in self.calls_made()], ["debug"])  # type: ignore[index]
+        self.assertNotIn("run", [call["argv"][0] for call in self.calls_made()])  # type: ignore[index]
         self.assertEqual(self.commits(), ["init"])
         self.assertEqual((self.repo / "AGENTS.md").read_text(encoding="utf-8"), (REPO / "AGENTS.md").read_text(encoding="utf-8"))
 

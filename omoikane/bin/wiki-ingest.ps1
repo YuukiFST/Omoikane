@@ -31,6 +31,8 @@ $env:OMOIKANE_NO_CAPTURE = "1"
 $env:PYTHONDONTWRITEBYTECODE = "1"
 # Lint findings handed back to the agent before the operation is committed as it stands.
 $LintRounds = 2
+# What -Commit commits for an operation, besides the source it moved.
+$WikiPaths = @("omoikane/wiki", "omoikane/log.md", "omoikane/_review.md", "omoikane/index.md")
 
 function Log([string] $msg) { "$(Get-Date -Format s) $msg" | Tee-Object -FilePath $log -Append }
 
@@ -73,10 +75,12 @@ function Invoke-Agent([string] $claudePrompt, [string] $message) {
         # The tools OpenCode resolves for the agent, without calling a model: a gpt- model gets apply_patch,
         # which no rule restricts (headless-scope.py unsafe_tools).
         $resolved = Join-Path $runTmp "agent.json"
-        opencode debug agent $agentName | Set-Content -Encoding utf8NoBOM $resolved
+        # --pure here too: a user plugin's config hook could set a model for the check that the pure run never gets.
+        opencode --pure debug agent $agentName | Set-Content -Encoding utf8NoBOM $resolved
         if ($LASTEXITCODE -ne 0) { throw "opencode debug agent failed" }
-        python -I $scopeScript opencode-tools --resolved $resolved | Tee-Object -FilePath $log -Append | Out-Host
-        if ($LASTEXITCODE -ne 0) { throw "OpenCode offers the agent a tool outside the scope; pin a model that is not gpt-" }
+        python -I $scopeScript opencode-tools --resolved $resolved 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
+        if ($LASTEXITCODE -eq 3) { throw "OpenCode offers the agent a tool outside the scope; pin a model that is not gpt-" }
+        if ($LASTEXITCODE -ne 0) { throw "headless-scope.py opencode-tools could not read the resolved agent" }
         opencode run --pure --agent $agentName $message 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
     }
     finally { $env:OPENCODE_CONFIG_CONTENT = $saved }
@@ -96,7 +100,14 @@ function Assert-Scope([string] $op, [string] $reviewBefore, [string] $snapshot) 
     if ($LASTEXITCODE -ne 0) { Stop-Run "review-ticks.py failed after the $op run; a tick the agent added may stand" }
 }
 
+# Whether the paths an operation commits hold changes no commit took. With -Commit, they would be swept into the
+# next operation's commit under its message: a failed operation's half-written pages once were (#40).
+function Test-WikiChanged {
+    return [bool](git status --porcelain --untracked-files=all -- @WikiPaths)
+}
+
 function Invoke-Operation([string] $op, [string] $arg) {
+    if ($Commit -and (Test-WikiChanged)) { throw "uncommitted changes under the wiki before the $op run; commit or discard them" }
     $review = Join-Path $omoikane "_review.md"
     $reviewBefore = Join-Path $runTmp "review-before.md"
     if (Test-Path $review) { Copy-Item $review $reviewBefore -Force } else { Set-Content $reviewBefore "" }
@@ -133,18 +144,23 @@ function Complete-Operation([string] $op, [string] $name, [string[]] $moved = @(
     if (-not $Commit) { return }
     # Only what an operation may change: anything else in the tree is not the run's to commit. A source never
     # committed has no deletion to stage.
-    $paths = @("omoikane/wiki", "omoikane/log.md", "omoikane/_review.md", "omoikane/index.md") + @($moved | Where-Object {
-        (Test-Path -LiteralPath $_) -or (git ls-files -- $_)
-    })
+    $paths = $WikiPaths + @($moved | Where-Object { (Test-Path -LiteralPath $_) -or (git ls-files -- $_) })
     git add -- @paths 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
     if ($LASTEXITCODE -ne 0) { Stop-Run "git add failed after the $op run" }
-    git diff --cached --quiet
+    git diff --cached --quiet -- @paths
     if ($LASTEXITCODE -eq 0) { Log "$op $name changed nothing to commit" | Out-Host; return }
-    git commit -q -m "feat(wiki): $op $name" 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
+    # `-- @paths` commits those paths only: what the human staged before the run stays staged, not committed.
+    git commit -q -m "feat(wiki): $op $name" -- @paths 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
     if ($LASTEXITCODE -ne 0) { Stop-Run "git commit failed after the $op run" }
 }
 
 try {
+    # OpenCode writes .opencode/ (its .gitignore; plugin deps without --pure) on every start: let it do so before
+    # the first snapshot, or the first run in a fresh clone reads the write as the agent's and blocks.
+    if ($Agent -eq "opencode") {
+        opencode --pure debug config | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "opencode debug config failed" }
+    }
     $inbox = Join-Path $omoikane "raw/inbox"
     $files = Get-ChildItem $inbox -File -Recurse | Where-Object { $_.Name -ne ".gitkeep" }
     if (-not $files) { Log "nothing in inbox" }
@@ -158,7 +174,11 @@ try {
         $rel = [IO.Path]::GetRelativePath($root, $f.FullName) -replace "\\", "/"
         $dest = Join-Path $omoikane $(if ($isSession) { "raw/sources/sessions" } else { "raw/sources" })
         Log "$op start $rel"
-        if (-not (Invoke-Operation $op $rel)) { Log "$op FAILED $rel"; continue }
+        if (-not (Invoke-Operation $op $rel)) {
+            Log "$op FAILED $rel"
+            if ($Commit -and (Test-WikiChanged)) { Stop-Run "the $op run of $rel failed and left changes under the wiki" }
+            continue
+        }
         # The headless agent may not move files (#25): move the source so the next run does not process it again.
         if (Test-Path $f.FullName) { New-Item -ItemType Directory -Force $dest | Out-Null; Move-Item $f.FullName $dest }
         $movedTo = [IO.Path]::GetRelativePath($root, (Join-Path $dest $f.Name)) -replace "\\", "/"
@@ -171,7 +191,10 @@ try {
         python omoikane/bin/synthesize-due.py --every $SynthesizeEvery | Tee-Object -FilePath $log -Append
         if ($LASTEXITCODE -eq 0) {
             Log "synthesize start"
-            if (Invoke-Operation "synthesize" "") { Log "synthesize done" } else { Log "synthesize FAILED" }
+            if (Invoke-Operation "synthesize" "") { Log "synthesize done" } else {
+                Log "synthesize FAILED"
+                if ($Commit -and (Test-WikiChanged)) { Stop-Run "the synthesize run failed and left changes under the wiki" }
+            }
             # The log heading is the counter. A run that did not write it would trigger again on every schedule.
             python omoikane/bin/synthesize-due.py --every $SynthesizeEvery | Out-Null
             if ($LASTEXITCODE -eq 0) {
