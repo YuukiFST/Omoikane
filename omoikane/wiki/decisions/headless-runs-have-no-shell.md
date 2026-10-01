@@ -10,7 +10,7 @@ code: [omoikane/bin/headless-scope.py, omoikane/bin/wiki-ingest.ps1, tests/test_
 ---
 
 The agent that [[wiki-ingest]] starts may read the repository and edit wiki pages (`.md`), `omoikane/log.md` and `omoikane/_review.md`; it runs no command (source: [[session-2026-09-30-230a182d]], turns 2, 4).
-`wiki-ingest.ps1` runs `wiki-lint.py` after the agent and hands the findings back for up to 2 rounds, then runs index and lint itself (turn 4).
+`wiki-ingest.ps1` runs `wiki-lint.py` after the agent and hands the findings back for up to 2 rounds, then runs index and lint itself (source: [[session-2026-10-01-b5b6fb27]], turn 2).
 `AGENTS.md` tells a scheduled run it has no shell and to skip index and lint (turn 4).
 
 ## Why

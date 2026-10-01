@@ -68,7 +68,7 @@ Updated: [[headless-runs-have-no-shell]], [[company-internal-material-stays-out-
 
 - routed (todo) merge-typecheck-plugins-pr-48: plugin typecheck in CI open as PR #48 (turn 2)
 - routed (todo) merge-escape-edit-hook-pr-49: escape edit hook open as PR #49 (turn 2)
-- routed (todo) merge-rule-promotion-pr-50: first rule promotion open as PR #50 (turn 2)
+- routed (todo) merge-rule-promotion-pr-50: first rule promotion open as PR #51 for issue #50 (turn 2)
 - routed (todo) open-org-knowledge-pr-52: org knowledge spec and script committed without a PR (turn 2)
 - skipped (missing-env) auto-mode-classifier-no-verdict: the auto mode permission classifier gave no verdict on Agent, Bash and Write, and the session paused (turn 2)
 - skipped (self-resolved) write-before-read-tool-error: `File has not been read yet` from the Write tool (turn 2)

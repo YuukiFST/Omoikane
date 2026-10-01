@@ -31,7 +31,7 @@ The end-to-end tests added for it cover a fake `opencode`, a crashing `verify`, 
 
 ## Lint loop
 
-The script runs `wiki-lint.py` after the agent and hands the findings, not the warnings, back for up to 2 rounds (source: [[session-2026-09-30-230a182d]], turn 4).
+The script runs `wiki-lint.py` after the agent and hands the findings, not the warnings, back for up to 2 rounds (source: [[session-2026-10-01-b5b6fb27]], turn 2).
 Its first version had two bugs found by a real eval: [[powershell-function-output-becomes-its-return-value]] and 26 warnings handed back with the 1 finding (turn 4).
 `tests/test_wiki_ingest.py` drives the whole script with a fake `claude`; its tests were red against the `main` version and green on the branch (turn 4).
 

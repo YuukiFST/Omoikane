@@ -22,5 +22,5 @@ Without any scope, a manual `opencode run` of the probe executed `git commit` an
 Carry the scope in an agent defined through `OPENCODE_CONFIG_CONTENT` under a fresh name per run (`omoikane-headless-<8 hex>`), open every map with `"*": "deny"`, and run `opencode run --pure --agent <name>` (`omoikane/bin/wiki-ingest.ps1`).
 With the hostile config the probe through `wiki-ingest.ps1` ran 17 steps exactly in scope with git denied (source: [[session-2026-09-30-230a182d]], turn 2), and later OpenCode resolved the rules with `apply_patch` and bash denied (turn 4).
 
-`tests/test_headless_scope.py` (`OpenCodeResolved`) checks the rules OpenCode itself resolves under a hostile user config.
+In CI, `OpenCodeRendering` in `tests/test_headless_scope.py` checks the rendered rules after a hostile user config, and `test_the_opencode_run_carries_the_scope_in_a_fresh_agent_and_restores_the_user_config` in `tests/test_wiki_ingest.py` the run itself; `OpenCodeResolved`, which asks OpenCode for the rules it resolves, runs only where `opencode` is installed.
 See [[opencode]], [[headless-runs-have-no-shell]].

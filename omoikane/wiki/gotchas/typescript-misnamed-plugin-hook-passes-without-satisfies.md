@@ -6,8 +6,8 @@ tags: [opencode, typescript, ci]
 created: 2026-10-01
 updated: 2026-10-01
 sources: [wiki/sources/session-2026-10-01-b5b6fb27.md]
-code: [.opencode/plugins/omoikane.ts]
-guard: none
+code: [.opencode/plugins/omoikane.ts, .github/workflows/ci.yml]
+guard: test
 ---
 
 ## Behaviour
@@ -19,4 +19,4 @@ Its subagent review found that a wrongly named hook would still pass; the resolu
 
 Put `satisfies Hooks` on the object the plugin returns; the agent proved it red by renaming `dispose` to `disposex` (source: [[session-2026-10-01-b5b6fb27]], turn 2).
 The same PR runs the install with `--ignore-scripts` (turn 2).
-`guard: none` until PR #48 lands on `main`. See [[opencode]], [[opencode-run-exits-before-plugin-event-handlers-finish]] (why `dispose` matters).
+PR #48 has merged since: the CI step "Typecheck harness plugins" fails on a misnamed hook. See [[opencode]], [[opencode-run-exits-before-plugin-event-handlers-finish]] (why `dispose` matters).
