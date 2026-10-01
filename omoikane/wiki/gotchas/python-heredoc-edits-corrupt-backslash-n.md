@@ -4,8 +4,8 @@ type: gotcha
 summary: Editing files through python heredoc scripts mangles \n in the text; one corrupted docstring reached main; use Edit
 tags: [agent-tooling, editing, heredoc]
 created: 2026-09-30
-updated: 2026-09-30
-sources: [wiki/sources/session-2026-09-30-c14af01e.md]
+updated: 2026-10-01
+sources: [wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-09-30-230a182d.md]
 guard: none
 ---
 
@@ -16,6 +16,10 @@ The agent wrote "Caí na armadilha conhecida do `\n` em heredoc" and hit it at l
 One corrupted docstring had already reached `main` in an item 1 commit and was fixed while working on item 4 (turn 2).
 
 Cause, added in the review of PR #36 (the session does not state it): the heredoc is quoted (`<<'EOF'`), so the shell passes the text unchanged; Python then reads `\n` inside an ordinary string literal as a newline, and a script that writes source code containing `\n` writes a line break where the file needed the two characters.
+
+## Recurrence
+
+The next session hit the same class with `sed`: "Armadilha do escape de novo (sed transformou `\n` em quebra de linha). Corrigindo com Edit." (source: [[session-2026-09-30-230a182d]], turn 2).
 
 ## Workaround
 

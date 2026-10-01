@@ -44,3 +44,19 @@ Updated: [[session-2026-09-15-e04462b2]], [[session-2026-09-30-c14af01e]] (link 
 - dropped (known) verify-api-against-package-docs: e04462b2 read `npm pack` docs, c14af01e checked `claude` flags; the user's global CLAUDE.md already says never guess APIs or flags
 - dropped (known) confirm-git-identity-before-commit: both sessions ran `git config user.name; git config user.email`, required by the user's global git rules
 - dropped (coincidence) heredoc-failures: e04462b2 hit an unclosed quote in a bash heredoc, c14af01e corrupted `\n` in Python heredoc edits; different causes, the second is [[python-heredoc-edits-corrupt-backslash-n]]
+
+## [2026-10-01] distill | session 230a182d
+
+Created: [[session-2026-09-30-230a182d]], [[headless-runs-have-no-shell]], [[company-internal-material-stays-out-of-the-public-repo]], [[opencode-merges-user-permission-maps-into-the-headless-scope]], [[opencode-offers-apply-patch-to-gpt-models]], [[opencode-writes-schema-into-project-opencode-json]], [[powershell-function-output-becomes-its-return-value]], [[windows-path-lookup-ignores-case-and-trailing-dots]], [[headless-scope]].
+Updated: [[headless-runs-scoped-to-wiki-edits-and-two-scripts]] (History), [[wiki-ingest]], [[opencode]], [[session-capture]], [[wiki-lint]], [[wiki-rules]], [[python-heredoc-edits-corrupt-backslash-n]].
+
+- routed (todo) finish-rejection-memory-pr-44: PR #44 open at capture (turn 2)
+- routed (todo) finish-review-gate-45: review gate unmerged; register the scheduled task after it lands (turn 4)
+- routed (todo) close-resolved-review-items: older `_review.md` items resolved or superseded by this session's PRs (turn 2)
+- skipped (no-root-cause) opencode-fails-through-wiki-ingest: OpenCode server error through `wiki-ingest.ps1`, also on `main`, while a manual run worked; cause not found in the capture (turn 2)
+- skipped (no-root-cause) opencode-probe-hangs-after-init: an override probe hung after init, "suspeita: stdin", rerun with the prompt in a file and stdin closed (turn 2)
+- skipped (no-root-cause) push-exit-1: a `git push` returned exit 1, outcome not captured (turn 2)
+- skipped (self-resolved) write-before-read-tool-error: `File has not been read yet` from the Write tool (turn 2)
+- skipped (self-resolved) opencode-schema-keyerror-properties: `KeyError: 'properties'` reading the downloaded OpenCode config schema (turn 2)
+- skipped (one-off) probe-refused-by-model: the model refused one probe round (turn 2)
+- skipped (one-off) background-review-agent-stopped: the PR #40 re-review agent did not finish before the session ended (turn 3)

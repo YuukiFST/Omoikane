@@ -4,8 +4,8 @@ type: entity
 summary: omoikane/bin/session-capture.py, turns a Claude Code, Pi or OpenCode transcript into an inbox session file
 tags: [session-capture, module, build-mode]
 created: 2026-09-30
-updated: 2026-09-30
-sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-09-30-c14af01e.md]
+updated: 2026-10-01
+sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-09-30-230a182d.md]
 code: [omoikane/bin/session-capture.py, tests/test_session_capture.py]
 ---
 
@@ -22,6 +22,10 @@ code: [omoikane/bin/session-capture.py, tests/test_session_capture.py]
 ## Skipped operations
 
 Sessions that run an Omoikane operation are not captured; the operation names are read from the files in `omoikane/prompts/`, so a new prompt such as `/synthesize` is skipped without a code change (source: [[session-2026-09-30-c14af01e]], turn 2).
+
+Only the first prompt marks a session as an operation (PR #35, issue #34): before, the Claude reader dropped a coding session that ran a command in a later turn (source: [[session-2026-09-30-230a182d]], turn 2).
+The review of #35 found two more cases, fixed with tests first: harness command entries before the first real prompt (this session's own turn 1 was `/clear`) are looked past, and the command tag is anchored, `COMMAND_TAG.match` instead of `.search` (turn 2).
+Tests: `OperationOnlyFromTheFirstPrompt` in `tests/test_session_capture.py`.
 
 ## Naming and continuation
 

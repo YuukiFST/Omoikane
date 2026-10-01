@@ -45,6 +45,12 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
 - todo phase-2-pendencies: resolve the Phase 2 pendencies listed in the turn 4 handoff prompt; the capture clipped the list, the full list is in the Claude Code transcript of session 8d85e27b-aca9-4ada-83a4-be17c14af01e (session c14af01e, turn 4)
 - todo omoikane-knowledge-for-sb360-kit: design how Omoikane knowledge becomes company knowledge reusable across sb360-kit systems, such as database rules (session c14af01e, turn 4)
 
+## [2026-10-01] distill | session 230a182d
+
+- todo finish-rejection-memory-pr-44: PR #44 (`review-removals.py`, issue #41) was open at capture and `review-removals.py` is not in this checkout (session 230a182d, turn 2)
+- todo finish-review-gate-45: the review gate (`review-gate.py`, branch `feat/45-review-gate`, worktree `omoikane-wiki-auto` on `wiki/auto`) was unmerged at capture; register the scheduled task with `install-schedule.ps1` only after it lands (session 230a182d, turn 4)
+- todo close-resolved-review-items: PR #33 resolved `wiki-lint-backslash-code-paths`; `tests/test_headless_scope.py` (`test_user_settings_and_mcp_servers_are_ignored`) now pins what the unticked `user-settings-apply-to-headless-claude-runs` guard proposed, and its diff no longer applies since `tests/test_wiki_ingest.py` exists; `phase-2-pendencies` was worked through in this session. Delete the bullets that are done (session 230a182d, turn 2)
+
 ## [2026-09-30] synthesize
 
 - [ ] rule review-each-pr-with-a-subagent-before-merging: Before merging a PR, have a subagent review it, post the findings on the PR, fix the real ones, then merge with --merge (synthesize)
