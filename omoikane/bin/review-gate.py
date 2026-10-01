@@ -151,27 +151,51 @@ def find_landed(worktree: Path) -> tuple[str, str] | None:
     """The first and last of a run of consecutive non-merge commits on origin/main whose combined -U0 patch is what
     the branch changed up to one of its own commits: the branch landed by squash (a run of one) or by rebase
     merge (one commit per branch commit), possibly of an earlier head than the tip. None when there is none.
-    Only main commits the branch does not hold are scanned, so a recorded landing is not found again.
+    Only main commits the branch does not hold are scanned, so a recorded landing is not found again, and only
+    branch commits after `settled` are candidates. The longest matching run wins: a rebase recorded as its first
+    commit alone let the next merge bring back a bullet deleted from a later one (#56 review 5).
 
     Example: find_landed(work) returns ("<sha>", "<sha>") after the PR was squash-merged.
     """
-    candidates = git(worktree, "rev-list", "--first-parent", "HEAD", "^origin/main").split()
+    since = settled(worktree)
+    exclude = ["^origin/main"] + ([f"^{since}"] if since else [])
     wanted: set[str] = set()
-    for commit in candidates:
+    for commit in git(worktree, "rev-list", "--first-parent", "HEAD", *exclude).split():
         base = git(worktree, "merge-base", commit, "origin/main").strip()
         wanted.add(patch_id(worktree, base, commit))
     wanted.discard("")
-    longest = len(git(worktree, "rev-list", "--no-merges", "HEAD", "^origin/main").split())
+    longest = len(git(worktree, "rev-list", "--no-merges", "HEAD", *exclude).split())
     if not wanted or not longest:
         return None
     chain = git(worktree, "rev-list", "--first-parent", "--reverse", "origin/main", "^HEAD").split()
     merges = set(git(worktree, "rev-list", "--merges", "--first-parent", "origin/main", "^HEAD").split())
     for i, first in enumerate(chain):
-        for last in chain[i:i + longest]:
-            if last in merges:
+        run = []
+        for commit in chain[i:i + longest]:
+            if commit in merges:
                 break
+            run.append(commit)
+        for last in reversed(run):
             if patch_id(worktree, f"{first}^", last) in wanted:
                 return first, last
+    return None
+
+
+def settled(worktree: Path) -> str | None:
+    """The newest first-parent merge of a main commit after which the branch held nothing main had not taken:
+    a recorded landing (`-s ours`, tree unchanged) or a merge whose tree is main's. Branch commits before it are
+    no longer candidates; kept, they matched a human revert on main and grew the scan every run (#56 review 5).
+
+    Example: settled(work) returns "<sha>" of the last "Record the landing" merge, None on a fresh branch.
+    """
+    for line in git(worktree, "rev-list", "--first-parent", "--parents", "HEAD", "^origin/main").splitlines():
+        commit, *parents = line.split()
+        if len(parents) != 2 or not git_ok(worktree, "merge-base", "--is-ancestor", parents[1], "origin/main"):
+            continue
+        trees = git(worktree, "rev-parse", f"{commit}^{{tree}}", f"{parents[0]}^{{tree}}",
+                    f"{parents[1]}^{{tree}}").split()
+        if trees[0] in trees[1:]:
+            return commit
     return None
 
 
