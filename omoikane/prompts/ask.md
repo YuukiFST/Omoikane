@@ -9,6 +9,6 @@ Steps:
 3. Write the answer with an inline `[[slug]]` citation on every claim. When the answer describes current state, open it with a cutoff line, "as of YYYY-MM-DD", using the `dated` of the newest source it rests on.
 4. File it as `omoikane/wiki/queries/<YYYY-MM-DD>-<slug>.md` using the page contract, `type: query`, `sources:` listing every page cited.
 5. Append to `omoikane/log.md`: `## [YYYY-MM-DD] query | <question>`.
-6. Run `python omoikane/bin/wiki-index.py` then `python omoikane/bin/wiki-lint.py`.
+6. Run `python omoikane/bin/wiki-index.py` then `python omoikane/bin/wiki-lint.py`. In a scheduled run (`wiki-ingest.ps1`) skip this step: you have no shell, and lint runs after you and sends its findings back.
 
 Output: the answer, then the path of the filed page.
