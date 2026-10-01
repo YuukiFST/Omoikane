@@ -220,25 +220,82 @@ class Gate(unittest.TestCase):
         with self.assertRaisesRegex(gate.GateError, "omoikane/bin/wiki-ingest.ps1"):
             self.prepare()
 
-    def test_a_squash_merged_branch_has_nothing_to_publish(self) -> None:
-        self.prepare()
-        self.commit_in_worktree("omoikane/log.md", "# Log\n\n## distill | a\n", "feat(wiki): distill a")
-        gate.publish(self.work, self.gh)
-        self.gh_state.unlink()  # the PR is merged
+    def squash_merge(self) -> None:
+        """The human squash-merges the published PR on main, as the repository allows."""
+        if self.gh_state.exists():
+            self.gh_state.unlink()  # the PR is merged
         git(self.repo, "pull", "-q", "--ff-only")
         git(self.repo, "merge", "-q", "--squash", "origin/wiki/auto")
         git(self.repo, "commit", "-q", "-m", "wiki: scheduled updates (#7)")
         git(self.repo, "push", "-q", "origin", "main")
+
+    def test_a_squash_merged_branch_has_nothing_to_publish(self) -> None:
+        self.prepare()
+        self.commit_in_worktree("omoikane/log.md", "# Log\n\n## distill | a\n", "feat(wiki): distill a")
+        gate.publish(self.work, self.gh)
+        self.squash_merge()
         self.prepare()
         self.assertEqual(gate.publish(self.work, self.gh), "nothing to publish")
 
-    def test_a_pr_closed_unmerged_at_this_commit_is_not_opened_again(self) -> None:
+    def squash_then(self, human_review: str) -> str:
+        """Bullet c published and squash-merged; the human then rewrites _review.md on main."""
+        self.human_pushes_to_main("omoikane/_review.md", "# Review queue\n\n- [ ] rule a: A. (s)\n- [ ] rule b: B. (s)\n")
+        self.prepare()
+        self.commit_in_worktree("omoikane/_review.md",
+                                "# Review queue\n\n- [ ] rule a: A. (s)\n- [ ] rule b: B. (s)\n- [ ] rule c: C. (s)\n",
+                                "feat(wiki): distill c")
+        gate.publish(self.work, self.gh)
+        self.squash_merge()
+        self.human_pushes_to_main("omoikane/_review.md", human_review)
+        self.prepare()
+        self.assertEqual(gate.publish(self.work, self.gh), "nothing to publish")
+        return (self.work / "omoikane/_review.md").read_text(encoding="utf-8")
+
+    def test_after_a_squash_merge_a_deleted_bullet_stays_deleted(self) -> None:
+        # The merge base stayed before the squashed bullets, so the next merge added them back (#56 review).
+        review = self.squash_then("# Review queue\n\n- [ ] rule a: A. (s)\n- [ ] rule c: C. (s)\n")
+        self.assertEqual(review, "# Review queue\n\n- [ ] rule a: A. (s)\n- [ ] rule c: C. (s)\n")
+
+    def test_after_a_squash_merge_a_ticked_bullet_is_not_duplicated(self) -> None:
+        review = self.squash_then("# Review queue\n\n- [ ] rule a: A. (s)\n- [x] rule b: B. (s)\n- [ ] rule c: C. (s)\n")
+        self.assertEqual(review, "# Review queue\n\n- [ ] rule a: A. (s)\n- [x] rule b: B. (s)\n- [ ] rule c: C. (s)\n")
+
+    def test_a_multi_line_proposal_and_a_repeated_heading_survive_a_review_conflict(self) -> None:
+        # Lines were deduplicated one by one, so fences, diff headers and a second same-day heading vanished.
+        proposal = "- [ ] guard (test) {0}: {0}\n````diff\n--- /dev/null\n+++ b/{0}.py\n@@ -0,0 +1 @@\n+import os\n````\n"
+        main = ("# Review queue\n\n## [2026-10-01] lint\n\n- todo w: W.\n\n## [2026-10-01] distill | aa\n\n"
+                + proposal.format("x") + "- [ ] rule b: B. (s)\n")
+        added = "\n## [2026-10-01] lint\n\n- todo z: Z.\n\n## [2026-10-01] distill | bb\n\n" + proposal.format("y")
+        self.human_pushes_to_main("omoikane/_review.md", main)
+        self.prepare()
+        self.commit_in_worktree("omoikane/_review.md", main + added, "feat(wiki): distill bb")
+        rejected = main.replace("- [ ] rule b: B. (s)\n", "")
+        self.human_pushes_to_main("omoikane/_review.md", rejected)
+        self.prepare()
+        self.assertEqual((self.work / "omoikane/_review.md").read_text(encoding="utf-8"), rejected + added)
+
+    def test_branch_code_is_refused_before_any_merge_runs_it(self) -> None:
+        # An index conflict once ran the branch's own wiki-index.py before the refusal (#56 review).
+        self.prepare()
+        write(self.work / "omoikane/bin/wiki-index.py", "open('pwned', 'w')\n")
+        self.commit_in_worktree("omoikane/index.md", "# Index\n\nfrom the run\n", "feat(wiki): distill a")
+        self.human_pushes_to_main("omoikane/index.md", "# Index\n\nfrom main\n")
+        regenerated: list[Path] = []
+        with self.assertRaisesRegex(gate.GateError, "omoikane/bin/wiki-index.py"):
+            gate.prepare(self.repo, self.work, 30, regenerate=regenerated.append)
+        self.assertEqual(regenerated, [])
+
+    def test_a_pr_closed_unmerged_is_not_opened_again_after_main_moves(self) -> None:
         self.prepare()
         self.commit_in_worktree("omoikane/log.md", "# Log\n\n## distill | a\n", "feat(wiki): distill a")
         head = git(self.work, "rev-parse", "HEAD").strip()
-        os.environ["FAKE_GH_CLOSED"] = json.dumps([{"number": 7, "headRefOid": head}])
+        self.human_pushes_to_main("AGENTS.md", "# Manual, edited\n")
+        self.prepare()  # main merged in: HEAD moved past the rejected head
+        closed = [{"number": 7, "headRefOid": head, "state": "CLOSED"},
+                  {"number": 5, "headRefOid": "0" * 40, "state": "MERGED"}]
+        os.environ["FAKE_GH_CLOSED"] = json.dumps(closed)
         try:
-            self.assertIn("closed unmerged", gate.publish(self.work, self.gh))
+            self.assertIn("PR #7 was closed unmerged", gate.publish(self.work, self.gh))
         finally:
             del os.environ["FAKE_GH_CLOSED"]
         self.assertNotIn(["pr", "create"], [c[:2] for c in self.gh_calls()])

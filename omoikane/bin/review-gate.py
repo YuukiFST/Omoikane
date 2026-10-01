@@ -5,8 +5,8 @@ force-push) and moves the quiet captures from the human's inbox into it; wiki-in
 commits each operation. `publish` pushes wiki/auto and opens the PR, or lets the push update the open one.
 Merging stays the human's act (#45).
 
-Usage: python omoikane/bin/review-gate.py prepare [--quiet-minutes 30] [--worktree DIR]   # prints the worktree
-       python omoikane/bin/review-gate.py publish [--worktree DIR]
+Usage: python omoikane/bin/review-gate.py prepare [--quiet-minutes 30] [--worktree DIR]
+       python omoikane/bin/review-gate.py publish [--worktree DIR] [--gh PATH]
 """
 from __future__ import annotations
 
@@ -64,31 +64,42 @@ def remote_branch_exists(repo: Path) -> bool:
     return bool(git(repo, "branch", "--remotes", "--list", f"origin/{BRANCH}").strip())
 
 
-def added_lines(base: str, ours: str) -> list[str]:
-    """The lines `ours` inserted relative to `base`, in order.
+def added_hunks(base: list[str], ours: list[str]) -> list[tuple[str | None, list[str]]]:
+    """Each run of lines `ours` inserted relative to `base`, with the base line it follows (None at the top).
 
-    Example: added_lines("a\\nb\\n", "a\\nb\\nc\\n") returns ["c\\n"].
+    Example: added_hunks(["a\\n", "b\\n"], ["a\\n", "x\\n", "b\\n"]) returns [("a\\n", ["x\\n"])].
     """
-    a, b = base.splitlines(keepends=True), ours.splitlines(keepends=True)
-    return [line for tag, _, _, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes()
-            if tag in ("insert", "replace") for line in b[j1:j2]]
+    return [(base[i1 - 1] if i1 else None, ours[j1:j2])
+            for tag, i1, _, j1, j2 in difflib.SequenceMatcher(None, base, ours, autojunk=False).get_opcodes()
+            if tag in ("insert", "replace")]
+
+
+def contains(lines: list[str], run: list[str]) -> bool:
+    return any(lines[i:i + len(run)] == run for i in range(len(lines) - len(run) + 1))
 
 
 def resolve_review(worktree: Path, ref: str) -> None:
-    """Write _review.md as `ref`'s file plus the lines the branch added since the merge base, unless already there.
+    """Write _review.md as `ref`'s file plus each run of lines the branch added since the merge base, placed after
+    the line it followed when that line is still there, at the end otherwise. A run already present as a whole is
+    skipped; runs are compared whole, not line by line, so a diff proposal keeps its fences and headers.
 
     Example: base "a b", branch "a b c", main "a" (b rejected) gives "a c".
     """
-    def show(rev: str) -> str:
-        return git(worktree, "show", f"{rev}:{REVIEW}")
+    def show(rev: str) -> list[str]:
+        text = git(worktree, "show", f"{rev}:{REVIEW}")
+        return (text if text.endswith("\n") or not text else text + "\n").splitlines(keepends=True)
 
     base = git(worktree, "merge-base", "HEAD", ref).strip()
-    theirs = show(ref)
-    kept = set(theirs.splitlines(keepends=True))
-    extra = [line for line in added_lines(show(base), show("HEAD")) if line not in kept or not line.strip()]
-    text = theirs if theirs.endswith("\n") or not theirs else theirs + "\n"
-    (worktree / REVIEW).write_text(text + "".join(extra).lstrip("\n") if extra else text, encoding="utf-8",
-                                   newline="\n")
+    result = show(ref)
+    at = 0  # insertion point after the previous hunk, so hunks keep their order
+    for anchor, run in added_hunks(show(base), show("HEAD")):
+        if contains(result, run):
+            continue
+        found = next((i for i in range(at, len(result)) if result[i] == anchor), None) if anchor else -1
+        at = len(result) if found is None else found + 1
+        result[at:at] = run
+        at += len(run)
+    (worktree / REVIEW).write_text("".join(result), encoding="utf-8", newline="\n")
 
 
 def merge(worktree: Path, ref: str, regenerate: Callable[[Path], None]) -> None:
@@ -156,15 +167,25 @@ def prepare(repo: Path, worktree: Path, quiet_minutes: int, regenerate: Callable
     dirty = git(worktree, "status", "--porcelain", "--untracked-files=all", "--", ".", f":!{INBOX.as_posix()}").strip()
     if dirty:
         raise GateError(f"the worktree has changes no run committed:\n{dirty}")
+    # Before any merge: resolving an index conflict runs the worktree's own wiki-index.py.
+    for ref in ("HEAD", *((f"origin/{BRANCH}",) if remote else ())):
+        refuse_code(worktree, f"origin/main...{ref}")
     if remote:
         merge(worktree, f"origin/{BRANCH}", regenerate)
     merge(worktree, "origin/main", regenerate)
-    beyond = git(worktree, "diff", "--name-only", "origin/main", "HEAD", "--", ".",
-                 *(f":!{path}" for path in COMMITTED)).split()
+    refuse_code(worktree, "origin/main", "HEAD")
+    return move_captures(repo, worktree, quiet_minutes, time.time() if now is None else now)
+
+
+def refuse_code(worktree: Path, *revs: str) -> None:
+    """Raise GateError when the diff of `revs` touches anything -Commit does not commit.
+
+    Example: refuse_code(work, "origin/main...HEAD") raises on a wiki/auto that edited omoikane/bin/wiki-index.py.
+    """
+    beyond = git(worktree, "diff", "--name-only", *revs, "--", ".", *(f":!{path}" for path in COMMITTED)).split()
     if beyond:
         raise GateError(f"{BRANCH} differs from main outside the wiki, and the scheduler would run it: "
                         f"{', '.join(beyond)}")
-    return move_captures(repo, worktree, quiet_minutes, time.time() if now is None else now)
 
 
 def publish(worktree: Path, gh: Sequence[str] = ("gh",)) -> str:
@@ -183,13 +204,15 @@ def publish(worktree: Path, gh: Sequence[str] = ("gh",)) -> str:
             raise GateError(f"gh {' '.join(args[:2])}: {run.stderr.strip()}")
         return run.stdout
 
-    head = git(worktree, "rev-parse", "HEAD").strip()
+    # `--state closed` also lists merged PRs. A rejected head that HEAD contains would go out again in a new PR,
+    # whatever commits a later run or a merge from main put on top of it.
     closed = json.loads(run_gh("pr", "list", "--head", BRANCH, "--base", "main", "--state", "closed",
-                               "--json", "number,headRefOid") or "[]")
-    rejected = [pr for pr in closed if pr.get("headRefOid") == head]
+                               "--json", "number,headRefOid,state") or "[]")
+    rejected = [pr for pr in closed if pr.get("state") == "CLOSED"
+                and git_ok(worktree, "merge-base", "--is-ancestor", str(pr.get("headRefOid")), "HEAD")]
     if rejected:
-        return (f"PR #{rejected[0]['number']} was closed unmerged at this commit; nothing opened. To start over, "
-                f"reset {BRANCH} to origin/main in the worktree and delete the remote branch")
+        return (f"PR #{rejected[0]['number']} was closed unmerged and {BRANCH} still holds its commits; nothing "
+                f"opened. To start over, reset {BRANCH} to origin/main in the worktree and delete the remote branch")
     git(worktree, "push", "-q", "-u", "origin", f"HEAD:refs/heads/{BRANCH}")
     open_prs = json.loads(run_gh("pr", "list", "--head", BRANCH, "--base", "main", "--state", "open",
                                  "--json", "number,url") or "[]")
@@ -213,7 +236,6 @@ def main(argv: list[str] | None = None) -> int:
         if args.action == "prepare":
             for rel in prepare(REPO, args.worktree, args.quiet_minutes):
                 print(f"review-gate: moved {rel}", file=sys.stderr)
-            print(args.worktree)
         else:
             print(f"review-gate: {publish(args.worktree, (args.gh,))}")
     except (GateError, subprocess.CalledProcessError) as exc:
