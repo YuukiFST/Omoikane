@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -255,6 +256,31 @@ class Render(unittest.TestCase):
     def test_keep_ends_keeps_start_and_end(self) -> None:
         self.assertEqual(capture.keep_ends([10, 10, 10, 10], 25), (1, 1))
         self.assertEqual(capture.keep_ends([10, 10], 100), (2, 0))
+
+
+class Continuation(unittest.TestCase):
+    # The review gate distills in a worktree on wiki/auto (#45): until its PR is merged and pulled, the distilled
+    # capture is on that branch only. A session that goes on must not capture those turns again.
+    def test_a_part_distilled_on_wiki_auto_counts(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+
+            def git(*args: str) -> None:
+                subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.invalid",
+                                *args], capture_output=True, check=True)
+
+            git("init", "-q", "-b", "main")
+            git("commit", "-q", "--allow-empty", "-m", "init")
+            git("switch", "-q", "-c", "wiki/auto")
+            sessions = repo / "omoikane/raw/sources/sessions"
+            sessions.mkdir(parents=True)
+            (sessions / "2026-09-15-abcdef12.md").write_text("---\nsession: abcdef12-0000\nturns: 2\n---\n", encoding="utf-8")
+            (sessions / "2026-09-15-other000.md").write_text("---\nsession: other\nturns: 9\n---\n", encoding="utf-8")
+            git("add", "-A")
+            git("commit", "-q", "-m", "feat(wiki): distill 2026-09-15-abcdef12")
+            git("switch", "-q", "main")
+            session = capture.Session(session_id="abcdef12-0000", harness="claude", started="2026-09-15T10:00:00Z")
+            self.assertEqual(capture.ingested_parts(session, ingested=sessions, repo=repo), [2])
 
 
 if __name__ == "__main__":
