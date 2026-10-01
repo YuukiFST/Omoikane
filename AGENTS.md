@@ -72,6 +72,8 @@ python omoikane/bin/wiki-lint.py
 
 `wiki-lint.py` exits non-zero on broken wikilinks, missing frontmatter, undated source pages, orphan pages, two pages sharing a slug or `code:` paths that no longer exist or are absolute. Fix every finding before you report done. Its `warning:` lines (code committed after a page's `updated` date) do not fail; `/lint` checks them.
 
+A scheduled run (`wiki-ingest.ps1`) has no shell: skip these commands; lint runs after you and sends findings back. A run that left its scope writes `omoikane/.wiki-ingest.blocked`; later runs refuse until the human deletes it.
+
 ## Coding sessions (build mode)
 
 - The index is injected at session start, with any captured session not yet distilled; read the last one to pick up where the previous session stopped. Before editing an area, open the decision and gotcha pages whose `code:` lists it.
@@ -85,6 +87,7 @@ python omoikane/bin/wiki-lint.py
 Practices the human approved for every session. `python omoikane/bin/wiki-rules.py` promotes the rule proposals ticked in `omoikane/_review.md` into this block, at most 15; the human deletes a line to retire it. `python omoikane/bin/context-budget.py` fails CI when this file, the skill descriptions or the session brief outgrow their budget.
 
 <!-- omoikane:rules:start -->
+- Before merging a PR, post a subagent review on it and fix the real findings; merge only when the user authorized it (omoikane/wiki/practices/review-each-pr-with-a-subagent-before-merging.md)
 <!-- omoikane:rules:end -->
 
 ## Domain
