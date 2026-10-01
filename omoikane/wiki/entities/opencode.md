@@ -5,7 +5,7 @@ summary: OpenCode harness; .opencode/plugins/omoikane.ts wires it to session cap
 tags: [opencode, harness]
 created: 2026-09-30
 updated: 2026-10-01
-sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-09-30-230a182d.md]
+sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-01-b5b6fb27.md]
 code: [.opencode/plugins/omoikane.ts, omoikane/bin/wiki-ingest.ps1, omoikane/bin/headless-scope.py]
 ---
 
@@ -26,3 +26,9 @@ OpenCode is a coding agent harness with a plugin system (`@opencode-ai/plugin`, 
 - [[opencode-merges-user-permission-maps-into-the-headless-scope]]
 - [[opencode-offers-apply-patch-to-gpt-models]]
 - [[opencode-writes-schema-into-project-opencode-json]]
+- [[opencode-writes-its-own-files-on-first-start]]
+- [[typescript-misnamed-plugin-hook-passes-without-satisfies]]
+
+## Typecheck
+
+PR #48 (issue #46, open at capture) typechecks `.opencode/plugins/omoikane.ts` and the Pi extension in CI with pinned versions (source: [[session-2026-10-01-b5b6fb27]], turn 2).

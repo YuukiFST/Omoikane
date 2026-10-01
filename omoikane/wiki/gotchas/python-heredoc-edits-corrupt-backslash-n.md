@@ -5,7 +5,7 @@ summary: Editing files through python heredoc scripts mangles \n in the text; on
 tags: [agent-tooling, editing, heredoc]
 created: 2026-09-30
 updated: 2026-10-01
-sources: [wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-09-30-230a182d.md]
+sources: [wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-01-b5b6fb27.md]
 guard: none
 ---
 
@@ -20,6 +20,12 @@ Cause, added in the review of PR #36 (the session does not state it): the heredo
 ## Recurrence
 
 The next session hit the same class with `sed`: "Armadilha do escape de novo (sed transformou `\n` em quebra de linha). Corrigindo com Edit." (source: [[session-2026-09-30-230a182d]], turn 2).
+
+## Proposed guard
+
+Issue #47, PR #49 (open at capture): a Claude Code hook, `.claude/hooks/escape-edit-guard.py`, with `tests/test_escape_edit_guard.py` (source: [[session-2026-10-01-b5b6fb27]], turn 2).
+Its review found false positives; the fix tokenises the command with `shlex`, matches `sed` only at the start of a command and judges a Python heredoc by its body (turn 2).
+`guard: none` until it lands on `main`.
 
 ## Workaround
 

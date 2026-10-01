@@ -5,7 +5,7 @@ summary: omoikane/bin/wiki-ingest.ps1, the scheduled run: one headless agent cal
 tags: [wiki-ingest, module, headless, autonomy-loop]
 created: 2026-09-30
 updated: 2026-10-01
-sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-09-30-230a182d.md]
+sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-01-b5b6fb27.md]
 code: [omoikane/bin/wiki-ingest.ps1, omoikane/bin/synthesize-due.py, omoikane/bin/review-ticks.py, tests/test_wiki_ingest.py, tests/test_powershell_scripts.py]
 ---
 
@@ -22,6 +22,12 @@ The first scope allowed wiki edits and two scripts: [[headless-runs-scoped-to-wi
 It loads project settings only: [[user-settings-apply-to-headless-claude-runs]] (turn 2).
 The headless agent may not move files; the script moves the source after the run (turn 3).
 Since PR #40 the agent has no shell, both harnesses take their scope from [[headless-scope]], and a change outside it blocks every later run: [[headless-runs-have-no-shell]] (source: [[session-2026-09-30-230a182d]], turns 2, 4).
+With `-Agent opencode` the script starts OpenCode once before the first snapshot: [[opencode-writes-its-own-files-on-first-start]] (source: [[session-2026-10-01-b5b6fb27]], turn 2).
+
+## Commit
+
+`-Commit` commits only the operation's paths; an operation that fails and leaves edits under them blocks the run (source: [[session-2026-10-01-b5b6fb27]], turn 2).
+The end-to-end tests added for it cover a fake `opencode`, a crashing `verify`, `review-ticks`, synthesize and the explicit stage (turn 2).
 
 ## Lint loop
 

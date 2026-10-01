@@ -60,3 +60,17 @@ Updated: [[headless-runs-scoped-to-wiki-edits-and-two-scripts]] (History), [[wik
 - skipped (self-resolved) opencode-schema-keyerror-properties: `KeyError: 'properties'` reading the downloaded OpenCode config schema (turn 2)
 - skipped (one-off) probe-refused-by-model: the model refused one probe round (turn 2)
 - skipped (one-off) background-review-agent-stopped: the PR #40 re-review agent did not finish before the session ended (turn 3)
+
+## [2026-10-01] distill | session b5b6fb27
+
+Created: [[session-2026-10-01-b5b6fb27]], [[claude-bare-read-rule-reads-outside-the-repository]], [[opencode-writes-its-own-files-on-first-start]], [[typescript-misnamed-plugin-hook-passes-without-satisfies]].
+Updated: [[headless-runs-have-no-shell]], [[company-internal-material-stays-out-of-the-public-repo]], [[python-heredoc-edits-corrupt-backslash-n]], [[headless-scope]], [[opencode]], [[wiki-ingest]], [[wiki-rules]].
+
+- routed (todo) merge-typecheck-plugins-pr-48: plugin typecheck in CI open as PR #48 (turn 2)
+- routed (todo) merge-escape-edit-hook-pr-49: escape edit hook open as PR #49 (turn 2)
+- routed (todo) merge-rule-promotion-pr-50: first rule promotion open as PR #50 (turn 2)
+- routed (todo) open-org-knowledge-pr-52: org knowledge spec and script committed without a PR (turn 2)
+- skipped (missing-env) auto-mode-classifier-no-verdict: the auto mode permission classifier gave no verdict on Agent, Bash and Write, and the session paused (turn 2)
+- skipped (self-resolved) write-before-read-tool-error: `File has not been read yet` from the Write tool (turn 2)
+- skipped (self-resolved) test-fixture-global-hookspath: two test details adjusted, a global `core.hooksPath` and a directory status, cause not stated beyond that (turn 2)
+- skipped (self-resolved) budget-test-assumed-empty-rules-block: the context budget test went red once a rule was promoted; recorded on [[wiki-rules]], not a gotcha (turn 2)

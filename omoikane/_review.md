@@ -51,6 +51,13 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
 - todo finish-review-gate-45: the review gate (`review-gate.py`, branch `feat/45-review-gate`, worktree `omoikane-wiki-auto` on `wiki/auto`) was unmerged at capture; register the scheduled task with `install-schedule.ps1` only after it lands (session 230a182d, turn 4)
 - todo close-resolved-review-items: PR #33 resolved `wiki-lint-backslash-code-paths`; `tests/test_headless_scope.py` (`test_user_settings_and_mcp_servers_are_ignored`) now pins what the unticked `user-settings-apply-to-headless-claude-runs` guard proposed, and its diff no longer applies since `tests/test_wiki_ingest.py` exists; `phase-2-pendencies` was worked through in this session. Delete the bullets that are done (session 230a182d, turn 2)
 
+## [2026-10-01] distill | session b5b6fb27
+
+- todo merge-typecheck-plugins-pr-48: PR #48 (issue #46, `test/46-typecheck-plugins`) typechecks the plugins in CI and was open at capture; once merged, delete the `typecheck-harness-plugins` bullet above and set `guard: test` on [[typescript-misnamed-plugin-hook-passes-without-satisfies]] (session b5b6fb27, turn 2)
+- todo merge-escape-edit-hook-pr-49: PR #49 (issue #47, `feat/47-escape-hook`) adds `.claude/hooks/escape-edit-guard.py` and was open at capture; once merged, set `guard: hook` on [[python-heredoc-edits-corrupt-backslash-n]] (session b5b6fb27, turn 2)
+- todo merge-rule-promotion-pr-50: PR #50 promotes `review-each-pr-with-a-subagent-before-merging` into `AGENTS.md` and was open at capture; once merged, delete the synthesize `rule` bullet below (session b5b6fb27, turn 2)
+- todo open-org-knowledge-pr-52: `docs/specs/2026-10-01-org-knowledge.md` and `omoikane/bin/org-candidates.py` are committed on `feat/52-org-candidates` (issue #52) with no PR; the session left it for after Block 2 (#44, #45) (session b5b6fb27, turn 2)
+
 ## [2026-09-30] synthesize
 
 - [ ] rule review-each-pr-with-a-subagent-before-merging: Before merging a PR, have a subagent review it, post the findings on the PR, fix the real ones, then merge with --merge (synthesize)

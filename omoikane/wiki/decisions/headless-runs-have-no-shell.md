@@ -5,7 +5,7 @@ summary: The scheduled agent gets no shell at all; wiki-ingest.ps1 runs index an
 tags: [headless, permissions, wiki-ingest, security, opencode]
 created: 2026-10-01
 updated: 2026-10-01
-sources: [wiki/sources/session-2026-09-30-230a182d.md]
+sources: [wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-01-b5b6fb27.md]
 code: [omoikane/bin/headless-scope.py, omoikane/bin/wiki-ingest.ps1, tests/test_headless_scope.py, tests/test_wiki_ingest.py, AGENTS.md]
 ---
 
@@ -25,6 +25,9 @@ The agent that [[wiki-ingest]] starts may read the repository and edit wiki page
 - `verify` exits 3 on a finding, not 1, so a crash cannot read as a verdict (turn 4); before the fix a crash failed open (code comment in `wiki-ingest.ps1`).
 - The isolated `verify` runs before any repository script, because `review-ticks.py` imports from `omoikane/bin/` (turn 4).
 - Only lint findings go back, not `warning:` lines: the first eval handed back 26 instead of 1 (turn 4).
+- After the third and fourth reviews of PR #40, `verify` also sees ignored files and the `.git` config and hooks, and any failure of it blocks the run (source: [[session-2026-10-01-b5b6fb27]], turn 2).
+- `-Commit` commits only the paths the operation may change, and an operation that fails and leaves edits blocks the run (turn 2).
+- The Claude `Read` allow is anchored to the repository: [[claude-bare-read-rule-reads-outside-the-repository]] (turn 2).
 
 ## History
 
