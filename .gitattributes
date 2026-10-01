@@ -1,5 +1,5 @@
 * text=auto eol=lf
 *.ps1 text eol=crlf
 # Append-only on both sides: a scheduled run on wiki/auto and the human on main each add entries at the end.
+# Not _review.md: the human deletes and ticks bullets there, and a union merge undid both (review-gate.py merges it).
 omoikane/log.md merge=union
-omoikane/_review.md merge=union

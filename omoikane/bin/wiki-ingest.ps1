@@ -49,18 +49,23 @@ function Stop-Run([string] $reason) {
 if (Test-Path $blocked) { Log "blocked since $(Get-Content -Raw $blocked)"; exit 1 }
 
 if ($Commit -and -not $NoGate) {
-    # The worktree's own copy runs, at the version just merged from main; its log and block marker live there.
-    $prepared = @(python omoikane/bin/review-gate.py prepare --quiet-minutes $QuietMinutes 2>&1)
-    $prepared | ForEach-Object { Log "$_" } | Out-Host
+    # By path: review-gate.py starts gh as a process, which on Windows finds gh.exe only. Looked up first, so a
+    # missing gh reaches the log (a scheduled run's stderr reaches nobody) before anything moves.
+    $gh = Get-Command gh -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $gh) { Log "review gate: gh not found on PATH; install it and run gh auth login"; exit 1 }
+    # Named here and passed to both steps, not read back from Python's stdout across code pages.
+    $worktree = Join-Path (Split-Path -Parent $root) ((Split-Path -Leaf $root) + "-wiki-auto")
+    python omoikane/bin/review-gate.py prepare --worktree $worktree --quiet-minutes $QuietMinutes 2>&1 |
+        ForEach-Object { Log "$_" } | Out-Host
     if ($LASTEXITCODE -ne 0) { Log "review gate: prepare failed; nothing ran"; exit 1 }
-    # Its stdout is the worktree path; the moved files come on stderr, as ErrorRecords under 2>&1.
-    $worktree = "$($prepared | Where-Object { $_ -isnot [Management.Automation.ErrorRecord] } | Select-Object -Last 1)".Trim()
+    # The worktree's own copy runs, at the version just merged from main; its log and block marker live there.
     & pwsh -NoProfile -File (Join-Path $worktree "omoikane/bin/wiki-ingest.ps1") -Agent $Agent -Commit -NoGate `
         -QuietMinutes $QuietMinutes -SynthesizeEvery $SynthesizeEvery | Out-Host
-    if ($LASTEXITCODE -ne 0) { Log "review gate: the run in $worktree failed; nothing published"; exit 1 }
-    # By path: review-gate.py starts gh as a process, which on Windows finds gh.exe only.
-    $gh = (Get-Command gh -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
-    python omoikane/bin/review-gate.py publish --worktree $worktree --gh $gh 2>&1 | ForEach-Object { Log "$_" } | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        Log "review gate: the run in $worktree failed; nothing published. See its omoikane/.wiki-ingest.log"
+        exit 1
+    }
+    python omoikane/bin/review-gate.py publish --worktree $worktree --gh $gh.Source 2>&1 | ForEach-Object { Log "$_" } | Out-Host
     if ($LASTEXITCODE -ne 0) { Log "review gate: publish failed"; exit 1 }
     exit 0
 }

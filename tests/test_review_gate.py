@@ -20,7 +20,9 @@ FAKE_GH = """import json, os, sys
 state = os.environ["FAKE_GH_STATE"]
 with open(os.environ["FAKE_GH_LOG"], "a", encoding="utf-8") as log:
     log.write(json.dumps(sys.argv[1:]) + "\\n")
-if sys.argv[1:3] == ["pr", "list"]:
+if sys.argv[1:3] == ["pr", "list"] and sys.argv[sys.argv.index("--state") + 1] == "closed":
+    print(os.environ.get("FAKE_GH_CLOSED", "[]"))
+elif sys.argv[1:3] == ["pr", "list"]:
     print(json.dumps([{"number": 7, "url": "https://example.invalid/pull/7"}] if os.path.exists(state) else []))
 elif sys.argv[1:3] == ["pr", "create"]:
     open(state, "w").close()
@@ -49,7 +51,8 @@ class Gate(unittest.TestCase):
         git(root, "clone", "-q", str(self.origin), str(self.repo))
         git(self.repo, "config", "user.name", "t")
         git(self.repo, "config", "user.email", "t@example.invalid")
-        write(self.repo / ".gitattributes", (REPO / ".gitattributes").read_text(encoding="utf-8"))
+        for name in (".gitattributes", ".gitignore"):
+            write(self.repo / name, (REPO / name).read_text(encoding="utf-8"))
         for path, text in (("AGENTS.md", "# Manual\n"), ("omoikane/log.md", "# Log\n"),
                            ("omoikane/_review.md", "# Review queue\n"), ("omoikane/index.md", "# Index\n"),
                            ("omoikane/raw/inbox/sessions/.gitkeep", ""), ("omoikane/raw/sources/sessions/.gitkeep", "")):
@@ -169,6 +172,76 @@ class Gate(unittest.TestCase):
         write(self.work / "omoikane/wiki/leftover.md", "a run that crashed")
         with self.assertRaisesRegex(gate.GateError, "leftover.md"):
             self.prepare()
+
+    def test_a_source_a_failed_operation_left_in_the_inbox_is_retried(self) -> None:
+        # Once it stopped every later prepare, so one failed agent call ended the schedule (#56 review).
+        self.prepare()
+        write(self.work / "omoikane/raw/inbox/article.md", "moved in, its ingest failed")
+        self.prepare()
+        self.assertTrue((self.work / "omoikane/raw/inbox/article.md").is_file())
+
+    def test_a_blocked_worktree_stops_prepare(self) -> None:
+        self.prepare()
+        write(self.work / "omoikane/.wiki-ingest.blocked", "the run changed files outside its scope")
+        with self.assertRaisesRegex(gate.GateError, r"\.wiki-ingest\.blocked"):
+            self.prepare()
+
+    def review_after_the_human(self, human_review: str) -> str:
+        """The branch appends bullet c; the human then rewrites _review.md on main; return the worktree's file."""
+        self.human_pushes_to_main("omoikane/_review.md", "# Review queue\n\n- [ ] rule a: A. (s)\n- [ ] rule b: B. (s)\n")
+        self.prepare()
+        self.commit_in_worktree("omoikane/_review.md",
+                                "# Review queue\n\n- [ ] rule a: A. (s)\n- [ ] rule b: B. (s)\n- [ ] rule c: C. (s)\n",
+                                "feat(wiki): distill c")
+        self.human_pushes_to_main("omoikane/_review.md", human_review)
+        self.prepare()
+        return (self.work / "omoikane/_review.md").read_text(encoding="utf-8")
+
+    def test_a_bullet_the_human_deleted_stays_deleted(self) -> None:
+        # A union merge brought the rejected bullet back, and review-removals.py never saw the rejection.
+        review = self.review_after_the_human("# Review queue\n\n- [ ] rule a: A. (s)\n")
+        self.assertEqual(review, "# Review queue\n\n- [ ] rule a: A. (s)\n- [ ] rule c: C. (s)\n")
+
+    def test_a_bullet_the_human_ticked_is_not_duplicated(self) -> None:
+        review = self.review_after_the_human("# Review queue\n\n- [ ] rule a: A. (s)\n- [x] rule b: B. (s)\n")
+        self.assertEqual(review, "# Review queue\n\n- [ ] rule a: A. (s)\n- [x] rule b: B. (s)\n- [ ] rule c: C. (s)\n")
+
+    def test_commits_not_yet_pushed_survive_a_deleted_worktree(self) -> None:
+        self.prepare()
+        self.commit_in_worktree("omoikane/log.md", "# Log\n\n## distill | a\n", "feat(wiki): distill a")
+        git(self.repo, "worktree", "remove", "--force", str(self.work))
+        self.prepare()
+        self.assertIn("feat(wiki): distill a", git(self.work, "log", "--format=%s"))
+
+    def test_a_branch_that_changed_more_than_the_wiki_is_refused(self) -> None:
+        # The scheduler runs the worktree's own scripts; wiki/auto is not protected the way main is.
+        self.prepare()
+        self.commit_in_worktree("omoikane/bin/wiki-ingest.ps1", "Write-Host pwned\n", "feat(wiki): distill a")
+        with self.assertRaisesRegex(gate.GateError, "omoikane/bin/wiki-ingest.ps1"):
+            self.prepare()
+
+    def test_a_squash_merged_branch_has_nothing_to_publish(self) -> None:
+        self.prepare()
+        self.commit_in_worktree("omoikane/log.md", "# Log\n\n## distill | a\n", "feat(wiki): distill a")
+        gate.publish(self.work, self.gh)
+        self.gh_state.unlink()  # the PR is merged
+        git(self.repo, "pull", "-q", "--ff-only")
+        git(self.repo, "merge", "-q", "--squash", "origin/wiki/auto")
+        git(self.repo, "commit", "-q", "-m", "wiki: scheduled updates (#7)")
+        git(self.repo, "push", "-q", "origin", "main")
+        self.prepare()
+        self.assertEqual(gate.publish(self.work, self.gh), "nothing to publish")
+
+    def test_a_pr_closed_unmerged_at_this_commit_is_not_opened_again(self) -> None:
+        self.prepare()
+        self.commit_in_worktree("omoikane/log.md", "# Log\n\n## distill | a\n", "feat(wiki): distill a")
+        head = git(self.work, "rev-parse", "HEAD").strip()
+        os.environ["FAKE_GH_CLOSED"] = json.dumps([{"number": 7, "headRefOid": head}])
+        try:
+            self.assertIn("closed unmerged", gate.publish(self.work, self.gh))
+        finally:
+            del os.environ["FAKE_GH_CLOSED"]
+        self.assertNotIn(["pr", "create"], [c[:2] for c in self.gh_calls()])
 
 
 if __name__ == "__main__":

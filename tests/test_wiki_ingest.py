@@ -55,7 +55,7 @@ FAKE_AGENT = textwrap.dedent('''
     page = "---\\ntitle: {0}\\ntype: concept\\nsummary: s\\ntags: []\\ncreated: 2026-10-01\\nupdated: 2026-10-01\\nsources: []\\n---\\n{1}\\n"
     mode = os.environ["FAKE_MODE"]
     review = Path("omoikane/_review.md")
-    if mode == "escape":
+    if mode == "escape" or (mode == "escape-on-distill" and op == "distill"):
         Path("AGENTS.md").write_text("# Manual, rewritten by the agent\\n", encoding="utf-8")
     elif mode == "corrupt-index":
         Path(".git/index").write_bytes(b"not an index")
@@ -343,18 +343,23 @@ class ReviewGateRun(IngestFixture, unittest.TestCase):
         self.assertEqual(git(self.repo, "status", "--porcelain", "--untracked-files=all"), "")  # inbox moved out
         self.assertEqual(git(self.origin, "log", "--format=%s", "main..wiki/auto").splitlines(),
                          ["feat(wiki): distill 2026-09-30-quiet001", "feat(wiki): ingest article"])
-        self.assertEqual([c[:2] for c in self.gh_calls()], [["pr", "list"], ["pr", "create"]])
-        # Nothing new: the next run publishes nothing and opens no second PR.
+        self.assertEqual([c[:2] for c in self.gh_calls()].count(["pr", "create"]), 1)
+        # Nothing new: the next run commits nothing and opens no second PR.
         self.assertEqual(self.ingest("distill", gate=True).returncode, 0)
         self.assertEqual([c[:2] for c in self.gh_calls()].count(["pr", "create"]), 1)
 
-    def test_a_blocked_run_publishes_nothing(self) -> None:
-        run = self.ingest("escape", gate=True)
+    def test_a_blocked_run_publishes_nothing_it_committed(self) -> None:
+        # The ingest commits before the distill leaves its scope: publishing after a failed run would push it.
+        run = self.ingest("escape-on-distill", gate=True)
         self.assertNotEqual(run.returncode, 0)
         self.assertTrue((self.work / "omoikane/.wiki-ingest.blocked").is_file(), run.stdout + run.stderr)
+        self.assertIn("feat(wiki): ingest article", git(self.work, "log", "--format=%s"))
         self.assertEqual(git(self.origin, "branch", "--list", "wiki/auto"), "")
         self.assertEqual(self.gh_calls(), [])
         self.assertEqual(self.commits(), ["init"])
+        # The next run stops at the marker instead of merging into the blocked worktree.
+        self.assertNotEqual(self.ingest("none", gate=True).returncode, 0)
+        self.assertIn(".wiki-ingest.blocked", (self.repo / "omoikane/.wiki-ingest.log").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
