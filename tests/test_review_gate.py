@@ -261,6 +261,37 @@ class Gate(unittest.TestCase):
                 human = "# Review queue\n\n- [ ] rule a: A. (s)\n" + decided
                 self.assertEqual(self.squash_then(human), human)
 
+    def land_then_delete_c(self, land: str) -> str:
+        """Bullet c and a log line published as two commits, landed on main by `land`, then c deleted on main."""
+        self.human_pushes_to_main("omoikane/_review.md", "# Review queue\n\n- [ ] rule a: A. (s)\n")
+        self.prepare()
+        self.commit_in_worktree("omoikane/_review.md", "# Review queue\n\n- [ ] rule a: A. (s)\n- [ ] rule c: C. (s)\n",
+                                "feat(wiki): distill c")
+        x = git(self.work, "rev-parse", "HEAD").strip()
+        self.commit_in_worktree("omoikane/log.md", "# Log\n\n## distill | y\n", "feat(wiki): distill y")
+        y = git(self.work, "rev-parse", "HEAD").strip()
+        gate.publish(self.work, self.gh)
+        git(self.repo, "pull", "-q", "--ff-only")
+        git(self.repo, "fetch", "-q", "origin")
+        if land == "rebase":  # what GitHub's rebase merge does: the commits one by one onto main
+            git(self.repo, "cherry-pick", x, y)
+        else:  # squash of an earlier head x, while a run had already committed and pushed y
+            git(self.repo, "merge", "-q", "--squash", x)
+            git(self.repo, "commit", "-q", "-m", "wiki: scheduled updates (#7)")
+        git(self.repo, "push", "-q", "origin", "main")
+        self.human_pushes_to_main("omoikane/_review.md", "# Review queue\n\n- [ ] rule a: A. (s)\n")
+        self.prepare()
+        return (self.work / "omoikane/_review.md").read_text(encoding="utf-8")
+
+    def test_after_a_rebase_merge_a_deleted_bullet_stays_deleted(self) -> None:
+        self.assertEqual(self.land_then_delete_c("rebase"), "# Review queue\n\n- [ ] rule a: A. (s)\n")
+        self.assertEqual(gate.publish(self.work, self.gh), "nothing to publish")
+
+    def test_a_squash_of_an_earlier_head_is_found_too(self) -> None:
+        # The PR was squashed at x while the run pushed y on top: neither tip matches the squash.
+        self.assertEqual(self.land_then_delete_c("squash-earlier"), "# Review queue\n\n- [ ] rule a: A. (s)\n")
+        self.assertIn("## distill | y", (self.work / "omoikane/log.md").read_text(encoding="utf-8"))
+
     def test_a_run_lands_after_the_lines_it_followed_not_an_earlier_twin(self) -> None:
         # Every proposal ends in the same closing fence; one anchor line once put a todo inside another section.
         proposal = "- [ ] guard (test) {0}: {0}\n````diff\n+import {0}\n````\n"

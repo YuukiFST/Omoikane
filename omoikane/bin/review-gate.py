@@ -147,36 +147,46 @@ def patch_id(worktree: Path, *revs: str) -> str:
     return out.split()[0] if out.strip() else ""
 
 
-def find_squash(worktree: Path, heads: list[str]) -> str | None:
-    """The commit on origin/main that squash-merged one of `heads`: its own diff is what the branch changed from
-    their merge base up to that head. None when there is none.
+def find_landed(worktree: Path) -> tuple[str, str] | None:
+    """The first and last of a run of consecutive non-merge commits on origin/main whose combined -U0 patch is what
+    the branch changed up to one of its own commits: the branch landed by squash (a run of one) or by rebase
+    merge (one commit per branch commit), possibly of an earlier head than the tip. None when there is none.
+    Only main commits the branch does not hold are scanned, so a recorded landing is not found again.
 
-    Example: find_squash(work, ["HEAD"]) returns "<sha>" after the PR was squash-merged at HEAD.
+    Example: find_landed(work) returns ("<sha>", "<sha>") after the PR was squash-merged.
     """
-    for head in heads:
-        base = git(worktree, "merge-base", head, "origin/main").strip()
-        wanted = patch_id(worktree, base, head)
-        if not wanted:
-            continue
-        for commit in git(worktree, "rev-list", "--no-merges", f"{base}..origin/main").split():
-            if patch_id(worktree, f"{commit}^", commit) == wanted:
-                return commit
+    candidates = git(worktree, "rev-list", "--first-parent", "HEAD", "^origin/main").split()
+    wanted: set[str] = set()
+    for commit in candidates:
+        base = git(worktree, "merge-base", commit, "origin/main").strip()
+        wanted.add(patch_id(worktree, base, commit))
+    wanted.discard("")
+    longest = len(git(worktree, "rev-list", "--no-merges", "HEAD", "^origin/main").split())
+    if not wanted or not longest:
+        return None
+    chain = git(worktree, "rev-list", "--first-parent", "--reverse", "origin/main", "^HEAD").split()
+    merges = set(git(worktree, "rev-list", "--merges", "--first-parent", "origin/main", "^HEAD").split())
+    for i, first in enumerate(chain):
+        for last in chain[i:i + longest]:
+            if last in merges:
+                break
+            if patch_id(worktree, f"{first}^", last) in wanted:
+                return first, last
     return None
 
 
-def take_squash(worktree: Path, regenerate: Callable[[Path], None]) -> None:
-    """Record a squash merge of the branch as merged, so the next merge of main starts from it. Without this the
-    merge base stays before the squashed lines, and a clean merge brings back a bullet the human deleted after the
-    squash (#56 review 3): main up to the squash comes in by a normal merge, the squash itself with `-s ours`,
-    since its content is the branch's own."""
-    heads = ["HEAD"] + (["origin/" + BRANCH] if git_ok(worktree, "rev-parse", "--verify", "--quiet",
-                                                       f"origin/{BRANCH}") else [])
-    squash = find_squash(worktree, heads)
-    if squash is None:
+def take_landed(worktree: Path, regenerate: Callable[[Path], None]) -> None:
+    """Record a squash or rebase merge of the branch as merged, so the next merge of main starts after it. Without
+    this the merge base stays before the landed lines, and a clean merge brings back a bullet the human deleted
+    afterwards (#56 reviews 3 and 4): main up to the landing comes in by a normal merge, the landed commits with
+    `-s ours`, since their content is the branch's own."""
+    landed = find_landed(worktree)
+    if landed is None:
         return
-    merge(worktree, f"{squash}^", regenerate)
-    git(worktree, "merge", "-q", "-s", "ours", "--no-edit", "-m", f"Record the squash merge {squash[:7]} of {BRANCH}",
-        squash)
+    first, last = landed
+    merge(worktree, f"{first}^", regenerate)
+    git(worktree, "merge", "-q", "-s", "ours", "--no-edit", "-m",
+        f"Record the landing {first[:7]}..{last[:7]} of {BRANCH} on main", last)
 
 
 def move_captures(repo: Path, worktree: Path, quiet_minutes: int, now: float) -> list[str]:
@@ -225,7 +235,7 @@ def prepare(repo: Path, worktree: Path, quiet_minutes: int, regenerate: Callable
         refuse_code(worktree, ref, since_base=True)
     if remote:
         merge(worktree, f"origin/{BRANCH}", regenerate)
-    take_squash(worktree, regenerate)
+    take_landed(worktree, regenerate)
     merge(worktree, "origin/main", regenerate)
     refuse_code(worktree, "HEAD")
     return move_captures(repo, worktree, quiet_minutes, time.time() if now is None else now)
