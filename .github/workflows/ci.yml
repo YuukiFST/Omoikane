@@ -23,3 +23,14 @@ jobs:
         run: |
           python omoikane/bin/wiki-index.py
           git diff --exit-code omoikane/index.md
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # The harness loads these files at runtime and nothing else checks them (#46). Versions pinned: OpenCode's
+      # plugin as .opencode/package.json pins it locally, Pi's the one the extension was written against.
+      - name: Typecheck harness plugins
+        run: |
+          npm install --no-save --no-package-lock --no-audit --no-fund typescript@7.0.2 @types/node@26.6.3 \
+            @opencode-ai/plugin@1.18.30 @earendil-works/pi-coding-agent@0.85.1
+          npx tsc --noEmit --strict --target es2022 --module nodenext --moduleResolution nodenext --skipLibCheck \
+            --types node .pi/extensions/omoikane.ts .opencode/plugins/omoikane.ts
