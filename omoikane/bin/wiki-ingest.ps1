@@ -107,7 +107,12 @@ function Test-WikiChanged {
 }
 
 function Invoke-Operation([string] $op, [string] $arg) {
-    if ($Commit -and (Test-WikiChanged)) { throw "uncommitted changes under the wiki before the $op run; commit or discard them" }
+    if ($Commit -and (Test-WikiChanged)) {
+        # Logged, not only thrown: a scheduled run's stderr reaches nobody.
+        $refusal = "uncommitted changes under the wiki before the $op run; commit or discard them"
+        Log $refusal | Out-Host
+        throw $refusal
+    }
     $review = Join-Path $omoikane "_review.md"
     $reviewBefore = Join-Path $runTmp "review-before.md"
     if (Test-Path $review) { Copy-Item $review $reviewBefore -Force } else { Set-Content $reviewBefore "" }

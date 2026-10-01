@@ -193,6 +193,14 @@ class WikiIngest(unittest.TestCase):
         self.assertNotIn("notes.txt", git(self.repo, "show", "--name-only", "--format=", "HEAD").split())
         self.assertIn("A  notes.txt", git(self.repo, "status", "--porcelain"))
 
+    def test_uncommitted_wiki_changes_keep_the_agent_from_running(self) -> None:
+        # Committing on top of them would file the human's edit under the run's message.
+        (self.repo / "omoikane/wiki/concepts/draft.md").write_text("an edit nobody committed\n", encoding="utf-8")
+        run = self.ingest("orphan")
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn("uncommitted changes under the wiki", run.stdout + run.stderr)
+        self.assertEqual((self.calls_made(), self.commits()), ([], ["init"]))
+
     def test_a_failed_operation_that_left_edits_blocks_the_run(self) -> None:
         # The next operation's `git add omoikane/wiki` once committed them under its own message.
         (self.repo / "omoikane/raw/inbox/later.md").write_text("another source\n", encoding="utf-8")

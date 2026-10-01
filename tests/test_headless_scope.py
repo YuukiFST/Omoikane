@@ -176,6 +176,10 @@ class Verify(unittest.TestCase):
             write(repo / "omoikane/wiki/concepts/b.md", "new\n")
             write(repo / "omoikane/log.md", "x\nmore\n")
             write(repo / "omoikane/raw/inbox/sessions/2026-10-01-abcdef12.md", "the Stop hook of a coding session\n")
+            # Routine git work in any worktree of the repository writes these; none of it runs code (#40).
+            git(repo, "config", "branch.main.remote", "origin")
+            git(repo, "config", "remote.origin.url", "https://example.invalid/r.git")
+            write(repo / ".git/info/refs", "written by git gc\n")
             self.assertEqual(scope.out_of_scope(before, scope.snapshot(repo)), [])
 
     def test_each_change_outside_the_scope_is_named(self) -> None:

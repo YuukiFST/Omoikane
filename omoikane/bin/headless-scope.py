@@ -30,7 +30,11 @@ EDITABLE = ("omoikane/wiki/**/*.md", "omoikane/log.md", "omoikane/_review.md")
 WRITTEN_BY_OTHERS = ("omoikane/raw/inbox/",)
 WRITTEN_BY_SCRIPT = "omoikane/.wiki-ingest.log"
 # Under the git directory, what the git commands run after the agent read or execute: hooks, config, excludes.
-GIT_RUNS = ("config", "hooks", "info")
+# Shared by every worktree, so only what can run code or hide a path: `git push -u` and `git branch -u` in another
+# worktree rewrite branch.* and remote.* keys, and `git gc` writes info/refs (#40, fifth review).
+GIT_HOOKS = "hooks"
+GIT_INFO = ("info/exclude", "info/attributes", "info/sparse-checkout")
+ROUTINE_CONFIG = ("branch.", "remote.", "gc.", "maintenance.")
 # The OpenCode tools the scope needs. Any other tool OpenCode offers the agent is one its rules may not cover.
 OPENCODE_TOOLS = {"read", "glob", "grep", "list", "edit", "write", "todowrite"}
 
@@ -127,10 +131,16 @@ def snapshot(repo: Path) -> dict[str, object]:
         stat = (repo / path).lstat()
         files[path] = f"ignored {stat.st_size} {stat.st_mtime_ns}"
     common = Path(git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir").strip())
-    for top in GIT_RUNS:
-        for full in sorted(p for p in [common / top, *(common / top).rglob("*")] if p.is_file()):
-            name = full.relative_to(repo).as_posix() if full.is_relative_to(repo) else full.as_posix()
-            files[name] = hashlib.sha256(full.read_bytes()).hexdigest()
+    watched = [common / name for name in GIT_INFO] + sorted((common / GIT_HOOKS).rglob("*"))
+    for full in (p for p in watched if p.is_file()):
+        name = full.relative_to(repo).as_posix() if full.is_relative_to(repo) else full.as_posix()
+        files[name] = hashlib.sha256(full.read_bytes()).hexdigest()
+    config = common / "config"
+    if config.is_file():
+        keys = git(repo, "config", "--file", str(config), "--list", "-z").split("\0")
+        kept = "\0".join(sorted(k for k in keys if k and not k.startswith(ROUTINE_CONFIG)))
+        name = config.relative_to(repo).as_posix() if config.is_relative_to(repo) else config.as_posix()
+        files[name] = hashlib.sha256(kept.encode("utf-8")).hexdigest()
     return {"head": git(repo, "rev-parse", "HEAD").strip(), "index": git(repo, "write-tree").strip(), "files": files}
 
 
