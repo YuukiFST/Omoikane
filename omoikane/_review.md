@@ -45,6 +45,3 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
 - todo phase-2-pendencies: resolve the Phase 2 pendencies listed in the turn 4 handoff prompt; the capture clipped the list, the full list is in the Claude Code transcript of session 8d85e27b-aca9-4ada-83a4-be17c14af01e (session c14af01e, turn 4)
 - todo omoikane-knowledge-for-sb360-kit: design how Omoikane knowledge becomes company knowledge reusable across sb360-kit systems, such as database rules (session c14af01e, turn 4)
 
-## [2026-09-30] synthesize
-
-- [ ] rule review-each-pr-with-a-subagent-before-merging: Before merging a PR, have a subagent review it, post the findings on the PR, fix the real ones, then merge with --merge (synthesize)

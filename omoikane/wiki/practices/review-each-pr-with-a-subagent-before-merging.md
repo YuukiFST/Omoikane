@@ -1,17 +1,18 @@
 ---
 title: Review each PR with a subagent before merging
 type: practice
-summary: Before merging a PR, have a subagent review it, post the findings on the PR, fix the real ones, then merge with --merge
+summary: Before merging a PR, post a subagent review on it and fix the real findings; merge only when the user authorized it
 tags: [procedure, pull-request, code-review, git]
 created: 2026-09-30
-updated: 2026-09-30
+updated: 2026-10-01
 sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-09-30-c14af01e.md]
 ---
 
 ## Rule
 
 Before merging a PR in YuukiFST/Omoikane, have a subagent review it and post the findings on the PR.
-Fix the findings judged real, wait for green CI, then merge with `gh pr merge <n> --merge --delete-branch` and close the issue.
+Fix the findings judged real and wait for green CI.
+Merge only when the user authorized it, then with `gh pr merge <n> --merge --delete-branch`, and close the issue.
 
 ## Evidence
 
