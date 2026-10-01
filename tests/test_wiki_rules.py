@@ -116,6 +116,8 @@ class ContextBudget(unittest.TestCase):
     def test_a_full_block_of_long_rules_fits_the_agents_limit(self) -> None:
         # A promotion the cap allows must not turn CI red. Slugs come from page titles, so 60 characters is real.
         agents = (Path(budget.REPO) / "AGENTS.md").read_text(encoding="utf-8")
+        # The rules already promoted are emptied out: the worst case is MAX_RULES rules, all at the length cap.
+        agents = agents[:agents.index(RULES_START) + len(RULES_START)] + "\n" + agents[agents.index(RULES_END):]
         slugs = [f"{i:02d}-" + "s" * 57 for i in range(MAX_RULES)]
         review = "".join(f"- [x] rule {s}: {'r' * rules.MAX_RULE_CHARS} (synthesize)\n" for s in slugs)
         full, _, problems = rules.promote(agents, review, set(slugs))

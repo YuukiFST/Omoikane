@@ -14,7 +14,7 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Plugin } from "@opencode-ai/plugin";
+import type { Hooks, Plugin } from "@opencode-ai/plugin";
 
 // session.idle and session.status {type: "idle"} both exist in SDK 1.18.30 and can announce the same moment;
 // captures requested within this window run once.
@@ -94,5 +94,6 @@ export const OmoikanePlugin: Plugin = async ({ client, directory, $ }) => {
 			const index = indexBySession.get(key);
 			if (index) output.system.push(index);
 		},
-	};
+		// `satisfies`: a returned object is not checked for extra keys, so a misspelled hook name passed tsc (#46).
+	} satisfies Hooks;
 };
