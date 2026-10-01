@@ -230,6 +230,23 @@ class WikiIngest(unittest.TestCase):
                                               "feat(wiki): record the review items the human removed"])
         self.assertIn("- removed (todo) gone-item", git(self.repo, "show", "HEAD~1:omoikane/log.md"))
 
+    def test_an_uncommitted_review_edit_does_not_fail_a_run_with_nothing_to_do(self) -> None:
+        # The human deleting a bullet and not yet committing is the feature's own input (#44 review).
+        (self.repo / "omoikane/raw/inbox/article.md").unlink()
+        (self.repo / "omoikane/_review.md").write_text("# Review queue\n", encoding="utf-8")
+        run = self.ingest("none")
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertIn("nothing in inbox", run.stdout)
+
+    def test_a_review_queue_with_an_open_fence_records_nothing_and_the_run_goes_on(self) -> None:
+        (self.repo / "omoikane/_review.md").write_text("# Review queue\n\n````diff\n- [ ] rule a: A. (s)\n",
+                                                       encoding="utf-8")
+        git(self.repo, "commit", "-q", "-am", "an unclosed fence")
+        run = self.ingest("none")
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertIn("review-removals.py recorded nothing", run.stdout)
+        self.assertEqual(self.commits()[0], "feat(wiki): ingest article")
+
     def test_a_review_queue_the_tick_check_cannot_read_blocks_the_run(self) -> None:
         # Unchecked, review-ticks.py failed and the agent's tick was committed as the human's approval (#40).
         self.assert_blocked(self.ingest("undecodable-review"))

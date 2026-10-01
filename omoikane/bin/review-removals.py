@@ -22,14 +22,15 @@ EVENT = re.compile(r"^- (?:(routed|removed) \((guard|prompt|todo|rule)\)|(unguar
 
 
 def still_open(kind: str, slug: str, lines: list[str]) -> bool:
-    """Whether a line outside the fences names both the kind and the slug, as whole words.
+    """Whether a line outside the fences names both the kind and the slug, as whole words; with `kind` empty, the
+    slug alone.
 
     Loose on purpose: a bullet indented like the prompt's template, or with the slug in backticks, is still the
     human's to decide, and reading it as deleted would silence a lesson nobody saw.
     Example: still_open("todo", "a", ["   - todo `a`: x"]) returns True.
     """
     word = re.compile(rf"(?<![\w-]){re.escape(slug)}(?![\w-])")
-    return any(re.search(rf"\b{kind}\b", line) and word.search(line) for line in lines)
+    return any((not kind or re.search(rf"\b{kind}\b", line)) and word.search(line) for line in lines)
 
 
 def removed(log: str, review: str) -> list[tuple[str, str]]:
@@ -38,12 +39,14 @@ def removed(log: str, review: str) -> list[tuple[str, str]]:
     Raises ValueError when _review.md ends inside a fence: every item after it would read as deleted.
     Example: removed("- routed (guard) a: x\\n", "# Review queue\\n") returns [("guard", "a")].
     """
-    last: dict[tuple[str, str], str] = {}
+    # (kind, slug) -> (last event, filed by /lint). /lint files its items in two shapes, one of which ("no check
+    # can catch this") never says "guard", so a /lint item is open while any line names its slug.
+    last: dict[tuple[str, str], tuple[str, bool]] = {}
     for event, kind, unguarded, slug in EVENT.findall(log):
-        last[(kind or "guard", slug)] = event or "routed"
+        last[(kind or "guard", slug)] = (event or "routed", bool(unguarded))
     lines = review_lines(review, strict=True)
-    return [(kind, slug) for (kind, slug), event in last.items()
-            if event == "routed" and not still_open(kind, slug, lines)]
+    return [(kind, slug) for (kind, slug), (event, by_lint) in last.items()
+            if event == "routed" and not still_open("" if by_lint else kind, slug, lines)]
 
 
 def record(log: str, items: list[tuple[str, str]], today: str) -> str:

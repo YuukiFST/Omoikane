@@ -175,15 +175,19 @@ try {
     }
     # Before any operation reads the log: proposals the human deleted from _review.md are decided, and /distill
     # must see that before it files the same lesson again (#41). Its log lines are committed on their own, or the
-    # first operation would refuse over them.
-    Assert-WikiCommitted "the review-removals.py pass"
-    python omoikane/bin/review-removals.py 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
-    # A failure records nothing, which errs towards "still open"; the operations can run all the same.
-    if ($LASTEXITCODE -ne 0) { Log "review-removals.py recorded nothing; see its message above" | Out-Host }
+    # first operation would refuse over them. Over uncommitted wiki changes it waits: a deletion counts once the
+    # human commits it, and a run with nothing else to do must not fail for it.
     if ($Commit -and (Test-WikiChanged)) {
-        git commit -q -m "feat(wiki): record the review items the human removed" -- omoikane/log.md 2>&1 |
-            Tee-Object -FilePath $log -Append | Out-Host
-        if ($LASTEXITCODE -ne 0) { Stop-Run "git commit of the review-removals.py log lines failed" }
+        Log "uncommitted changes under the wiki: review-removals.py waits for them to be committed" | Out-Host
+    } else {
+        python omoikane/bin/review-removals.py 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
+        # A failure records nothing, which errs towards "still open"; the operations can run all the same.
+        if ($LASTEXITCODE -ne 0) { Log "review-removals.py recorded nothing; see its message above" | Out-Host }
+        if ($Commit -and (Test-WikiChanged)) {
+            git commit -q -m "feat(wiki): record the review items the human removed" -- omoikane/log.md 2>&1 |
+                Tee-Object -FilePath $log -Append | Out-Host
+            if ($LASTEXITCODE -ne 0) { Stop-Run "git commit of the review-removals.py log lines failed" }
+        }
     }
     $inbox = Join-Path $omoikane "raw/inbox"
     $files = Get-ChildItem $inbox -File -Recurse | Where-Object { $_.Name -ne ".gitkeep" }

@@ -71,6 +71,11 @@ class Removed(unittest.TestCase):
     def test_a_guard_lint_filed_is_tracked_too(self) -> None:
         self.assertEqual(removals.removed("- unguarded g\n", "# Review queue\n"), [("guard", "g")])
 
+    def test_a_lint_item_saying_no_check_can_catch_it_is_still_open(self) -> None:
+        # lint.md logs `- unguarded` for this form too, and it never says "guard" (#44 review).
+        review = "- omoikane/wiki/gotchas/flaky-clock.md:12 flaky-clock: no check can catch this, because the clock\n"
+        self.assertEqual(removals.removed("- unguarded flaky-clock\n", review), [])
+
     def test_an_unclosed_fence_records_nothing(self) -> None:
         # Everything after an unclosed fence would read as deleted; a diff context line " ````" closes a
         # four-backtick fence early and leaves the real closing line open.
