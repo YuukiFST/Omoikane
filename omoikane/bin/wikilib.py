@@ -18,7 +18,7 @@ PRACTICE_MIN_SESSIONS = 2
 SESSION_PAGE = re.compile(r"wiki/sources/session-\d{4}-\d{2}-\d{2}-([0-9A-Za-z]+)(?:-part\d+)?\.md\Z")
 # Source pages carry `dated`: the date the source itself bears. Not in REQUIRED_KEYS so older pages of other types keep passing.
 SOURCE_KEYS = ("dated",)
-# Optional on any page: repository paths the page is about. wiki-lint.py fails when one no longer exists.
+# Optional on any page: repository paths the page is about. wiki-lint.py fails when one no longer exists or is absolute.
 CODE_KEY = "code"
 # Required on gotcha pages: the check that catches the mistake today, `none` when only the page does.
 GUARD_KEY = "guard"

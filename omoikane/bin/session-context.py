@@ -3,7 +3,7 @@
 Runs from the SessionStart hook (see .claude/settings.json); stdout becomes context. Prints nothing when there is
 nothing to say or when Omoikane is maintaining itself (OMOIKANE_NO_CAPTURE set), so those sessions pay no tokens.
 
-Usage: python omoikane/bin/session-context.py [--budget 12000]
+Usage: python omoikane/bin/session-context.py [--budget 12000] [--omoikane DIR]
 """
 from __future__ import annotations
 
@@ -129,12 +129,14 @@ def pending_notes(omoikane: Path) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--budget", type=int, default=12_000, help="max characters of index to inject")
+    # context-budget.py briefs on a generated worst-case tree, so its gate does not depend on this wiki's size.
+    parser.add_argument("--omoikane", type=Path, default=OMOIKANE, help="omoikane/ tree to brief on")
     args = parser.parse_args(argv)
     if os.environ.get(NO_CAPTURE_ENV):
         return 0
-    index = OMOIKANE / "index.md"
+    index = args.omoikane / "index.md"
     body = compact_index(index.read_text(encoding="utf-8"), args.budget) if index.is_file() else ""
-    parts = [part for part in (pending_notes(OMOIKANE), body) if part]
+    parts = [part for part in (pending_notes(args.omoikane), body) if part]
     if parts:
         # Windows consoles default to a legacy code page; the index holds UTF-8 (em dashes, non-ASCII titles).
         if hasattr(sys.stdout, "reconfigure"):
