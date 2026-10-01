@@ -24,7 +24,7 @@ A second, organisation-wide Omoikane wiki next to it would be a duplicate the or
 
 - Semantic matching of lessons phrased differently in two systems. Matching is by key; the key is the slug or an explicit `org:` value. A cross-system `/synthesize` pass is a later step.
 - Writing into the organisation's knowledge base. Its intake process does that, under its own rules.
-- Approval semantics. Some organisations approve every rule by hand, some approve none; a ticked `[x]` in a system's `_review.md` travels as evidence that a human in that system agreed, not as permission at the organisation level.
+- Approval semantics. Some organisations approve every rule by hand, some approve none; a ticked `[x]` in a system's `_review.md` is evidence that a human in that system agreed, not permission at the organisation level. The report does not carry ticks; the intake reads them in the system when it opens the pages.
 
 ## Decisions
 
@@ -41,7 +41,7 @@ A second, organisation-wide Omoikane wiki next to it would be a duplicate the or
 |---|---|---|
 | `org-candidates.py` reads the wikis of the systems and lists every decision, gotcha or practice whose key appears in two or more distinct systems. The organisation's intake takes the list as proposals. | Promote any practice page of one system. | One system's habit is not the organisation's rule; the floor is the same as a practice's two sessions, one level up. |
 | The key is the page's `org:` value, or its slug. | An LLM matching summaries across systems. | Deterministic output is diffable and reviewable; a wrong semantic match would put a false consensus in front of the intake. The semantic pass can come later as an operation whose output a human reads. |
-| Frontmatter only: title, type, summary, guard, path, date. | Page bodies, or the raw captures behind them. | Captures quote whatever the session saw, customer data included; summaries are written to stand alone and are short enough to audit. The organisation's own leak check still runs on what it accepts. |
+| Frontmatter only (title, type, summary, guard, path, date; the Markdown output leaves out the title), plus whether the page has a `## Contradictions` section, never what it says. | Page bodies, or the raw captures behind them. | Captures quote whatever the session saw, customer data included; summaries are written to stand alone and are short enough to audit. The organisation's own leak check still runs on what it accepts. |
 
 ### How each system receives the rules without outgrowing its budget
 
@@ -63,12 +63,14 @@ A second, organisation-wide Omoikane wiki next to it would be a duplicate the or
 | Chosen | Rejected | Why |
 |---|---|---|
 | The synced organisation rule is a source the system's wiki can cite. A system page that departs from it records both claims under `## Contradictions` and files `_review.md`, as for any two sources that disagree; no winner is picked. | The organisation rule overriding the system page automatically. | The departure may be right for that system (a legacy schema, a regulator); deciding needs a human who knows it. |
-| A page that departs carries the rule's key in `org:`, so `org-candidates.py` shows it next to the systems that follow the rule; the intake reads it as evidence against, or for an exception. | The system deleting its page to stay in line. | A deleted page loses why the system departed; the next agent repeats the departure without the reason. |
+| A page that departs carries the rule's key in `org:`, so `org-candidates.py` lists it next to the systems that follow the rule, marked "records a contradiction"; the intake opens it and reads it as evidence against, or for an exception. | The system deleting its page to stay in line. | A deleted page loses why the system departed; the next agent repeats the departure without the reason. |
+
+Known gap: a lone system departing from a rule that only the shared base holds is not listed, since a key needs two systems. Listing it needs the shared rules as an input to the script, a later step.
 
 ## Components
 
 - `omoikane/bin/org-candidates.py`: `--system NAME=PATH` per system (a repository root with `omoikane/wiki/`), `--format markdown|json`. Reads decision, gotcha and practice pages, skips pages marked `prune:`, groups by `org:` or slug, keeps keys found in `MIN_SYSTEMS` (2) or more distinct systems, reports per candidate the type and summary of the best-guarded page, the strongest guard, and one evidence line per system. Read-only; exits 2 when a path has no wiki.
-- Page contract: optional `org: <key>` on a decision, gotcha or practice page, set by a human or by the organisation's intake when a lesson's slug differs between systems or the page follows or departs from an organisation rule.
+- Frontmatter: optional `org: <key>` on a decision, gotcha or practice page, set by a human or by the organisation's intake when a lesson's slug differs between systems or the page follows or departs from an organisation rule. Known gap: the page contract in `AGENTS.md` does not list it yet (that file is at its token budget), so `/distill` does not set it and a `/prune` merge may drop it; `wiki-lint.py` accepts it.
 
 ## Data flow
 
@@ -76,14 +78,14 @@ A second, organisation-wide Omoikane wiki next to it would be a duplicate the or
 2. The organisation runs `org-candidates.py` over the systems it builds (locally, or in a job that checks them out) and hands the Markdown to its intake process.
 3. The intake decides, writes the rule into the shared base with its guard (or into known gaps), and releases it.
 4. Each system syncs the release; the rule arrives in the always-loaded file or as an on-demand page.
-5. A system whose wiki departs from the rule records the contradiction; the next run of `org-candidates.py` shows it beside the systems that follow the rule.
+5. A system whose wiki departs from the rule records the contradiction; the next run of `org-candidates.py` lists that page, marked, beside the systems that follow the rule.
 
 ## Error handling
 
 - A path without `omoikane/wiki/` fails the run (exit 2) and names the path: a silent skip would make one system's lessons look absent.
-- The same path given twice counts once, so a typo cannot fake a second system.
+- A repository given twice, under two names or as one of its worktrees (git common directory), counts once. A name given twice, or a `NAME=PATH` missing either part, fails the run (exit 2): an empty path is the current directory, whose wiki would be counted silently.
 - A page without frontmatter or of another type is ignored; the script never writes.
 
 ## Testing
 
-`tests/test_org_candidates.py` builds three throwaway systems and runs the script as the organisation would: a lesson in two systems with both evidence lines, `org:` joining pages of different names, the strongest guard reported, a system named twice counting once, no page body or raw capture text in either output format, and a missing wiki failing with its path.
+`tests/test_org_candidates.py` builds three throwaway systems and runs the script as the organisation would: a lesson in two systems with both evidence lines, `org:` joining pages of different names, the strongest guard reported, one system under two names or checked out twice counting once, a page with a contradiction marked without its text, no page body or raw capture text in either output format, and a missing wiki, a malformed `--system` or a repeated name failing.
