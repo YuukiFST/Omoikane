@@ -64,24 +64,31 @@ def remote_branch_exists(repo: Path) -> bool:
     return bool(git(repo, "branch", "--remotes", "--list", f"origin/{BRANCH}").strip())
 
 
-def added_hunks(base: list[str], ours: list[str]) -> list[tuple[str | None, list[str]]]:
-    """Each run of lines `ours` inserted relative to `base`, with the base line it follows (None at the top).
+# Base lines before an added run that must still stand together in main's file to place the run after them: one
+# line is ambiguous, since every proposal ends in the same closing fence.
+ANCHOR_LINES = 3
 
-    Example: added_hunks(["a\\n", "b\\n"], ["a\\n", "x\\n", "b\\n"]) returns [("a\\n", ["x\\n"])].
+
+def added_hunks(base: list[str], ours: list[str]) -> list[tuple[list[str], list[str]]]:
+    """Each run of lines `ours` inserted relative to `base`, with up to ANCHOR_LINES base lines before it.
+
+    Example: added_hunks(["a\\n", "b\\n"], ["a\\n", "x\\n", "b\\n"]) returns [(["a\\n"], ["x\\n"])].
     """
-    return [(base[i1 - 1] if i1 else None, ours[j1:j2])
+    return [(base[max(0, i1 - ANCHOR_LINES):i1], ours[j1:j2])
             for tag, i1, _, j1, j2 in difflib.SequenceMatcher(None, base, ours, autojunk=False).get_opcodes()
             if tag in ("insert", "replace")]
 
 
-def contains(lines: list[str], run: list[str]) -> bool:
-    return any(lines[i:i + len(run)] == run for i in range(len(lines) - len(run) + 1))
+def find(lines: list[str], run: list[str], start: int = 0) -> int | None:
+    """Index of the first place `run` stands in `lines` from `start`, or None."""
+    return next((i for i in range(start, len(lines) - len(run) + 1) if lines[i:i + len(run)] == run), None)
 
 
 def resolve_review(worktree: Path, ref: str) -> None:
     """Write _review.md as `ref`'s file plus each run of lines the branch added since the merge base, placed after
-    the line it followed when that line is still there, at the end otherwise. A run already present as a whole is
-    skipped; runs are compared whole, not line by line, so a diff proposal keeps its fences and headers.
+    the base lines it followed when they still stand together, at the end otherwise; once one run goes to the end,
+    the later ones follow it, so the branch's order holds. A run main's file already holds as a whole is skipped;
+    runs are compared whole, not line by line, so a diff proposal keeps its fences and headers.
 
     Example: base "a b", branch "a b c", main "a" (b rejected) gives "a c".
     """
@@ -90,13 +97,14 @@ def resolve_review(worktree: Path, ref: str) -> None:
         return (text if text.endswith("\n") or not text else text + "\n").splitlines(keepends=True)
 
     base = git(worktree, "merge-base", "HEAD", ref).strip()
-    result = show(ref)
+    theirs = show(ref)
+    result = list(theirs)
     at = 0  # insertion point after the previous hunk, so hunks keep their order
     for anchor, run in added_hunks(show(base), show("HEAD")):
-        if contains(result, run):
+        if find(theirs, run) is not None:
             continue
-        found = next((i for i in range(at, len(result)) if result[i] == anchor), None) if anchor else -1
-        at = len(result) if found is None else found + 1
+        found = find(result, anchor, at) if anchor else 0
+        at = len(result) if found is None else found + len(anchor)
         result[at:at] = run
         at += len(run)
     (worktree / REVIEW).write_text("".join(result), encoding="utf-8", newline="\n")
@@ -113,17 +121,62 @@ def merge(worktree: Path, ref: str, regenerate: Callable[[Path], None]) -> None:
         return
     conflicted = git(worktree, "diff", "--name-only", "--diff-filter=U").split()
     if conflicted and set(conflicted) <= {INDEX, REVIEW}:
-        if REVIEW in conflicted:
-            resolve_review(worktree, ref)
-            git(worktree, "add", REVIEW)
-        if INDEX in conflicted:
-            regenerate(worktree)
-            git(worktree, "add", INDEX)
-        git(worktree, "commit", "--no-edit", "-q")
-        return
+        try:
+            if REVIEW in conflicted:
+                resolve_review(worktree, ref)
+                git(worktree, "add", REVIEW)
+            if INDEX in conflicted:
+                regenerate(worktree)
+                git(worktree, "add", INDEX)
+            git(worktree, "commit", "--no-edit", "-q")
+            return
+        except (GateError, subprocess.CalledProcessError, OSError) as exc:
+            # Left mid-merge, the next prepare would blame a crashed run instead of this.
+            subprocess.run(["git", "-C", str(worktree), "merge", "--abort"], capture_output=True, check=False)
+            raise GateError(f"resolving the conflict with {ref} in {', '.join(conflicted)} failed: {exc}") from exc
     subprocess.run(["git", "-C", str(worktree), "merge", "--abort"], capture_output=True, check=False)
     raise GateError(f"{BRANCH} conflicts with {ref} in {', '.join(conflicted) or run.stderr.strip()}; "
                     "merge it by hand in the worktree")
+
+
+def patch_id(worktree: Path, *revs: str) -> str:
+    """The stable patch id of the diff between `revs`, without context lines, so edits near it do not change it."""
+    diff = subprocess.run(["git", "-C", str(worktree), "diff", "-U0", *revs], capture_output=True, check=True).stdout
+    out = subprocess.run(["git", "-C", str(worktree), "patch-id", "--stable"], input=diff, capture_output=True,
+                         check=True).stdout.decode()
+    return out.split()[0] if out.strip() else ""
+
+
+def find_squash(worktree: Path, heads: list[str]) -> str | None:
+    """The commit on origin/main that squash-merged one of `heads`: its own diff is what the branch changed from
+    their merge base up to that head. None when there is none.
+
+    Example: find_squash(work, ["HEAD"]) returns "<sha>" after the PR was squash-merged at HEAD.
+    """
+    for head in heads:
+        base = git(worktree, "merge-base", head, "origin/main").strip()
+        wanted = patch_id(worktree, base, head)
+        if not wanted:
+            continue
+        for commit in git(worktree, "rev-list", "--no-merges", f"{base}..origin/main").split():
+            if patch_id(worktree, f"{commit}^", commit) == wanted:
+                return commit
+    return None
+
+
+def take_squash(worktree: Path, regenerate: Callable[[Path], None]) -> None:
+    """Record a squash merge of the branch as merged, so the next merge of main starts from it. Without this the
+    merge base stays before the squashed lines, and a clean merge brings back a bullet the human deleted after the
+    squash (#56 review 3): main up to the squash comes in by a normal merge, the squash itself with `-s ours`,
+    since its content is the branch's own."""
+    heads = ["HEAD"] + (["origin/" + BRANCH] if git_ok(worktree, "rev-parse", "--verify", "--quiet",
+                                                       f"origin/{BRANCH}") else [])
+    squash = find_squash(worktree, heads)
+    if squash is None:
+        return
+    merge(worktree, f"{squash}^", regenerate)
+    git(worktree, "merge", "-q", "-s", "ours", "--no-edit", "-m", f"Record the squash merge {squash[:7]} of {BRANCH}",
+        squash)
 
 
 def move_captures(repo: Path, worktree: Path, quiet_minutes: int, now: float) -> list[str]:
@@ -169,23 +222,31 @@ def prepare(repo: Path, worktree: Path, quiet_minutes: int, regenerate: Callable
         raise GateError(f"the worktree has changes no run committed:\n{dirty}")
     # Before any merge: resolving an index conflict runs the worktree's own wiki-index.py.
     for ref in ("HEAD", *((f"origin/{BRANCH}",) if remote else ())):
-        refuse_code(worktree, f"origin/main...{ref}")
+        refuse_code(worktree, ref, since_base=True)
     if remote:
         merge(worktree, f"origin/{BRANCH}", regenerate)
+    take_squash(worktree, regenerate)
     merge(worktree, "origin/main", regenerate)
-    refuse_code(worktree, "origin/main", "HEAD")
+    refuse_code(worktree, "HEAD")
     return move_captures(repo, worktree, quiet_minutes, time.time() if now is None else now)
 
 
-def refuse_code(worktree: Path, *revs: str) -> None:
-    """Raise GateError when the diff of `revs` touches anything -Commit does not commit.
+def refuse_code(worktree: Path, ref: str, since_base: bool = False) -> None:
+    """Raise GateError when `ref` differs from origin/main in anything -Commit does not commit. With `since_base`,
+    only in what `ref` itself changed since the merge base: a criss-cross history can pick a base the human's own
+    commits on main sit after.
 
-    Example: refuse_code(work, "origin/main...HEAD") raises on a wiki/auto that edited omoikane/bin/wiki-index.py.
+    Example: refuse_code(work, "HEAD") raises on a wiki/auto that edited omoikane/bin/wiki-index.py.
     """
-    beyond = git(worktree, "diff", "--name-only", *revs, "--", ".", *(f":!{path}" for path in COMMITTED)).split()
+    def changed(*revs: str) -> set[str]:
+        return set(git(worktree, "diff", "--name-only", *revs, "--", ".", *(f":!{p}" for p in COMMITTED)).split())
+
+    beyond = changed("origin/main", ref)
+    if since_base:
+        beyond &= changed(f"origin/main...{ref}")
     if beyond:
         raise GateError(f"{BRANCH} differs from main outside the wiki, and the scheduler would run it: "
-                        f"{', '.join(beyond)}")
+                        f"{', '.join(sorted(beyond))}")
 
 
 def publish(worktree: Path, gh: Sequence[str] = ("gh",)) -> str:
@@ -209,7 +270,8 @@ def publish(worktree: Path, gh: Sequence[str] = ("gh",)) -> str:
     closed = json.loads(run_gh("pr", "list", "--head", BRANCH, "--base", "main", "--state", "closed",
                                "--json", "number,headRefOid,state") or "[]")
     rejected = [pr for pr in closed if pr.get("state") == "CLOSED"
-                and git_ok(worktree, "merge-base", "--is-ancestor", str(pr.get("headRefOid")), "HEAD")]
+                and git_ok(worktree, "merge-base", "--is-ancestor", str(pr.get("headRefOid")), "HEAD")
+                and not git_ok(worktree, "merge-base", "--is-ancestor", str(pr.get("headRefOid")), "origin/main")]
     if rejected:
         return (f"PR #{rejected[0]['number']} was closed unmerged and {BRANCH} still holds its commits; nothing "
                 f"opened. To start over, reset {BRANCH} to origin/main in the worktree and delete the remote branch")

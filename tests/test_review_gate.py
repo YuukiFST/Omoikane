@@ -251,14 +251,28 @@ class Gate(unittest.TestCase):
         self.assertEqual(gate.publish(self.work, self.gh), "nothing to publish")
         return (self.work / "omoikane/_review.md").read_text(encoding="utf-8")
 
-    def test_after_a_squash_merge_a_deleted_bullet_stays_deleted(self) -> None:
-        # The merge base stayed before the squashed bullets, so the next merge added them back (#56 review).
-        review = self.squash_then("# Review queue\n\n- [ ] rule a: A. (s)\n- [ ] rule c: C. (s)\n")
-        self.assertEqual(review, "# Review queue\n\n- [ ] rule a: A. (s)\n- [ ] rule c: C. (s)\n")
+    def test_after_a_squash_merge_the_human_s_decision_on_a_squashed_bullet_stands(self) -> None:
+        # The merge base stayed before the squashed bullet c, so a clean merge brought c back after the human
+        # deleted it, or next to its ticked twin (#56 reviews 2 and 3).
+        for decided in ("- [ ] rule b: B. (s)\n", "- [ ] rule b: B. (s)\n- [x] rule c: C. (s)\n"):
+            with self.subTest(decided):
+                self.tearDown()
+                self.setUp()
+                human = "# Review queue\n\n- [ ] rule a: A. (s)\n" + decided
+                self.assertEqual(self.squash_then(human), human)
 
-    def test_after_a_squash_merge_a_ticked_bullet_is_not_duplicated(self) -> None:
-        review = self.squash_then("# Review queue\n\n- [ ] rule a: A. (s)\n- [x] rule b: B. (s)\n- [ ] rule c: C. (s)\n")
-        self.assertEqual(review, "# Review queue\n\n- [ ] rule a: A. (s)\n- [x] rule b: B. (s)\n- [ ] rule c: C. (s)\n")
+    def test_a_run_lands_after_the_lines_it_followed_not_an_earlier_twin(self) -> None:
+        # Every proposal ends in the same closing fence; one anchor line once put a todo inside another section.
+        proposal = "- [ ] guard (test) {0}: {0}\n````diff\n+import {0}\n````\n"
+        main = ("# Review queue\n\n## [2026-10-01] lint\n\n" + proposal.format("x") + "\n## [2026-10-01] distill | aa\n\n"
+                + proposal.format("y"))
+        self.human_pushes_to_main("omoikane/_review.md", main)
+        self.prepare()
+        self.commit_in_worktree("omoikane/_review.md", main + "- todo z: Z.\n", "feat(wiki): distill bb")
+        rejected = main.replace(proposal.format("y"), "")
+        self.human_pushes_to_main("omoikane/_review.md", rejected)
+        self.prepare()
+        self.assertEqual((self.work / "omoikane/_review.md").read_text(encoding="utf-8"), rejected + "- todo z: Z.\n")
 
     def test_a_multi_line_proposal_and_a_repeated_heading_survive_a_review_conflict(self) -> None:
         # Lines were deduplicated one by one, so fences, diff headers and a second same-day heading vanished.
