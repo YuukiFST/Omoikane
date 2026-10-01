@@ -85,6 +85,7 @@ python omoikane/bin/wiki-lint.py
 Practices the human approved for every session. `python omoikane/bin/wiki-rules.py` promotes the rule proposals ticked in `omoikane/_review.md` into this block, at most 15; the human deletes a line to retire it. `python omoikane/bin/context-budget.py` fails CI when this file, the skill descriptions or the session brief outgrow their budget.
 
 <!-- omoikane:rules:start -->
+- Before merging a PR, post a subagent review on it and fix the real findings; merge only when the user authorized it (omoikane/wiki/practices/review-each-pr-with-a-subagent-before-merging.md)
 <!-- omoikane:rules:end -->
 
 ## Domain

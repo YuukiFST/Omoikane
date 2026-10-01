@@ -1,7 +1,7 @@
 ---
 title: Review each PR with a subagent before merging
 type: practice
-summary: Before merging a PR, have a subagent review it, post the findings on the PR, fix the real ones, then merge with --merge
+summary: Before merging a PR, post a subagent review on it and fix the real findings; merge only when the user authorized it
 tags: [procedure, pull-request, code-review, git]
 created: 2026-09-30
 updated: 2026-09-30

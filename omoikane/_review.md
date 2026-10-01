@@ -47,4 +47,3 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
 
 ## [2026-09-30] synthesize
 
-- [ ] rule review-each-pr-with-a-subagent-before-merging: Before merging a PR, have a subagent review it, post the findings on the PR, fix the real ones, then merge with --merge (synthesize)
