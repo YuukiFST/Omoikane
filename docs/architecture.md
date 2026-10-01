@@ -100,6 +100,11 @@ Why a cap of 15 and a budget gate: `AGENTS.md` is a shared budget, and adherence
 - The headless Claude Code run loads project settings only (`--setting-sources project`, `--strict-mcp-config`, built-in tools only), runs in `--permission-mode dontAsk` with an allowlist, and has every `git` command denied: edits only under `omoikane/wiki/`, `omoikane/log.md` and `omoikane/_review.md`, and only `wiki-index.py` and `wiki-lint.py`, named exactly. It cannot write a script and run it, reach `AGENTS.md` or the prompts, or delete, move or check out a file. `acceptEdits` was dropped because it also auto-approves `rm`, `mv`, `cp` and `sed` inside the repository; user settings were dropped because their allow rules and hooks (a user-level `Bash(git checkout:*)`, a PreToolUse hook answering allow) would apply too. Any `[x]` tick the run adds to `_review.md` is undone by `review-ticks.py`, since ticking is the human's approval. The OpenCode path (`-Agent opencode`) is not scoped: OpenCode reads permissions from its own config, which this repository does not ship.
 - `session-capture.py` and `session-context.py` never exit non-zero: a failure there must not stop the harness.
 
+## Across systems
+
+An organisation that builds several systems has one wiki per system. `omoikane/bin/org-candidates.py` reads them and lists the decisions, gotchas and practices whose `org:` key or slug appears in two or more systems, frontmatter only, as proposals for the organisation's own knowledge base.
+Why not an organisation-wide wiki: the organisation usually curates one already (a starter kit, a standards repository), and a second home for the same rules drifts from it. Omoikane feeds that base and leaves the decision to its intake. Design and rejected alternatives: [docs/specs/2026-10-01-org-knowledge.md](specs/2026-10-01-org-knowledge.md).
+
 ## Where the human stays
 
 - Curating what enters `omoikane/raw/inbox/`.
