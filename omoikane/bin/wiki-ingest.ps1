@@ -22,46 +22,87 @@ $omoikane = Split-Path -Parent $PSScriptRoot
 $root = Split-Path -Parent $omoikane
 Set-Location $root
 $log = Join-Path $omoikane ".wiki-ingest.log"
+# Left by a run that changed files outside its scope; every later run refuses until the human has looked.
+$blocked = Join-Path $omoikane ".wiki-ingest.blocked"
 # The agent runs started here maintain the wiki; the session hooks must neither capture nor inject context for them.
 $env:OMOIKANE_NO_CAPTURE = "1"
+# Lint findings handed back to the agent before the operation is committed as it stands.
+$LintRounds = 2
 
 function Log([string] $msg) { "$(Get-Date -Format s) $msg" | Tee-Object -FilePath $log -Append }
 
+function Stop-Run([string] $reason) {
+    Set-Content -Path $blocked -Encoding utf8NoBOM -Value "$(Get-Date -Format s) $reason"
+    Log "BLOCKED: $reason. Read the working tree, then delete $blocked to resume."
+    throw $reason
+}
+
+if (Test-Path $blocked) { Log "blocked since $(Get-Content -Raw $blocked)"; exit 1 }
+
+# The scope check runs from a private copy with `python -I`: the agent writes into this repository, and nothing
+# it writes may sit on the checker's path. Per-run temp files: two runs or two repositories must not share them.
+$runTmp = New-Item -ItemType Directory -Path (Join-Path ([IO.Path]::GetTempPath()) ("omoikane-" + [guid]::NewGuid().ToString("N")))
+$scopeScript = Join-Path $runTmp "headless-scope.py"
+Copy-Item omoikane/bin/headless-scope.py $scopeScript
+
+function Invoke-Scope([string[]] $arguments) {
+    $out = python -I $scopeScript --repo $root @arguments
+    if ($LASTEXITCODE -ne 0) { throw "headless-scope.py $($arguments[0]) failed" }
+    return $out
+}
+
 # One headless agent call; returns $true when the agent exited 0. Output goes to the host, not the pipeline,
-# or it would become part of the return value.
-function Invoke-Operation([string] $op, [string] $arg) {
-    # Ticking a proposal in _review.md is the human's approval; the agent may edit the file, so any tick it adds
-    # is undone after the run.
-    $review = Join-Path $omoikane "_review.md"
-    $before = Join-Path ([IO.Path]::GetTempPath()) "omoikane-review-before.md"
-    if (Test-Path $review) { Copy-Item $review $before -Force } else { Set-Content $before "" }
-    # The scope (edit only the wiki, the log and _review.md; run only index and lint; no git) lives in
-    # headless-scope.py, rendered for each harness, so the two cannot drift (#39). File moves are left to this
-    # script, after the run.
-    $snapshot = Join-Path ([IO.Path]::GetTempPath()) "omoikane-scope-before.json"
-    python omoikane/bin/headless-scope.py snapshot | Set-Content -Encoding utf8NoBOM $snapshot
+# or it would become part of the return value. The scope (edit wiki pages, log.md and _review.md; no shell)
+# comes from headless-scope.py for both harnesses, so they cannot drift (#39).
+function Invoke-Agent([string] $claudePrompt, [string] $message) {
     if ($Agent -eq "claude") {
-        $prompt = "/$op $arg".TrimEnd()
-        $flags = @(python omoikane/bin/headless-scope.py claude | ConvertFrom-Json)
-        claude -p $prompt @flags 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
-    } else {
-        # OPENCODE_CONFIG_CONTENT is merged over the global and project config (opencode.ai/docs/config); it
-        # defines the agent that carries the scope, under a name no other config can know. The prompt goes in
-        # as the message, not through --command: a command's own `agent` overrides --agent (#39). --pure keeps
-        # user plugins out, whose config hook could rewrite the agent.
-        $agentName = "omoikane-headless-" + [guid]::NewGuid().ToString("N").Substring(0, 8)
-        $message = "Read ``omoikane/prompts/$op.md`` and follow it."
-        if ($arg) { $message += " Argument: $arg" }
-        $saved = $env:OPENCODE_CONFIG_CONTENT
-        $env:OPENCODE_CONFIG_CONTENT = python omoikane/bin/headless-scope.py opencode --agent-name $agentName
-        try { opencode run --pure --agent $agentName $message 2>&1 | Tee-Object -FilePath $log -Append | Out-Host }
-        finally { $env:OPENCODE_CONFIG_CONTENT = $saved }
+        $flags = @(Invoke-Scope @("claude") | ConvertFrom-Json)
+        claude -p $claudePrompt @flags 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
+        return $LASTEXITCODE -eq 0
     }
-    $ok = $LASTEXITCODE -eq 0
-    # The harness's permission rules have holes of their own; the tree is the ground truth, whichever harness ran.
-    python omoikane/bin/headless-scope.py verify --before $snapshot | Tee-Object -FilePath $log -Append | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw "the $op run changed files outside its scope; nothing was committed" }
-    python omoikane/bin/review-ticks.py --before $before | Tee-Object -FilePath $log -Append | Out-Host
+    # OPENCODE_CONFIG_CONTENT is merged over the global and project config (opencode.ai/docs/config); it defines
+    # the agent that carries the scope, under a name no other config can know. The prompt goes in as the message,
+    # not through --command: a command's own `agent` overrides --agent (#39). --pure keeps user plugins out.
+    $agentName = "omoikane-headless-" + [guid]::NewGuid().ToString("N").Substring(0, 8)
+    $saved = $env:OPENCODE_CONFIG_CONTENT
+    $env:OPENCODE_CONFIG_CONTENT = Invoke-Scope @("opencode", "--agent-name", $agentName)
+    try { opencode run --pure --agent $agentName $message 2>&1 | Tee-Object -FilePath $log -Append | Out-Host }
+    finally { $env:OPENCODE_CONFIG_CONTENT = $saved }
+    return $LASTEXITCODE -eq 0
+}
+
+# After every agent call: compare the tree with the snapshot, then undo the ticks the agent added (ticking is
+# the human's approval). The harness's permission rules have holes of their own; the tree is the ground truth.
+# The isolated check comes first: review-ticks.py imports from omoikane/bin/, which must be known clean. A run
+# stopped here keeps its ticks; the block makes the human read the tree anyway.
+function Assert-Scope([string] $op, [string] $reviewBefore, [string] $snapshot) {
+    python -I $scopeScript --repo $root verify --before $snapshot | Tee-Object -FilePath $log -Append | Out-Host
+    if ($LASTEXITCODE -eq 3) { Stop-Run "the $op run changed files outside its scope" }
+    if ($LASTEXITCODE -ne 0) { throw "headless-scope.py verify failed" }
+    python omoikane/bin/review-ticks.py --before $reviewBefore 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
+}
+
+function Invoke-Operation([string] $op, [string] $arg) {
+    $review = Join-Path $omoikane "_review.md"
+    $reviewBefore = Join-Path $runTmp "review-before.md"
+    if (Test-Path $review) { Copy-Item $review $reviewBefore -Force } else { Set-Content $reviewBefore "" }
+    $snapshot = Join-Path $runTmp "scope-before.json"
+    Invoke-Scope @("snapshot") | Set-Content -Encoding utf8NoBOM $snapshot
+    $message = "Read ``omoikane/prompts/$op.md`` and follow it."
+    if ($arg) { $message += " Argument: $arg" }
+    $ok = Invoke-Agent ("/$op $arg".TrimEnd()) $message
+    Assert-Scope $op $reviewBefore $snapshot
+    # The agent has no shell, so it cannot run index and lint itself: run lint here and hand the findings back.
+    for ($round = 1; $ok -and $round -le $LintRounds; $round++) {
+        $findings = python omoikane/bin/wiki-lint.py 2>&1
+        if ($LASTEXITCODE -eq 0) { break }
+        Log "$op lint round ${round}: $(@($findings).Count - 1) findings handed back"
+        $fix = "omoikane/bin/wiki-lint.py reports these findings after the /$op run. Fix each one by editing " +
+            "the pages, omoikane/log.md or omoikane/_review.md. You cannot run commands; lint runs again after you.`n`n" +
+            ($findings -join "`n")
+        $ok = Invoke-Agent $fix $fix
+        Assert-Scope $op $reviewBefore $snapshot
+    }
     return $ok
 }
 
@@ -69,43 +110,48 @@ function Complete-Operation([string] $op, [string] $name) {
     python omoikane/bin/wiki-index.py | Tee-Object -FilePath $log -Append
     python omoikane/bin/wiki-lint.py | Tee-Object -FilePath $log -Append
     if ($Commit) {
-        git add -A
+        # Only what an operation may change: anything else in the tree is not the run's to commit.
+        git add -- omoikane/wiki omoikane/log.md omoikane/_review.md omoikane/index.md omoikane/raw
         git commit -q -m "feat(wiki): $op $name" 2>&1 | Tee-Object -FilePath $log -Append
     }
 }
 
-$inbox = Join-Path $omoikane "raw/inbox"
-$files = Get-ChildItem $inbox -File -Recurse | Where-Object { $_.Name -ne ".gitkeep" }
-if (-not $files) { Log "nothing in inbox" }
+try {
+    $inbox = Join-Path $omoikane "raw/inbox"
+    $files = Get-ChildItem $inbox -File -Recurse | Where-Object { $_.Name -ne ".gitkeep" }
+    if (-not $files) { Log "nothing in inbox" }
 
-foreach ($f in $files) {
-    $isSession = $f.DirectoryName -eq (Join-Path $inbox "sessions")
-    if ($isSession -and $f.LastWriteTime -gt (Get-Date).AddMinutes(-$QuietMinutes)) {
-        Log "session still active, waiting: $($f.Name)"; continue
-    }
-    $op = if ($isSession) { "distill" } else { "ingest" }
-    $rel = [IO.Path]::GetRelativePath($root, $f.FullName) -replace "\\", "/"
-    $dest = Join-Path $omoikane $(if ($isSession) { "raw/sources/sessions" } else { "raw/sources" })
-    Log "$op start $rel"
-    if (-not (Invoke-Operation $op $rel)) { Log "$op FAILED $rel"; continue }
-    # The headless agent may not move files (#25): move the source so the next run does not process it again.
-    if (Test-Path $f.FullName) { New-Item -ItemType Directory -Force $dest | Out-Null; Move-Item $f.FullName $dest }
-    Complete-Operation $op $f.BaseName
-    Log "$op done $rel"
-}
-
-# The cross-session pass reads distilled session pages, so it runs after the inbox, never before.
-if ($SynthesizeEvery -gt 0) {
-    python omoikane/bin/synthesize-due.py --every $SynthesizeEvery | Tee-Object -FilePath $log -Append
-    if ($LASTEXITCODE -eq 0) {
-        Log "synthesize start"
-        if (Invoke-Operation "synthesize" "") { Log "synthesize done" } else { Log "synthesize FAILED" }
-        # The log heading is the counter. A run that did not write it would trigger again on every schedule.
-        python omoikane/bin/synthesize-due.py --every $SynthesizeEvery | Out-Null
-        if ($LASTEXITCODE -eq 0) {
-            Add-Content -Path (Join-Path $omoikane "log.md") -Encoding utf8 -Value "`n## [$(Get-Date -Format yyyy-MM-dd)] synthesize | ended without a log entry"
-            Log "synthesize wrote no log entry; heading appended so the next run waits"
+    foreach ($f in $files) {
+        $isSession = $f.DirectoryName -eq (Join-Path $inbox "sessions")
+        if ($isSession -and $f.LastWriteTime -gt (Get-Date).AddMinutes(-$QuietMinutes)) {
+            Log "session still active, waiting: $($f.Name)"; continue
         }
-        Complete-Operation "synthesize" "sessions"
+        $op = if ($isSession) { "distill" } else { "ingest" }
+        $rel = [IO.Path]::GetRelativePath($root, $f.FullName) -replace "\\", "/"
+        $dest = Join-Path $omoikane $(if ($isSession) { "raw/sources/sessions" } else { "raw/sources" })
+        Log "$op start $rel"
+        if (-not (Invoke-Operation $op $rel)) { Log "$op FAILED $rel"; continue }
+        # The headless agent may not move files (#25): move the source so the next run does not process it again.
+        if (Test-Path $f.FullName) { New-Item -ItemType Directory -Force $dest | Out-Null; Move-Item $f.FullName $dest }
+        Complete-Operation $op $f.BaseName
+        Log "$op done $rel"
     }
+
+    # The cross-session pass reads distilled session pages, so it runs after the inbox, never before.
+    if ($SynthesizeEvery -gt 0) {
+        python omoikane/bin/synthesize-due.py --every $SynthesizeEvery | Tee-Object -FilePath $log -Append
+        if ($LASTEXITCODE -eq 0) {
+            Log "synthesize start"
+            if (Invoke-Operation "synthesize" "") { Log "synthesize done" } else { Log "synthesize FAILED" }
+            # The log heading is the counter. A run that did not write it would trigger again on every schedule.
+            python omoikane/bin/synthesize-due.py --every $SynthesizeEvery | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Add-Content -Path (Join-Path $omoikane "log.md") -Encoding utf8 -Value "`n## [$(Get-Date -Format yyyy-MM-dd)] synthesize | ended without a log entry"
+                Log "synthesize wrote no log entry; heading appended so the next run waits"
+            }
+            Complete-Operation "synthesize" "sessions"
+        }
+    }
+} finally {
+    Remove-Item -LiteralPath $runTmp -Recurse -Force
 }
