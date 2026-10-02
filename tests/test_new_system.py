@@ -134,11 +134,44 @@ class NewSystem(unittest.TestCase):
         self.assertEqual(lint.returncode, 0, lint.stdout + lint.stderr)
         self.assertIn("[[commit-messages-in-english]]", run(self.repo, "session-context.py").stdout)
 
-    def test_from_a_path_without_a_wiki_changes_nothing(self) -> None:
-        result = run(self.repo, "new-system.py", "--from", str(Path(self.tmp.name) / "missing"))
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("omoikane/wiki", result.stdout)
-        self.assertTrue((self.repo / "omoikane/wiki/concepts/template-concept.md").is_file())
+    def test_what_is_disputed_marked_or_unclear_stays_behind_or_is_cleaned(self) -> None:
+        # #85 review: a disputed page crossed without its review entry, a pruned page lost its mark, an alias and a
+        # capitalised or unbracketed tag were mishandled, and a folder name with accents broke the source page.
+        other = Path(self.tmp.name) / "Folha São Paulo"
+        domain = other / "omoikane" / "wiki" / "domain"
+        domain.mkdir(parents=True)
+        for name, text in {
+            "disputed.md": page("domain", "Disputed", "convention", "x").replace("summary: Disputed", "summary: Disputed: a or b"),
+            "pruned.md": page("domain", "Pruned", "convention", "x", extra="prune: stale\n"),
+            "capital-tag.md": page("domain", "Capital tag", "Convention", "See [[gone|the old rule]]."),
+            "bare-tag.md": page("domain", "Bare tag", "x", "y").replace("tags: [x]", "tags: design-system")
+                           .replace("summary: Bare tag", "summary: Bare tag  # with a hash"),
+        }.items():
+            (domain / name).write_text(text, encoding="utf-8")
+        result = run(self.repo, "new-system.py", "--from", str(other))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        wiki = self.repo / "omoikane" / "wiki"
+        self.assertEqual(sorted(p.name for p in (wiki / "domain").glob("*.md")), ["bare-tag.md", "capital-tag.md"])
+        self.assertIn("See the old rule.", (wiki / "domain" / "capital-tag.md").read_text(encoding="utf-8"))
+        self.assertIn("summary: Bare tag  # with a hash", (wiki / "domain" / "bare-tag.md").read_text(encoding="utf-8"))
+        self.assertIn("title: Inherited from folha-sao-paulo",
+                      (wiki / "sources" / "inherited-from-folha-sao-paulo.md").read_text(encoding="utf-8"))
+        self.assertIn("2 other domain pages", result.stdout)
+        lint = run(self.repo, "wiki-lint.py")
+        self.assertEqual(lint.returncode, 0, lint.stdout + lint.stderr)
+
+    def test_from_a_path_it_cannot_use_changes_nothing(self) -> None:
+        # #85 review: the pages were read after the wiki was deleted, so an unreadable page left a half-reset clone.
+        unreadable = Path(self.tmp.name) / "unreadable"
+        (unreadable / "omoikane" / "wiki" / "domain").mkdir(parents=True)
+        (unreadable / "omoikane" / "wiki" / "domain" / "a.md").write_bytes(b"---\ntitle: caf\xe9\n---\n")
+        for origin in (Path(self.tmp.name) / "missing", unreadable, self.repo):
+            with self.subTest(origin=origin.name):
+                result = run(self.repo, "new-system.py", "--from", str(origin))
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn("nothing was changed", result.stdout)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertTrue((self.repo / "omoikane/wiki/concepts/template-concept.md").is_file())
 
     def test_refuses_a_tree_with_uncommitted_changes(self) -> None:
         # Nothing is committed by the script, so git restore undoes a run; that holds only from a clean tree. An

@@ -23,7 +23,9 @@ The objective asks the agent to hold what the user stated without the user's inv
 `python omoikane/bin/new-system.py --from <checkout of another system>` empties the memory as today, then copies the other system's domain pages tagged `convention` or `design-system` into `omoikane/wiki/domain/`.
 
 - Provenance. One source page, `wiki/sources/inherited-from-<system>.md` (`type: source`, `dated` the date of the other system's last commit), lists every page copied and the commit it was copied at. Each copied page cites it in `sources:`, so `wiki-lint.py`'s rule that a domain page cites a source page holds, and its body keeps the user's words and gains one line naming where it came from.
-- Links. A wikilink to a page that did not come along becomes plain text: the copy must pass `wiki-lint.py` on its own, and `code:` goes for the same reason.
+- Left behind as well: a page whose summary starts with `Disputed:` (its dispute waits for the other system's human, and the new review queue starts empty) and a page marked `prune:` (that human is deleting it).
+- Safety. Every page is read and rendered before the reset deletes anything, so a page that cannot be read stops the run with the clone untouched; `--from` the same repository is refused.
+- Links. A wikilink to a page that did not come along becomes plain text (its alias when it has one): the copy must pass `wiki-lint.py` on its own, and `code:` goes for the same reason.
 - No sync. A convention that changes later in the other system does not follow; the next session that states it in this system updates the page through `/distill`, which records the old rule under `## History` or the disagreement under `## Contradictions`. Why no sync: a live link makes one system's memory depend on another checkout being present and current, and an unattended run in one system would rewrite the other's rules.
 - Where the knowledge lives. Inside each system's own wiki. Not a shared organisation repository and not an external base: that reading of the objective was the one reverted in #68.
 
