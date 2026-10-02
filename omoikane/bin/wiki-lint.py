@@ -245,17 +245,16 @@ def unguarded_gotchas(pages: list[Page], today: date) -> list[str]:
     return warnings
 
 
-def rule_pointers(agents: str, pages: list[Page]) -> tuple[list[str], list[str]]:
-    """Check the page each promoted rule in AGENTS.md points at: (findings, warnings).
+def rule_pointers(agents: str, pages: list[Page]) -> list[str]:
+    """Warn about each promoted rule in AGENTS.md whose page is gone, now `Disputed:` or marked `prune:`: the block
+    still states the old rule in every session (#86 review: a domain page changes in place, and nothing noticed).
 
-    A rule whose page is gone is a finding, like a broken link. A rule whose page is now `Disputed:` or marked
-    `prune:` is a warning: the block still states the old rule in every session, and only the human edits it (#86
-    review: a domain page changes in place, and nothing noticed the block had gone stale).
+    Warnings, not findings: only the human edits the block, and a finding goes back to the scheduled run's agent,
+    which may not touch AGENTS.md and would spend every lint round on it. /lint reads warnings.
     Example: rule_pointers("<!-- omoikane:rules:start -->\\n- Do x. (omoikane/wiki/domain/x.md)\\n<!-- ... -->", [])
-    returns (["AGENTS.md: the rule \\"- Do x. ...\\" points at omoikane/wiki/domain/x.md, which does not exist; ..."], []).
+    returns ["AGENTS.md: the rule \\"- Do x. ...\\" points at omoikane/wiki/domain/x.md, which does not exist; ..."].
     """
     by_place = {f"{p.path.parent.name}/{p.path.name}": p for p in pages}
-    findings: list[str] = []
     warnings: list[str] = []
     for rule in managed_rules(agents) or []:
         m = RULE_POINTER.search(rule)
@@ -263,12 +262,12 @@ def rule_pointers(agents: str, pages: list[Page]) -> tuple[list[str], list[str]]
             continue
         page = by_place.get(m.group(2))
         if page is None:
-            findings.append(f"AGENTS.md: the rule \"{rule}\" points at {m.group(1)}, which does not exist; the human "
+            warnings.append(f"AGENTS.md: the rule \"{rule}\" points at {m.group(1)}, which does not exist; the human "
                             "repoints or retires it in the rules block")
         elif str(page.meta.get("summary", "")).startswith("Disputed:") or PRUNE_KEY in page.meta:
             warnings.append(f"AGENTS.md: the rule \"{rule}\" points at {m.group(1)}, now disputed or marked prune; "
                             "the block still states it to every session")
-    return findings, warnings
+    return warnings
 
 
 def main(wiki: Path = WIKI, repo: Path = REPO) -> int:
@@ -277,9 +276,7 @@ def main(wiki: Path = WIKI, repo: Path = REPO) -> int:
     warnings = stale_pages(pages, last_changed(repo, code_paths(pages, repo))) + unguarded_gotchas(pages, date.today())
     agents = repo / "AGENTS.md"
     if agents.is_file():
-        rule_findings, rule_warnings = rule_pointers(agents.read_text(encoding="utf-8"), pages)
-        findings += rule_findings
-        warnings += rule_warnings
+        warnings += rule_pointers(agents.read_text(encoding="utf-8"), pages)
     for f in findings:
         print(f)
     for w in warnings:

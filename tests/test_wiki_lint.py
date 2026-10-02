@@ -242,12 +242,11 @@ class RulePointers(unittest.TestCase):
         agents = ("<!-- omoikane:rules:start -->\n- Keep a. (omoikane/wiki/domain/a.md)\n"
                   "- Keep b. (omoikane/wiki/domain/b.md)\n- Keep c. (omoikane/wiki/domain/c.md)\n"
                   "- Keep d. (omoikane/wiki/practices/d.md)\n<!-- omoikane:rules:end -->\n")
-        findings, warnings = lint.rule_pointers(agents, [domain("a"), domain("b", summary="Disputed: b or not b"),
-                                                         domain("c", prune="stale")])
-        self.assertEqual(len(findings), 1)
-        self.assertIn("omoikane/wiki/practices/d.md, which does not exist", findings[0])
+        warnings = lint.rule_pointers(agents, [domain("a"), domain("b", summary="Disputed: b or not b"),
+                                               domain("c", prune="stale")])
         self.assertEqual([w.split("points at ")[1].split(",")[0] for w in warnings],
-                         ["omoikane/wiki/domain/b.md", "omoikane/wiki/domain/c.md"])
+                         ["omoikane/wiki/domain/b.md", "omoikane/wiki/domain/c.md", "omoikane/wiki/practices/d.md"])
+        self.assertIn("which does not exist", warnings[2])
 
 
 class LastChanged(unittest.TestCase):
