@@ -20,8 +20,8 @@ Result: PR #55 (`docs/specs/2026-10-01-org-knowledge.md`, `omoikane/bin/org-cand
 
 | Place | Loaded by | Content |
 |---|---|---|
-| `AGENTS.md`, opening paragraph | every session, every harness (`CLAUDE.md` imports it) | The objective, phrased so it stays true in a system cloned from the template. Paid for by removing the `## Domain` placeholder and compressing the "Two ways" block; `context-budget.py` must stay green with a full rules block. |
-| `omoikane/raw/inbox/<date>-omoikane-objective.md` | ingested into a decision page; its summary reaches every session through the brief's index, decisions first | The objective in the user's words, the criterion for work in this repository, the misreading rejected. Repository-specific, so it stays out of `AGENTS.md`, which every cloned system inherits. Left untracked, like a capture: `review-gate.py` moves every inbox file out of the checkout into `wiki/auto`. |
+| `AGENTS.md`, opening paragraph | every session, every harness (`CLAUDE.md` imports it) | The objective, phrased so it stays true in a system cloned from the template. Paid for by replacing the "Two ways" block; `context-budget.py` must stay green with a full rules block. |
+| `omoikane/raw/inbox/<date>-omoikane-objective.md` | `/ingest`, which writes a source page (and a concept page if it judges one central); the summaries reach this repository's sessions through the brief's index | The objective in the user's words, the criterion for work in this repository, the misreading rejected. Repository-specific, so it stays out of `AGENTS.md`, which every cloned system inherits. Left untracked, like a capture: `review-gate.py` moves every inbox file out of the checkout into `wiki/auto`. |
 | `README.md`, first line | humans and GitHub visitors, not sessions | The problem the template solves. |
 | `docs/architecture.md`, opening | agents changing the architecture | One line pointing at the objective. |
 
@@ -33,7 +33,7 @@ Why not `AGENTS.md` alone: the criterion "work here must improve the tool" is ab
 Recommendation: revert the merge `018e1eb` with `git revert -m 1`, on a branch, through a PR.
 
 - The spec's core decision rejects what the objective asks for; rewriting it means a new spec, not an edit.
-- `org-candidates.py` exists only to feed an external base the objective excludes. Kept as an "optional feature" it is code nobody runs, and `docs/architecture.md:113-116` would keep telling every agent that organisation knowledge belongs elsewhere.
+- `org-candidates.py` exists only to feed an external base the objective excludes. Kept as an "optional feature" it is code nobody runs, and the "Across systems" section of `docs/architecture.md` would keep telling every agent that organisation knowledge belongs elsewhere.
 - The real need behind it (a system born later starts with the conventions learned in earlier ones; ai-memory's `scope: "global"`) is listed below as an open gap, to be designed from the objective once domain pages exist. Git history keeps the code.
 
 ## 3. Cleanup of the kit's name
@@ -62,7 +62,7 @@ One new type, `omoikane/wiki/domain/`: a business rule, design-system rule or or
 Why a type and not an existing one:
 
 - `practice` needs two sessions (`wiki-lint.py` enforces it); a business rule the user states once is already true.
-- `concept` is not imperative, has no source floor and sits last in the brief.
+- `concept` is not imperative, has no source floor and comes after decisions, gotchas and practices in the brief.
 - `decision` records a choice with rejected alternatives; "prices are integer cents" is not one.
 - One type, not three: the three share the lifecycle (stated by an authority, valid from one statement, may contradict the code, needs the quote).
 
@@ -88,7 +88,7 @@ Contract: `summary` is the rule or fact itself in one line, since only the summa
 
 ## Open gaps, not planned here
 
-- Knowledge reaches the user's sessions only after a human merges the `wiki/auto` PR (`docs/architecture.md:32`): the objective asks for no involvement. Options: auto-merge when CI is green, or a brief that also reads `wiki/auto`. DECIDE later; it reverses part of #45.
+- Knowledge reaches the user's sessions only after a human merges the `wiki/auto` PR (`docs/architecture.md`, "Why a gate"): the objective asks for no involvement. Options: auto-merge when CI is green, or a brief that also reads `wiki/auto`. DECIDE later; it reverses part of #45.
 - Latency: a statement reaches the wiki after the 30-minute quiet period plus the schedule. brainmaxxing's `/reflect` writes during the session.
 - No search: the brief stops at a 12,000-character index budget and drops the rest; a design system can outgrow it. Karpathy suggests qmd; ai-memory fuses FTS, entities and graph.
 - A domain rule that governs every task reaches `AGENTS.md` only through `/synthesize`, which needs two sessions; ai-memory's lint suggests a rule from one.

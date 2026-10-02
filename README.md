@@ -6,7 +6,7 @@ Omoikane is a template every new system starts from.
 Its agents keep a wiki of that knowledge on their own, from what the user states while building, without asking the user to write anything down.
 
 Named after 思金神 (Omoikane), the kami who gathers the thoughts of the other gods and returns a synthesis.
-Built on Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) pattern, with [brainmaxxing](https://github.com/poteto/brainmaxxing) and [ai-memory](https://github.com/akitaonrails/ai-memory) as references: coding sessions are a source too.
+Built on Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) pattern, with [brainmaxxing](https://github.com/poteto/brainmaxxing) and [ai-memory](https://github.com/akitaonrails/ai-memory) as references. Omoikane's addition: coding sessions are a source too.
 
 ## Two uses, one layout
 
