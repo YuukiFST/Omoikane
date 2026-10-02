@@ -88,9 +88,24 @@ Contract: `summary` is the rule or fact itself in one line, since only the summa
 
 ## Open gaps, not planned here
 
-- Knowledge reaches the user's sessions only after a human merges the `wiki/auto` PR (`docs/architecture.md`, "Why a gate"): the objective asks for no involvement. Options: auto-merge when CI is green, or a brief that also reads `wiki/auto`. DECIDE later; it reverses part of #45.
-- Latency: a statement reaches the wiki after the 30-minute quiet period plus the schedule. brainmaxxing's `/reflect` writes during the session.
-- No search: the brief stops at a 12,000-character index budget and drops the rest; a design system can outgrow it. Karpathy suggests qmd; ai-memory fuses FTS, entities and graph.
-- A domain rule that governs every task reaches `AGENTS.md` only through `/synthesize`, which needs two sessions; ai-memory's lint suggests a rule from one.
-- Cross-system knowledge: conventions learned in one system do not reach the next one born from the template.
-- No bootstrap from an existing project's history and docs (ai-memory `bootstrap`, brainmaxxing `/ruminate`).
+Outcome of each, recorded 2026-10-02 (#87).
+
+- **Still open.** Knowledge reaches the user's sessions only after a human merges the `wiki/auto` PR (`docs/architecture.md`, "Why a gate"): the objective asks for no involvement.
+  Proposed (#74): `review-gate.py publish` asks GitHub to merge the PR by merge commit once the required checks pass (`gh pr merge --auto --merge --match-head-commit <head>`), keeping the PR as the audit trail and reversing part of #45; the repository needs "Allow auto-merge" and a required status check on `main`.
+  Not applied: the agent's permission classifier refused the edit that makes the scheduled run merge into `main` unattended, so the human decides it.
+  Even merged, a session sees the pages after `git pull`: the brief reads the checkout.
+- **Discarded.** Latency (30-minute quiet period plus the schedule).
+  The next session gets the newest undistilled capture in the brief's Pending section and can read it at once, until the scheduled run moves it into `wiki/auto`; the wiki reaches sessions only after the merge above, so distilling sooner reaches no session sooner, and takes the capture out of Pending sooner.
+  A run started at `SessionEnd` would also race the scheduled run over the one `wiki/auto` worktree.
+  Worth reopening once the merge is automatic.
+- **Closed** by #83 (#75): the brief kept sections in strict order, so about 60 domain pages pushed every decision and gotcha out.
+  Domain, decision, gotcha and practice sections now get a floor of the budget, and the budget counts the separators.
+  A search script (BM25) was not added: the omitted line points at `omoikane/index.md`, which the agent can grep.
+- **Closed** by #86 (#76): a domain rule reaches the `AGENTS.md` rules block from one statement; `/synthesize` proposes it within the room the block has, the human's tick still approves it, and `wiki-lint.py` warns when a promoted rule's page is gone, disputed or pruned.
+- **Closed** by #85 (#80): `new-system.py --from <another system>` starts the new wiki with that system's `convention` and `design-system` domain pages; design in [2026-10-02-cross-system-knowledge.md](2026-10-02-cross-system-knowledge.md).
+- **Closed** by #84 (#79): `bootstrap.py [--from <path>]` seeds the inbox from a project's README, docs, agent rule files and git history, skipping what the template shipped.
+
+Found while closing these:
+
+- **Closed** by #82 (#77): captures redacted only the listed terms; secrets (API keys, tokens, private keys, passwords) now go too.
+- **Closed** by #81 (#78): the review gate moved tracked inbox files out of the human's checkout; only files `origin/main` does not hold as they are move now.
