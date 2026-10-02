@@ -298,20 +298,39 @@ class CompactIndex(unittest.TestCase):
     def test_no_omitted_line_when_everything_fits(self) -> None:
         self.assertNotIn("Omitted", context.compact_index(self.INDEX, 12_000))
 
-    def test_many_domain_pages_leave_room_for_every_section(self) -> None:
-        # About 60 domain pages filled the 12,000 characters, and no decision or gotcha reached the brief (#75).
-        def section(name: str, slug: str, n: int) -> str:
-            return f"## {name} ({n})\n\n" + "\n".join(f"- [[{slug}{i}]] — {'r' * 150}" for i in range(n))
+    @staticmethod
+    def index_of(*sections: tuple[str, str, int, int]) -> str:
+        """Sections of (heading, slug prefix, entries, characters per summary)."""
+        return "# Index\n\n" + "\n\n".join(f"## {name} ({n})\n\n" + "\n".join(f"- [[{slug}{i}]] — {'r' * size}"
+                                                                           for i in range(n))
+                                           for name, slug, n, size in sections)
 
-        index = "# Index\n\n" + "\n\n".join(section(*s) for s in (("Domain", "rule", 80), ("Decisions", "dec", 20),
-                                                                     ("Gotchas", "got", 20), ("Sources", "src", 20)))
+    def test_many_domain_pages_leave_room_for_decisions_and_gotchas(self) -> None:
+        # About 60 domain pages filled the 12,000 characters, and no decision or gotcha reached the brief (#75).
+        index = self.index_of(("Domain", "rule", 80, 150), ("Decisions", "dec", 20, 150),
+                              ("Gotchas", "got", 20, 150), ("Sources", "src", 20, 150))
         out = context.compact_index(index, 12_000)
-        self.assertLessEqual(len(out) - len(out.rsplit("\n\n", 1)[1]), 12_000)
-        for first in ("[[dec0]]", "[[got0]]", "[[src0]]"):
+        for first in ("[[dec0]]", "[[got0]]"):
             self.assertIn(first, out)
-        # Domain still leads and keeps the largest share.
+        # Domain still leads and keeps the largest share; sources get no floor out of the rules (#83 review).
         self.assertTrue(out.startswith("## Domain (80)"))
-        self.assertGreater(out.count("[[rule"), out.count("[[dec") + out.count("[[got") + out.count("[[src"))
+        self.assertGreater(out.count("[[rule"), out.count("[[dec") + out.count("[[got"))
+        self.assertNotIn("[[src0]]", out)
+
+    def test_a_first_entry_larger_than_the_floor_still_comes_in(self) -> None:
+        # A decision listing many code paths outgrew the floor and vanished behind domain pages (#83 review).
+        index = self.index_of(("Domain", "rule", 60, 230), ("Decisions", "big", 1, 760), ("Gotchas", "got", 5, 100))
+        self.assertIn("[[big0]]", context.compact_index(index, 3_000))
+
+    def test_the_index_part_never_passes_the_budget(self) -> None:
+        # The blank line between sections was not counted, so eight kept sections ran 14 characters over (#83 review).
+        names = ("Domain", "Decisions", "Gotchas", "Practices", "Concepts", "Entities", "Sources", "Queries")
+        for budget in (*range(50, 2_500, 61), 12_000):
+            for size in (17, 23, 32, 41):
+                with self.subTest(budget=budget, size=size):
+                    index = self.index_of(*((name, f"{name[:3]}{size}-", 40, size) for name in names))
+                    out = context.compact_index(index, budget)
+                    self.assertLessEqual(len(out.split("Omitted by budget:")[0].rstrip("\n")), budget)
 
 
 class RenderIndex(unittest.TestCase):
