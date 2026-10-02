@@ -91,11 +91,11 @@ Contract: `summary` is the rule or fact itself in one line, since only the summa
 Outcome of each, recorded 2026-10-02 (#87).
 
 - **Still open.** Knowledge reaches the user's sessions only after a human merges the `wiki/auto` PR (`docs/architecture.md`, "Why a gate"): the objective asks for no involvement.
-  Proposed (#74): `review-gate.py publish` asks GitHub to merge the PR by merge commit once the required checks pass (`gh pr merge --auto --merge --match-head-commit <head>`), keeping the PR as the audit trail; the repository needs "Allow auto-merge" and a required status check on `main`.
+  Proposed (#74): `review-gate.py publish` asks GitHub to merge the PR by merge commit once the required checks pass (`gh pr merge --auto --merge --match-head-commit <head>`), keeping the PR as the audit trail and reversing part of #45; the repository needs "Allow auto-merge" and a required status check on `main`.
   Not applied: the agent's permission classifier refused the edit that makes the scheduled run merge into `main` unattended, so the human decides it.
   Even merged, a session sees the pages after `git pull`: the brief reads the checkout.
 - **Discarded.** Latency (30-minute quiet period plus the schedule).
-  The next session already gets the newest undistilled capture in the brief's Pending section and can read it at once, and the wiki reaches sessions only after the merge above, so distilling sooner reaches no session sooner.
+  The next session gets the newest undistilled capture in the brief's Pending section and can read it at once, until the scheduled run moves it into `wiki/auto`; the wiki reaches sessions only after the merge above, so distilling sooner reaches no session sooner, and takes the capture out of Pending sooner.
   A run started at `SessionEnd` would also race the scheduled run over the one `wiki/auto` worktree.
   Worth reopening once the merge is automatic.
 - **Closed** by #83 (#75): the brief kept sections in strict order, so about 60 domain pages pushed every decision and gotcha out.
