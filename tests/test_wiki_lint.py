@@ -230,6 +230,26 @@ def commit(repo: Path, day: str, *args: str) -> None:
                    check=True, env=env, capture_output=True)
 
 
+class RulePointers(unittest.TestCase):
+    # A promoted rule is a frozen copy of its page; a domain page changes in place, and nothing noticed the AGENTS.md
+    # block had gone stale (#86 review).
+    def test_a_rule_whose_page_is_gone_disputed_or_pruned_is_reported(self) -> None:
+        def domain(slug: str, **meta: object) -> Page:
+            p = page(slug, "domain", **meta)
+            p.path = Path(f"/wiki/domain/{slug}.md")
+            return p
+
+        agents = ("<!-- omoikane:rules:start -->\n- Keep a. (omoikane/wiki/domain/a.md)\n"
+                  "- Keep b. (omoikane/wiki/domain/b.md)\n- Keep c. (omoikane/wiki/domain/c.md)\n"
+                  "- Keep d. (omoikane/wiki/practices/d.md)\n<!-- omoikane:rules:end -->\n")
+        findings, warnings = lint.rule_pointers(agents, [domain("a"), domain("b", summary="Disputed: b or not b"),
+                                                         domain("c", prune="stale")])
+        self.assertEqual(len(findings), 1)
+        self.assertIn("omoikane/wiki/practices/d.md, which does not exist", findings[0])
+        self.assertEqual([w.split("points at ")[1].split(",")[0] for w in warnings],
+                         ["omoikane/wiki/domain/b.md", "omoikane/wiki/domain/c.md"])
+
+
 class LastChanged(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()

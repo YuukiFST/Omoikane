@@ -3,14 +3,16 @@
 Only a ticked `- [x] rule <slug>: <rule> (...)` bullet is promoted, and only while the block holds fewer than
 MAX_RULES; the applied bullet leaves _review.md. The human runs this, never the scheduled headless run: its
 permissions do not include this script, so an agent cannot tick a box and promote in the same run.
-Usage: python omoikane/bin/wiki-rules.py
+Usage: python omoikane/bin/wiki-rules.py [--repo PATH]
 """
 from __future__ import annotations
 
+import argparse
 import re
 import sys
+from pathlib import Path
 
-from wikilib import MAX_RULES, OMOIKANE, REPO, RULES_END, managed_rules
+from wikilib import MAX_RULES, PRUNE_KEY, REPO, RULES_END, load_pages, managed_rules
 
 # One short imperative line; a rule that needs a paragraph is a page, not an always-loaded rule. At 120, a full
 # block of MAX_RULES stays inside the AGENTS.md budget of context-budget.py.
@@ -20,13 +22,14 @@ TICKED = re.compile(r"- \[[xX]\] rule ")
 TICKED_RULE = re.compile(r"- \[[xX]\] rule ([a-z0-9-]+): (.+) \([^()]*\)\s*$")
 
 
-def promote(agents: str, review: str, practices: set[str],
-            domain: frozenset[str] | set[str] = frozenset()) -> tuple[str, str, list[str]]:
+def promote(agents: str, review: str, practices: set[str], domain: frozenset[str] | set[str] = frozenset(),
+            held: frozenset[str] | set[str] = frozenset()) -> tuple[str, str, list[str]]:
     """Move each ticked rule proposal of `review` into the managed block of `agents`.
 
     `practices` and `domain` hold the slugs of the existing practice and domain pages; a rule points at its page.
-    A domain rule is valid from one statement, so it reaches the block without a second session (#76). Returns
-    the new AGENTS.md, the new _review.md, and one line per proposal left in place with the reason. Raises
+    A domain rule is valid from one statement, so it reaches the block without a second session (#76). `held` holds
+    the slugs of pages now `Disputed:` or marked `prune:`, which a page can become between proposal and tick.
+    Returns the new AGENTS.md, the new _review.md, and one line per proposal left in place with the reason. Raises
     ValueError when AGENTS.md has no managed block.
     Example: promote(agents, "- [x] rule s: Do y. (synthesize)\\n", {"s"}) returns
     (agents with "- Do y. (omoikane/wiki/practices/s.md)" in the block, "", []).
@@ -54,6 +57,10 @@ def promote(agents: str, review: str, practices: set[str],
         problem = ""
         if slug not in practices and slug not in domain:
             problem = f"no page omoikane/wiki/practices/{slug}.md or omoikane/wiki/domain/{slug}.md"
+        elif slug in practices and slug in domain:
+            problem = "both a practice and a domain page have this slug; wiki-lint.py reports it, fix that first"
+        elif slug in held:
+            problem = f"{page} is disputed or marked prune; settle it first"
         elif "<!--" in rule:
             problem = "rule contains `<!--`"  # would end the managed block early
         elif len(rule) > MAX_RULE_CHARS:
@@ -73,12 +80,17 @@ def promote(agents: str, review: str, practices: set[str],
     return agents[:end] + "".join(f"{e}\n" for e in added) + agents[end:], "".join(kept), problems
 
 
-def main() -> int:
-    agents_path, review_path = REPO / "AGENTS.md", OMOIKANE / "_review.md"
-    practices = {p.stem for p in (OMOIKANE / "wiki" / "practices").glob("*.md")}
-    domain = {p.stem for p in (OMOIKANE / "wiki" / "domain").glob("*.md")}
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--repo", type=Path, default=REPO, help="repository whose AGENTS.md and omoikane/ to use")
+    repo = parser.parse_args(argv).repo
+    agents_path, review_path, wiki = repo / "AGENTS.md", repo / "omoikane" / "_review.md", repo / "omoikane" / "wiki"
+    pages = load_pages(wiki / "practices") + load_pages(wiki / "domain")
+    practices = {p.slug for p in pages if p.path.parent.name == "practices"}
+    domain = {p.slug for p in pages if p.path.parent.name == "domain"}
+    held = {p.slug for p in pages if PRUNE_KEY in p.meta or str(p.meta.get("summary", "")).startswith("Disputed:")}
     agents, review = agents_path.read_text(encoding="utf-8"), review_path.read_text(encoding="utf-8")
-    new_agents, new_review, problems = promote(agents, review, practices, domain)
+    new_agents, new_review, problems = promote(agents, review, practices, domain, held)
     if new_agents != agents:
         agents_path.write_text(new_agents, encoding="utf-8", newline="\n")
     if new_review != review:

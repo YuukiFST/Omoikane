@@ -8,15 +8,18 @@ from __future__ import annotations
 
 import os
 import posixpath
+import re
 import subprocess
 import sys
 from datetime import date, timedelta
 from pathlib import Path, PureWindowsPath
 
 from wikilib import (CODE_KEY, DATE, GUARD_KEY, GUARDS, PAGE_TYPES, PRACTICE_MIN_SESSIONS, PRUNE_KEY, PRUNE_MARKS,
-                     REPO, REQUIRED_KEYS, SESSION_PAGE, SOURCE_KEYS, UNDATED, WIKI, Page, load_pages)
+                     REPO, REQUIRED_KEYS, SESSION_PAGE, SOURCE_KEYS, UNDATED, WIKI, Page, load_pages, managed_rules)
 
 GUARD_CHOICES = f"{', '.join(GUARDS[:-1])} or {GUARDS[-1]}"
+# The pointer wiki-rules.py ends each promoted rule with: (omoikane/wiki/<folder>/<slug>.md).
+RULE_POINTER = re.compile(r"\((omoikane/wiki/([^()\s/]+/[^()\s/]+\.md))\)\s*$")
 # Days a gotcha may rely on being read before the lint asks for a check. Long enough for the human to act on
 # the guard distill proposed, short enough that an unguarded gotcha does not become the norm.
 GUARD_GRACE_DAYS = 14
@@ -242,10 +245,41 @@ def unguarded_gotchas(pages: list[Page], today: date) -> list[str]:
     return warnings
 
 
+def rule_pointers(agents: str, pages: list[Page]) -> tuple[list[str], list[str]]:
+    """Check the page each promoted rule in AGENTS.md points at: (findings, warnings).
+
+    A rule whose page is gone is a finding, like a broken link. A rule whose page is now `Disputed:` or marked
+    `prune:` is a warning: the block still states the old rule in every session, and only the human edits it (#86
+    review: a domain page changes in place, and nothing noticed the block had gone stale).
+    Example: rule_pointers("<!-- omoikane:rules:start -->\\n- Do x. (omoikane/wiki/domain/x.md)\\n<!-- ... -->", [])
+    returns (["AGENTS.md: the rule \\"- Do x. ...\\" points at omoikane/wiki/domain/x.md, which does not exist; ..."], []).
+    """
+    by_place = {f"{p.path.parent.name}/{p.path.name}": p for p in pages}
+    findings: list[str] = []
+    warnings: list[str] = []
+    for rule in managed_rules(agents) or []:
+        m = RULE_POINTER.search(rule)
+        if not m:
+            continue
+        page = by_place.get(m.group(2))
+        if page is None:
+            findings.append(f"AGENTS.md: the rule \"{rule}\" points at {m.group(1)}, which does not exist; the human "
+                            "repoints or retires it in the rules block")
+        elif str(page.meta.get("summary", "")).startswith("Disputed:") or PRUNE_KEY in page.meta:
+            warnings.append(f"AGENTS.md: the rule \"{rule}\" points at {m.group(1)}, now disputed or marked prune; "
+                            "the block still states it to every session")
+    return findings, warnings
+
+
 def main(wiki: Path = WIKI, repo: Path = REPO) -> int:
     pages = load_pages(wiki)
     findings = lint_pages(pages, repo)
     warnings = stale_pages(pages, last_changed(repo, code_paths(pages, repo))) + unguarded_gotchas(pages, date.today())
+    agents = repo / "AGENTS.md"
+    if agents.is_file():
+        rule_findings, rule_warnings = rule_pointers(agents.read_text(encoding="utf-8"), pages)
+        findings += rule_findings
+        warnings += rule_warnings
     for f in findings:
         print(f)
     for w in warnings:
