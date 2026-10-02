@@ -97,17 +97,33 @@ class Gate(unittest.TestCase):
 
     def test_only_quiet_captures_move_into_the_worktree(self) -> None:
         inbox = self.repo / "omoikane/raw/inbox"
+        # On origin/main as it stands here, so the worktree has it already; moved, it would show as deleted in the
+        # checkout (#78). A tracked file the worktree does not get as it is (edited since, or not pushed) still moves.
+        for name in ("committed.md", "edited.md"):
+            write(inbox / name, f"{name} as pushed")
+        git(self.repo, "add", "omoikane/raw/inbox")
+        git(self.repo, "commit", "-q", "-m", "human commits two sources")
+        git(self.repo, "push", "-q", "origin", "main")
+        write(inbox / "edited.md", "edited.md as the human edited it")
+        write(inbox / "staged.md", "staged, never pushed")
+        git(self.repo, "add", "omoikane/raw/inbox/staged.md")
         write(inbox / "sessions/2026-09-30-aaaaaaaa.md", "old")
         write(inbox / "sessions/2026-09-30-bbbbbbbb.md", "still growing")
         write(inbox / "article.md", "a source")
         hour_ago = time.time() - 3600
         os.utime(inbox / "sessions/2026-09-30-aaaaaaaa.md", (hour_ago, hour_ago))
         moved = self.prepare()
-        self.assertEqual(sorted(moved), ["omoikane/raw/inbox/article.md",
-                                         "omoikane/raw/inbox/sessions/2026-09-30-aaaaaaaa.md"])
+        self.assertEqual(sorted(moved), ["omoikane/raw/inbox/article.md", "omoikane/raw/inbox/edited.md",
+                                         "omoikane/raw/inbox/sessions/2026-09-30-aaaaaaaa.md",
+                                         "omoikane/raw/inbox/staged.md"])
         self.assertTrue((self.work / "omoikane/raw/inbox/sessions/2026-09-30-aaaaaaaa.md").is_file())
         self.assertTrue((inbox / "sessions/2026-09-30-bbbbbbbb.md").is_file())
         self.assertFalse((inbox / "article.md").exists())
+        self.assertEqual(git(self.repo, "status", "--short", "--", "omoikane/raw/inbox/committed.md"), "")
+        self.assertEqual((self.work / "omoikane/raw/inbox/edited.md").read_text(encoding="utf-8"),
+                         "edited.md as the human edited it")
+        self.assertEqual((self.work / "omoikane/raw/inbox/staged.md").read_text(encoding="utf-8"),
+                         "staged, never pushed")
 
     def test_publish_pushes_and_opens_one_pr(self) -> None:
         self.prepare()
