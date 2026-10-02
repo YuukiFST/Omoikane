@@ -144,9 +144,48 @@ class Bootstrap(unittest.TestCase):
         self.assertNotIn("feat: the template", files["bootstrap-git-history.md"])
 
     def test_omoikane_s_manual_in_an_adopting_project_is_skipped(self) -> None:
-        commit(self.project, {"AGENTS.md": MANUAL}, "chore: adopt Omoikane")
+        commit(self.project, {"AGENTS.md": MANUAL, "pkg/AGENTS.md": "# Pkg rules\n\nAmounts are cents.\n\n" + MANUAL,
+                              "node_modules/lib/AGENTS.md": "a dependency's rules\n"}, "chore: adopt Omoikane")
         self.run_on(self.project)
-        self.assertNotIn("bootstrap-agents-md.md", self.inbox())
+        files = self.inbox()
+        self.assertNotIn("bootstrap-agents-md.md", files)
+        self.assertNotIn("bootstrap-node_modules-lib-agents-md.md", files)
+        self.assertIn("Amounts are cents.", files["bootstrap-pkg-agents-md.md"])
+        self.assertNotIn("Layout.", files["bootstrap-pkg-agents-md.md"])
+
+    def test_a_use_this_template_system_skips_the_template_by_its_reset(self) -> None:
+        # "Use this template" starts from an unrelated commit, and new-system.py may leave no `template` remote:
+        # the README, docs, specs and 147 template commits were copied (#84 second review).
+        repo = Path(__file__).resolve().parent.parent
+        system = self.root / "store"
+        for name in filter(None, git(repo, "ls-files", "-z").split("\0")):
+            if (repo / name).is_file():
+                (system / name).parent.mkdir(parents=True, exist_ok=True)
+                (system / name).write_bytes((repo / name).read_bytes())
+        git(self.root, "init", "-q", "-b", "main", str(system))
+        commit(system, {}, "Initial commit")
+        reset = subprocess.run([sys.executable, str(system / "omoikane" / "bin" / "new-system.py")], cwd=system,
+                               capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(reset.returncode, 0, reset.stdout + reset.stderr)
+        commit(system, {}, "chore: start the store from the template")
+        readme = (system / "README.md").read_text(encoding="utf-8")
+        commit(system, {"README.md": readme + "\nRefunds go back to the card.\n"}, "docs: refunds")
+        self.run_on(system)
+        files = self.inbox()
+        self.assertEqual(sorted(files), ["bootstrap-git-history.md", "bootstrap-readme-md.md"])
+        self.assertEqual(files["bootstrap-readme-md.md"].split("---\n\n", 1)[1].strip(), "Refunds go back to the card.")
+        self.assertNotIn("Initial commit", files["bootstrap-git-history.md"])
+
+    def test_names_and_cut_bodies_leak_nothing(self) -> None:
+        # The inbox name is pushed too, and a token cut by the body limit no longer matched its shape (#84 review).
+        token = "ghp_" + "a1B2" * 9
+        commit(self.project, {"docs/clients/acme-contract.md": "terms\n"},
+               "docs: contract\n\n" + "x" * 990 + " " + token + "\n\nSigned-off-by: Ana <ana@example.invalid>")
+        self.run_on(self.project)
+        self.assertFalse([name for name in self.inbox() if "acme" in name])
+        history = self.inbox()["bootstrap-git-history.md"]
+        self.assertNotIn(token[4:14], history)
+        self.assertNotIn("ana@example.invalid", history)
 
     def test_a_template_remote_never_fetched_stops_the_run(self) -> None:
         git(self.project, "remote", "add", "template", "https://example.invalid/omoikane.git")

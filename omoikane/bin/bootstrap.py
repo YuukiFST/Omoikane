@@ -34,13 +34,21 @@ capture = importlib.import_module("session-capture")
 ROOT_FILES = {"readme", "readme.md", "readme.mdx", "readme.rst", "readme.txt", "contributing.md", ".cursorrules",
               ".windsurfrules", ".clinerules"}
 AGENT_FILES = {"agents.md", "claude.md", "gemini.md"}  # at any depth: a monorepo keeps one per package
+# Folders of other people's code, whose agent files are not this system's rules.
+VENDORED = {"node_modules", "vendor", "third_party", "third-party", ".venv", "venv", "site-packages"}
 DOC_SUFFIXES = {".md", ".mdx", ".rst", ".txt"}
 TEMPLATE_REMOTE = "template"
+# The log entry new-system.py writes: the commit that adds it is where the system's own history starts, whatever
+# its remotes are called (a "Use this template" repository starts from an unrelated commit).
+RESET_MARKER = "init | Memory reset from the Omoikane template"
+MANUAL_HEADING = "# Omoikane — agent operating manual"
 HISTORY_COMMITS = 300  # newest first; a long history past this adds little a rule needs
 BODY_CHARS = 1000
+TRAILER = re.compile(r"(?im)^[a-z][\w-]*-by:.*$\n?")  # Signed-off-by, Co-authored-by: names and emails
 PREFIX = "bootstrap-"
+MAX_SLUG = 150  # file names stay well under the 255 bytes Windows and Linux allow
 # Where the review gate keeps what it ingested until the human's checkout pulls it (review-gate.py).
-GATE_REFS = ("wiki/auto", "origin/wiki/auto")
+GATE_REFS = ("wiki/auto", "origin/wiki/auto", "origin/main")
 
 
 class BootstrapError(Exception):
@@ -63,7 +71,7 @@ def git(repo: Path, *args: str, ok: bool = False) -> str:
 def is_source(path: str) -> bool:
     """Example: is_source("docs/adr/0001.md") and is_source("pkg/CLAUDE.md") are True; "src/a.py" is False."""
     p = PurePosixPath(path.lower())
-    if p.parts[0] == "omoikane":
+    if p.parts[0] == "omoikane" or VENDORED & set(p.parts[:-1]):
         return False
     if len(p.parts) == 1 and p.name in ROOT_FILES or p.name in AGENT_FILES:
         return True
@@ -85,17 +93,35 @@ def tree(project: Path, rev: str) -> dict[str, str]:
     return blobs
 
 
-def template_base(project: Path) -> str | None:
-    """The commit the system branched off the template at, or None outside a system born from it."""
+def is_ancestor(project: Path, older: str, newer: str) -> bool:
+    return subprocess.run(["git", "-C", str(project), "merge-base", "--is-ancestor", older, newer],
+                          capture_output=True).returncode == 0
+
+
+def template_versions(project: Path) -> tuple[str | None, list[str]]:
+    """Where the template ends in this history, and the template's other fetched tips.
+
+    The base is the commit new-system.py's reset entry entered omoikane/log.md in, found by content, so neither a
+    renamed remote nor a "Use this template" repository hides it (#84 second review); else the newest commit HEAD
+    shares with a `template/*` branch. Template tips that hold the base are this system's own branches (a "Use
+    this template" repository named its own remote `template`) and do not count. (None, []) outside a system born
+    from the template.
+    """
+    refs = (git(project, "for-each-ref", "--format=%(refname)", f"refs/remotes/{TEMPLATE_REMOTE}/").split()
+            if TEMPLATE_REMOTE in git(project, "remote").split() else [])
+    reset = git(project, "log", "--format=%H", "-S", RESET_MARKER, "HEAD", "--", "omoikane/log.md").split()
+    if reset:
+        base = reset[-1]  # the oldest: the entry was added there
+        return base, [r for r in refs if not is_ancestor(project, base, r)]
     if TEMPLATE_REMOTE not in git(project, "remote").split():
-        return None
-    refs = git(project, "for-each-ref", "--format=%(refname)", f"refs/remotes/{TEMPLATE_REMOTE}/").split()
+        return None, []
     bases = [b for b in (git(project, "merge-base", "HEAD", ref, ok=True).strip() for ref in refs) if b]
     if not bases:
         raise BootstrapError(f"remote `{TEMPLATE_REMOTE}` has no branch fetched that HEAD shares history with; "
                              f"run `git fetch {TEMPLATE_REMOTE}` first")
-    # The newest common commit across the template's branches: the template's history ends there.
-    return max(bases, key=lambda sha: int(git(project, "show", "-s", "--format=%ct", sha).strip()))
+    # The common commit every other one is an ancestor of: the template's history ends there.
+    newest = [b for b in bases if all(is_ancestor(project, other, b) for other in bases)]
+    return (newest or bases)[0], refs
 
 
 def without_rules(text: str) -> str:
@@ -111,32 +137,54 @@ def added_lines(old: str, new: str) -> str:
                    difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes() if tag in ("insert", "replace"))
 
 
-def content(project: Path, path: str, sha: str, base: dict[str, str] | None) -> str | None:
-    """The text to ingest for one source, or None when it holds nothing of the system's own."""
+def without_manual(text: str) -> str | None:
+    """A project's own text with Omoikane's manual taken out, or None when nothing else is left.
+
+    Example: without_manual("# Shop rules\\n...\\n" + manual) returns "# Shop rules\\n...\\n".
+    """
+    start, end = text.find(MANUAL_HEADING), text.find(RULES_END)
+    if start < 0 or end < start:
+        return None  # the rules block without the heading: cannot tell the manual from the rest
+    rest = text[:start] + text[end + len(RULES_END):]
+    return rest if rest.strip() else None
+
+
+def content(project: Path, path: str, sha: str, template: list[dict[str, str]] | None) -> str | None:
+    """The text to ingest for one source, or None when it holds nothing of the system's own. `template` holds the
+    trees of the template's versions, the base first; a file any of them holds as it is is the template's, and of
+    a file they shipped only the lines none of them has are the system's."""
     text = git(project, "cat-file", "blob", sha)
     if "\0" in text:
         return None  # binary
-    if base is None:
-        return None if RULES_START in text else text  # Omoikane's manual in a project that adopted it
-    if path not in base:
+    if template is None:
+        return without_manual(text) if RULES_START in text else text  # a project that adopted Omoikane
+    shipped = [version[path] for version in template if path in version]
+    if not shipped:
         return text
-    if base[path] == sha:
+    if sha in shipped:
         return None
-    added = added_lines(without_rules(git(project, "cat-file", "blob", base[path])), without_rules(text))
-    return added if added.strip() else None
+    old = [without_rules(git(project, "cat-file", "blob", blob)) for blob in shipped]
+    theirs = {line.strip() for version in old for line in version.splitlines() if line.strip()}
+    added = [line for line in added_lines(old[0], without_rules(text)).splitlines(keepends=True)
+             if line.strip() not in theirs]
+    return "".join(added) if "".join(added).strip() else None
 
 
-def slugs(paths: list[str]) -> dict[str, str]:
-    """Inbox name per path; Unicode letters stay, and two paths that would share a name get a hash of the path.
+def slugs(paths: list[str], terms: list[str]) -> dict[str, str]:
+    """Inbox name per path, from the path with the listed terms redacted (the name is pushed too). Unicode letters
+    stay; a name is cut at MAX_SLUG, and a cut name or two paths that would share one get a hash of the path.
 
-    Example: slugs(["docs/a-b.md", "docs/a/b.md"]) gives two different names.
+    Example: slugs(["docs/a-b.md", "docs/a/b.md"], []) gives two different names.
     """
-    base = {p: re.sub(r"[^\w]+", "-", p.lower()).strip("-_") for p in paths}
+    base = {p: re.sub(r"[^\w]+", "-", capture.redact(p, terms).lower()).strip("-_") for p in paths}
     counts: dict[str, int] = {}
     for name in base.values():
         counts[name] = counts.get(name, 0) + 1
-    return {p: f"{PREFIX}{name}{'' if counts[name] == 1 else '-' + hashlib.sha1(p.encode()).hexdigest()[:6]}.md"
-            for p, name in base.items()}
+
+    def name_of(p: str, name: str) -> str:
+        unique = counts[name] == 1 and len(name) <= MAX_SLUG
+        return f"{PREFIX}{name[:MAX_SLUG]}{'' if unique else '-' + hashlib.sha1(p.encode()).hexdigest()[:6]}.md"
+    return {p: name_of(p, name) for p, name in base.items()}
 
 
 def source_note(project: Path, path: str, text: str, partial: bool) -> str:
@@ -147,16 +195,17 @@ def source_note(project: Path, path: str, text: str, partial: bool) -> str:
             f"`{project.name}`, {when}.{scope}\n\n---\n\n{text}")
 
 
-def history_note(project: Path, base: str | None) -> str | None:
+def history_note(project: Path, exclude: list[str]) -> str | None:
     """The commits of HEAD after the template's, newest first, subject and body. Merge commits are left out: in a
-    pull-request workflow the reasons sit in the branch commits, not in "Merge pull request #n"."""
+    pull-request workflow the reasons sit in the branch commits, not in "Merge pull request #n". Trailers go (they
+    carry names and emails), and a long body is cut with the capture's own marker, so a secret cut short still
+    matches the redaction's rule for clipped tokens."""
     log = git(project, "log", "--no-merges", f"-{HISTORY_COMMITS}", "--format=%x00%cs %h %s%n%b", "HEAD",
-              *([f"^{base}"] if base else []))
+              *(f"^{rev}" for rev in exclude))
     entries = []
     for entry in filter(None, (e.strip() for e in log.split("\0"))):
         head, _, body = entry.partition("\n")
-        body = body.strip()
-        body = body if len(body) <= BODY_CHARS else body[:BODY_CHARS].rstrip() + " [...]"
+        body = capture.clip(TRAILER.sub("", body), BODY_CHARS)
         entries.append(f"## {head}\n\n{body}" if body else f"## {head}")
     if not entries:
         return None
@@ -182,19 +231,20 @@ def bootstrap(project: Path, omoikane: Path = OMOIKANE, redact_file: Path = capt
     if not git(project, "rev-parse", "--verify", "--quiet", "HEAD", ok=True):
         raise BootstrapError("it has no commit yet; bootstrap reads committed files")
     head = tree(project, "HEAD")
-    base_commit = template_base(project)
-    base = tree(project, base_commit) if base_commit else None
+    base, tips = template_versions(project)
+    template = [tree(project, rev) for rev in (base, *tips)] if base else None
+    terms = capture.redaction_terms(redact_file)
     paths = sorted(p for p in head if is_source(p))
-    names = slugs(paths)
+    names = slugs(paths, terms)
     notes: dict[str, str] = {}
     for path in paths:
-        text = content(project, path, head[path], base)
+        text = content(project, path, head[path], template)
         if text is not None:
-            notes[names[path]] = source_note(project, path, text, partial=base is not None and path in base)
-    history = history_note(project, base_commit)
+            partial = template is not None and any(path in version for version in template)
+            notes[names[path]] = source_note(project, path, text, partial)
+    history = history_note(project, [base, *tips] if base else [])
     if history:
         notes[f"{PREFIX}git-history.md"] = history
-    terms = capture.redaction_terms(redact_file)
     inbox = omoikane / "raw" / "inbox"
     written = []
     for name, text in notes.items():
@@ -212,6 +262,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--from", dest="project", type=Path, default=REPO, help="the project to read")
     args = parser.parse_args(argv)
     project = args.project.resolve()
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="backslashreplace")  # a legacy code page cannot print every file name
     try:
         git(project, "rev-parse", "--git-dir")
     except BootstrapError as exc:
@@ -222,11 +274,11 @@ def main(argv: list[str] | None = None) -> int:
     except BootstrapError as exc:
         print(f"bootstrap: {project}: {exc}", file=sys.stderr)
         return 2
-    for name in written:
-        print(f"bootstrap: wrote omoikane/raw/inbox/{name}")
     if written and project != REPO.resolve():
         print(f"bootstrap: these come from {project.name}, another repository; the scheduled run commits and pushes "
               "what it ingests, so read them first and delete what must stay private")
+    for name in written:
+        print(f"bootstrap: wrote omoikane/raw/inbox/{name}")
     print(f"bootstrap: {len(written)} files for /ingest, one agent run each")
     return 0
 
