@@ -145,3 +145,8 @@ Updated: [[review-each-pr-with-a-subagent-before-merging]] (sessions 230a182d, b
 - dropped (not-imperative) handoff-prompt-at-session-end: c14af01e, d4302021 and 1b324082 wrote a handoff prompt because the user asked for one
 - dropped (one-session) kill-the-class-with-a-guard: stated only in 230a182d turn 2, and the user's global CLAUDE.md already says to automate a repeated class of problem
 - dropped (not-imperative) prompt-eval-rule: [[run-a-headless-eval-in-a-throwaway-clone-before-a-prompt-pr]] governs only prompt PRs, not most tasks, so no rule is filed
+
+## [2026-10-02] ingest | 2026-10-02 Omoikane references
+
+Created: [[2026-10-02-omoikane-references]], [[omoikane-references]].
+Updated: [[omoikane-objective]].
