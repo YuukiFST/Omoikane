@@ -28,34 +28,42 @@ HEADER = (
 def compact_index(text: str, budget: int) -> str:
     """Drop the generated header and fill the budget entry by entry, sections in index order (PAGE_TYPES).
 
-    A section larger than the budget keeps its first entries instead of vanishing, so decisions and gotchas
-    survive a long list of sources (#11). Priority is strict: filling stops at the first entry that does not
-    fit, so no source takes the room a longer decision needed. A last line names how many entries each
-    section lost.
+    Two passes. First each section takes its first entries up to a floor, half the budget shared equally, so
+    some 60 domain pages cannot push every decision and gotcha out of the brief (#75). Then the rest of the
+    budget fills in index order, and priority is strict: filling stops at the first entry that does not fit, so
+    no source takes the room a longer decision needed. A section larger than the budget keeps its first entries
+    instead of vanishing (#11). A last line names how many entries each section lost.
 
     Example: compact_index("# Index\\n\\nGenerated...\\n\\n## Decisions (2)\\n\\n- [[x]] — a\\n- [[y]] — b", 40)
     returns "## Decisions (2)\\n\\n- [[x]] — a\\n\\nOmitted by budget: Decisions 1. Read omoikane/index.md for them."
     """
-    kept: list[str] = []
-    omitted: list[str] = []
-    used = 0
-    full = False
+    sections: list[tuple[str, list[str]]] = []
     for section in [s for s in text.split("\n## ") if s.strip()][1:]:
         heading, *lines = section.rstrip().splitlines()
-        entries = [line for line in lines if line.startswith("- ")]
-        cost = len(heading) + 4  # "## " plus the blank line after the heading
-        fit = 0
-        for entry in entries:
-            if full or used + cost + len(entry) + 1 > budget:
-                full = True
-                break
-            cost += len(entry) + 1
-            fit += 1
-        if fit:
-            kept.append("\n".join(["## " + heading, "", *entries[:fit]]))
-            used += cost
-        if fit < len(entries):
-            omitted.append(f"{heading.split(' (')[0]} {len(entries) - fit}")
+        sections.append((heading, [line for line in lines if line.startswith("- ")]))
+    fit = [0] * len(sections)
+
+    def cost(i: int) -> int:
+        """Characters the next entry of section i adds; the first also pays for "## ", the heading, a blank line."""
+        return len(sections[i][1][fit[i]]) + 1 + (len(sections[i][0]) + 4 if fit[i] == 0 else 0)
+
+    floor = budget // (2 * len(sections)) if sections else 0
+    used = 0
+    for i, (_, entries) in enumerate(sections):
+        spent = 0
+        while fit[i] < len(entries) and spent + cost(i) <= floor:
+            spent += cost(i)
+            fit[i] += 1
+        used += spent
+    for i, (_, entries) in enumerate(sections):
+        while fit[i] < len(entries) and used + cost(i) <= budget:
+            used += cost(i)
+            fit[i] += 1
+        if fit[i] < len(entries):
+            break
+    kept = ["\n".join(["## " + heading, "", *entries[:n]]) for (heading, entries), n in zip(sections, fit) if n]
+    omitted = [f"{heading.split(' (')[0]} {len(entries) - n}"
+               for (heading, entries), n in zip(sections, fit) if n < len(entries)]
     if omitted:
         kept.append(f"Omitted by budget: {', '.join(omitted)}. Read omoikane/index.md for them.")
     return "\n\n".join(kept)

@@ -55,7 +55,8 @@ coding session ends a turn  --stop hook of the harness-->  omoikane/bin/session-
 
 new session starts  --start hook of the harness-->  omoikane/bin/session-context.py
    prints pending work (undistilled captures, open _review.md items), then omoikane/index.md
-   index filled entry by entry in PAGE_TYPES order up to a character budget; a last line counts what was omitted
+   index filled entry by entry up to a character budget: each section first gets a floor (half the budget,
+   shared equally), the rest goes in PAGE_TYPES order; a last line counts what was omitted
 ```
 
 Why the hook and not the agent: an instruction "save what is valuable" fails silently when the agent forgets or when the session is cut short. The harness fires the hook every time.

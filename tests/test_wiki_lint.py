@@ -298,6 +298,21 @@ class CompactIndex(unittest.TestCase):
     def test_no_omitted_line_when_everything_fits(self) -> None:
         self.assertNotIn("Omitted", context.compact_index(self.INDEX, 12_000))
 
+    def test_many_domain_pages_leave_room_for_every_section(self) -> None:
+        # About 60 domain pages filled the 12,000 characters, and no decision or gotcha reached the brief (#75).
+        def section(name: str, slug: str, n: int) -> str:
+            return f"## {name} ({n})\n\n" + "\n".join(f"- [[{slug}{i}]] — {'r' * 150}" for i in range(n))
+
+        index = "# Index\n\n" + "\n\n".join(section(*s) for s in (("Domain", "rule", 80), ("Decisions", "dec", 20),
+                                                                     ("Gotchas", "got", 20), ("Sources", "src", 20)))
+        out = context.compact_index(index, 12_000)
+        self.assertLessEqual(len(out) - len(out.rsplit("\n\n", 1)[1]), 12_000)
+        for first in ("[[dec0]]", "[[got0]]", "[[src0]]"):
+            self.assertIn(first, out)
+        # Domain still leads and keeps the largest share.
+        self.assertTrue(out.startswith("## Domain (80)"))
+        self.assertGreater(out.count("[[rule"), out.count("[[dec") + out.count("[[got") + out.count("[[src"))
+
 
 class RenderIndex(unittest.TestCase):
     def test_marked_page_shows_its_mark(self) -> None:
