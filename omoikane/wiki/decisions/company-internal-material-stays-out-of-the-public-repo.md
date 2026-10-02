@@ -8,7 +8,7 @@ updated: 2026-10-02
 sources: [wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-01-b5b6fb27.md]
 ---
 
-For the third front, a subagent mapped how a company-internal starter kit governs knowledge, read only through `git show origin/main` (source: [[session-2026-09-30-230a182d]], turn 4).
+For the third front, a subagent mapped how a company-internal kit governs knowledge, read only through `git show origin/main` (source: [[session-2026-09-30-230a182d]], turn 4).
 The agent's note: "Omoikane é **público**: o mapa do [redacted] (interno da empresa) não pode ir para o repo. Salvo fora dos repositórios." (turn 4).
 The map was written to a private note outside every repository, next to the handoff prompt (turn 4).
 
@@ -16,5 +16,3 @@ The rejected alternative is the repository itself, which is public (turn 4).
 
 The next session kept to it for the organisation knowledge design: the generic spec and `org-candidates.py` went to the Omoikane branch `feat/52-org-candidates`, while the changes for the kit went into a private note as proposed diffs, not applied (source: [[session-2026-10-01-b5b6fb27]], turn 2).
 The agent read the kit's files "só via `git show` (sem tocar no checkout)" (turn 2).
-
-The kit's name itself is company material: it is kept out of pages, logs and captures, and listed in the gitignored `omoikane/.capture-redact` so a capture never carries it (#62, #63).
