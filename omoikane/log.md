@@ -104,3 +104,8 @@ The user asked that the name of a company-internal starter kit appear nowhere in
 - removed (todo) switch-on-autonomous-loop
 - removed (todo) omoikane-knowledge-for-redacted
 - removed (todo) finish-review-gate-45
+
+## [2026-10-02] ingest | 2026-10-02 Omoikane objective
+
+Created: [[2026-10-02-omoikane-objective]], [[omoikane-objective]], [[omoikane-holds-its-systems-domain-knowledge-itself]].
+Updated: [[company-internal-material-stays-out-of-the-public-repo]], [[session-2026-10-01-b5b6fb27]].

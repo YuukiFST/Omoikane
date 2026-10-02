@@ -5,7 +5,7 @@ summary: Omoikane is public; material from the user's company, its name included
 tags: [privacy, public-repo]
 created: 2026-10-01
 updated: 2026-10-02
-sources: [wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-01-b5b6fb27.md]
+sources: [wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-01-b5b6fb27.md, wiki/sources/2026-10-02-omoikane-objective.md]
 ---
 
 For the third front, a subagent mapped how a company-internal kit governs knowledge, read only through `git show origin/main` (source: [[session-2026-09-30-230a182d]], turn 4).
@@ -16,3 +16,6 @@ The rejected alternative is the repository itself, which is public (turn 4).
 
 The next session kept to it for the organisation knowledge design: the generic spec and `org-candidates.py` went to the Omoikane branch `feat/52-org-candidates`, while the changes for the kit went into a private note as proposed diffs, not applied (source: [[session-2026-10-01-b5b6fb27]], turn 2).
 The agent read the kit's files "só via `git show` (sem tocar no checkout)" (turn 2).
+
+The user later said the kit was only an example and that Omoikane "não tem nenhuma relação com esse toolkit: não integra, não alimenta, não lê"; the kit's name must not appear in this public repository (source: [[2026-10-02-omoikane-objective]]).
+The organisation knowledge design above was reversed: [[omoikane-holds-its-systems-domain-knowledge-itself]].
