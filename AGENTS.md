@@ -11,7 +11,7 @@ Everything Omoikane owns lives under `omoikane/`; the repository root belongs to
 - `omoikane/raw/sources/` — ingested sources. Immutable. Never edit, never delete. Distilled sessions sit in `sessions/`.
 - `omoikane/raw/assets/` — images downloaded by Obsidian. Read only.
 - `omoikane/wiki/sources/` — one page per ingested source or distilled session.
-- `omoikane/wiki/domain/` — a business rule, design-system rule or convention the human stated; `summary` is the rule.
+- `omoikane/wiki/domain/` — a business rule, design-system rule, convention or term the human stated; `summary` is the rule, or the term's definition. Tags: `business-rule`, `design-system`, `convention`, `term`.
 - `omoikane/wiki/decisions/` — a choice made, the alternatives rejected, the reason.
 - `omoikane/wiki/gotchas/` — behaviour learned by running something, and the workaround.
 - `omoikane/wiki/practices/` — a procedure or a user preference seen in two or more sessions.
