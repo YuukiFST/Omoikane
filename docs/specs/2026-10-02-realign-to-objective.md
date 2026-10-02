@@ -14,7 +14,7 @@ Criterion for any work in this repository: does it improve the tool towards this
 ## What went wrong
 
 An example of the kind of knowledge to remember (a company's internal starter kit that holds its business rules and design system) was read as "integrate Omoikane with that kit".
-Result: PR #55 (`docs/specs/2026-10-01-org-knowledge.md`, `omoikane/bin/org-candidates.py`), whose central decision (`docs/specs/2026-10-01-org-knowledge.md:35`) keeps organisation knowledge out of Omoikane, the opposite of the objective, plus references to the kit's name in the public wiki.
+Result: PR #55 (`docs/specs/2026-10-01-org-knowledge.md`, `omoikane/bin/org-candidates.py`), whose central decision (`018e1eb:docs/specs/2026-10-01-org-knowledge.md`, line 35; the file is removed by #68) keeps organisation knowledge out of Omoikane, the opposite of the objective, plus references to the kit's name in the public wiki.
 
 ## 1. Where the objective is recorded
 
