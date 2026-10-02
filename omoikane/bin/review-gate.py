@@ -226,15 +226,25 @@ def take_landed(worktree: Path, regenerate: Callable[[Path], None]) -> None:
 
 def move_captures(repo: Path, worktree: Path, quiet_minutes: int, now: float) -> list[str]:
     """Move inbox files from the checkout into the worktree. A captured session modified in the last
-    `quiet_minutes` may still be growing (the Stop hook rewrites it every turn) and stays.
+    `quiet_minutes` may still be growing (the Stop hook rewrites it every turn) and stays. So does a file
+    origin/main holds byte for byte: the worktree gets it from main, and moving it would leave a deletion in the
+    human's checkout (#78). A tracked file the human edited, or never pushed, still moves: main has not got it.
     Example: move_captures(repo, work, 30, time.time()) returns ["omoikane/raw/inbox/sessions/<day>-<id8>.md"].
     """
     moved: list[str] = []
     inbox = repo / INBOX
+    # On Windows the disk may spell a name in another case than the tree; a case-only rename must still match.
+    ignorecase = subprocess.run(["git", "-C", str(repo), "config", "--bool", "core.ignorecase"], capture_output=True,
+                                text=True, check=False).stdout.strip() == "true"  # unset, exit 1, on Linux
+    fold = str.casefold if ignorecase else str
+    on_main = {fold(line.split("\t", 1)[1]): line.split()[2]
+               for line in git(repo, "ls-tree", "-r", "-z", "origin/main", "--", INBOX.as_posix()).split("\0") if line}
     for path in sorted(p for p in inbox.rglob("*") if p.is_file() and p.name != ".gitkeep") if inbox.is_dir() else []:
         if path.parent.name == "sessions" and path.stat().st_mtime > now - quiet_minutes * 60:
             continue
         rel = path.relative_to(repo).as_posix()
+        if fold(rel) in on_main and git(repo, "hash-object", "--", rel).strip() == on_main[fold(rel)]:
+            continue
         (worktree / rel).parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(path), str(worktree / rel))
         moved.append(rel)
