@@ -32,6 +32,8 @@ from wikilib import OMOIKANE, parse_frontmatter
 
 INBOX = OMOIKANE / "raw" / "inbox" / "sessions"
 INGESTED = OMOIKANE / "raw" / "sources" / "sessions"
+# The review gate commits its distills here before the human merges them (review-gate.py).
+AUTO_BRANCH = "wiki/auto"
 NO_CAPTURE_ENV = "OMOIKANE_NO_CAPTURE"
 # Headless runs of these commands are Omoikane maintaining itself; capturing them would loop forever. Read from
 # the prompt files so a new operation cannot be left out of the list.
@@ -445,12 +447,23 @@ def render(session: Session, turns: list[Turn], part: int, worktree: list[str]) 
     return "\n".join(out).rstrip() + "\n"
 
 
-def ingested_parts(session: Session) -> list[int]:
+def ingested_parts(session: Session, ingested: Path = INGESTED, repo: Path = OMOIKANE.parent) -> list[int]:
     """`turns:` of every distilled part of this session under raw/sources/sessions/, matched by the full session id
-    in the frontmatter, so the file-name scheme can change without losing continuation."""
+    in the frontmatter, so the file-name scheme can change without losing continuation.
+
+    Also on the review gate's branch: a part it distilled stays on wiki/auto until the human merges the PR and
+    pulls (#45), and a session that goes on meanwhile must not capture those turns again.
+    Example: ingested_parts(Session(session_id="abcdef12-0000", ...)) returns [2] after a two-turn distill.
+    """
+    texts = {path.name: path.read_text(encoding="utf-8") for path in ingested.glob(f"{session.day}-*.md")}
+    folder = ingested.relative_to(repo).as_posix() if ingested.is_relative_to(repo) else ""
+    for name in run_git(str(repo), "ls-tree", "--name-only", AUTO_BRANCH, f"{folder}/").split() if folder else []:
+        base = name.rsplit("/", 1)[-1]
+        if base.startswith(f"{session.day}-") and base not in texts:
+            texts[base] = run_git(str(repo), "show", f"{AUTO_BRANCH}:{name}")
     parts: list[int] = []
-    for path in INGESTED.glob(f"{session.day}-*.md"):
-        parsed = parse_frontmatter(path.read_text(encoding="utf-8"))
+    for text in texts.values():
+        parsed = parse_frontmatter(text)
         if parsed and str(parsed[0].get("session")) == session.session_id:
             parts.append(int(str(parsed[0].get("turns", 0)) or 0))
     return parts

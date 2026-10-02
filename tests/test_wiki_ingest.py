@@ -17,6 +17,8 @@ import time
 import unittest
 from pathlib import Path
 
+from test_review_gate import FAKE_GH
+
 REPO = Path(__file__).resolve().parent.parent
 PWSH = shutil.which("pwsh")
 
@@ -53,7 +55,7 @@ FAKE_AGENT = textwrap.dedent('''
     page = "---\\ntitle: {0}\\ntype: concept\\nsummary: s\\ntags: []\\ncreated: 2026-10-01\\nupdated: 2026-10-01\\nsources: []\\n---\\n{1}\\n"
     mode = os.environ["FAKE_MODE"]
     review = Path("omoikane/_review.md")
-    if mode == "escape":
+    if mode == "escape" or (mode == "escape-on-distill" and op == "distill"):
         Path("AGENTS.md").write_text("# Manual, rewritten by the agent\\n", encoding="utf-8")
     elif mode == "corrupt-index":
         Path(".git/index").write_bytes(b"not an index")
@@ -84,8 +86,9 @@ def git(repo: Path, *args: str) -> str:
                           check=True).stdout
 
 
-@unittest.skipUnless(PWSH or os.environ.get("CI"), "pwsh not on PATH")
-class WikiIngest(unittest.TestCase):
+class IngestFixture:
+    """A throwaway Omoikane repository, with fake `claude`, `opencode` and `gh` first on PATH."""
+
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         root = Path(self.tmp.name)
@@ -115,14 +118,22 @@ class WikiIngest(unittest.TestCase):
             (shims / harness).write_text(
                 f'#!/bin/sh\nexec "{sys.executable}" "{shims / "fake_agent.py"}" {harness} "$@"\n', encoding="utf-8")
             (shims / harness).chmod(0o755)
-        self.env = {**os.environ, "PATH": f"{shims}{os.pathsep}{os.environ['PATH']}", "FAKE_LOG": str(self.calls)}
+        # review-gate.py runs gh as a process, not through pwsh: a .cmd on Windows, a script elsewhere.
+        (shims / "fake_gh.py").write_text(FAKE_GH, encoding="utf-8")
+        (shims / "gh.cmd").write_text(f'@"{sys.executable}" "{shims / "fake_gh.py"}" %*\r\n', encoding="utf-8")
+        (shims / "gh").write_text(f'#!/bin/sh\nexec "{sys.executable}" "{shims / "fake_gh.py"}" "$@"\n', encoding="utf-8")
+        (shims / "gh").chmod(0o755)
+        self.gh_log = root / "gh.jsonl"
+        self.env = {**os.environ, "PATH": f"{shims}{os.pathsep}{os.environ['PATH']}", "FAKE_LOG": str(self.calls),
+                    "FAKE_GH_LOG": str(self.gh_log), "FAKE_GH_STATE": str(root / "gh.state")}
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def ingest(self, mode: str, *args: str, **env: str) -> subprocess.CompletedProcess[str]:
+    def ingest(self, mode: str, *args: str, gate: bool = False, **env: str) -> subprocess.CompletedProcess[str]:
+        """Run wiki-ingest.ps1 -Commit; without `gate`, as the review gate runs it inside its worktree (-NoGate)."""
         return subprocess.run([str(PWSH), "-NoProfile", "-File", str(self.repo / "omoikane/bin/wiki-ingest.ps1"),
-                               "-Commit", *(args or ("-SynthesizeEvery", "0"))],
+                               "-Commit", *(() if gate else ("-NoGate",)), *(args or ("-SynthesizeEvery", "0"))],
                               env={**self.env, "FAKE_MODE": mode, **env}, stdin=subprocess.DEVNULL,
                               capture_output=True, text=True, encoding="utf-8", timeout=300)
 
@@ -135,6 +146,9 @@ class WikiIngest(unittest.TestCase):
     def commits(self) -> list[str]:
         return git(self.repo, "log", "--format=%s").splitlines()
 
+
+@unittest.skipUnless(PWSH or os.environ.get("CI"), "pwsh not on PATH")
+class WikiIngest(IngestFixture, unittest.TestCase):
     def assert_blocked(self, run: subprocess.CompletedProcess[str]) -> None:
         self.assertNotEqual(run.returncode, 0, run.stdout)
         self.assertTrue((self.repo / "omoikane/.wiki-ingest.blocked").is_file(), run.stdout + run.stderr)
@@ -295,6 +309,57 @@ class WikiIngest(unittest.TestCase):
         self.assertEqual(self.commits(), ["feat(wiki): synthesize sessions", "feat(wiki): distill 2026-09-30-quiet001", "init"])
         # The fake wrote no synthesize heading, so the script did, or every later run would start it again.
         self.assertIn("synthesize | ended without a log entry", git(self.repo, "show", "HEAD:omoikane/log.md"))
+
+
+@unittest.skipUnless(PWSH or os.environ.get("CI"), "pwsh not on PATH")
+class ReviewGateRun(IngestFixture, unittest.TestCase):
+    """`wiki-ingest.ps1 -Commit` as the schedule runs it: through the review gate, with a local git origin (#45)."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        root = Path(self.tmp.name)
+        self.origin, self.work = root / "origin.git", root / "repo-wiki-auto"
+        git(root, "init", "-q", "--bare", "-b", "main", str(self.origin))
+        git(self.repo, "branch", "-M", "main")
+        git(self.repo, "remote", "add", "origin", str(self.origin))
+        git(self.repo, "push", "-q", "-u", "origin", "main")
+        session = self.repo / "omoikane/raw/inbox/sessions/2026-09-30-quiet001.md"
+        session.parent.mkdir()
+        session.write_text("a finished coding session\n", encoding="utf-8")
+        old = time.time() - 3600
+        os.utime(session, (old, old))
+
+    def tearDown(self) -> None:
+        subprocess.run(["git", "-C", str(self.repo), "worktree", "remove", "--force", str(self.work)], capture_output=True)
+        super().tearDown()
+
+    def gh_calls(self) -> list[list[str]]:
+        return [json.loads(line) for line in self.gh_log.read_text(encoding="utf-8").splitlines()] if self.gh_log.exists() else []
+
+    def test_the_run_commits_on_wiki_auto_and_opens_one_pr_leaving_the_checkout_alone(self) -> None:
+        run = self.ingest("distill", gate=True)
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertEqual((git(self.repo, "branch", "--show-current").strip(), self.commits()), ("main", ["init"]))
+        self.assertEqual(git(self.repo, "status", "--porcelain", "--untracked-files=all"), "")  # inbox moved out
+        self.assertEqual(git(self.origin, "log", "--format=%s", "main..wiki/auto").splitlines(),
+                         ["feat(wiki): distill 2026-09-30-quiet001", "feat(wiki): ingest article"])
+        self.assertEqual([c[:2] for c in self.gh_calls()].count(["pr", "create"]), 1)
+        # Nothing new: the next run commits nothing and opens no second PR.
+        self.assertEqual(self.ingest("distill", gate=True).returncode, 0)
+        self.assertEqual([c[:2] for c in self.gh_calls()].count(["pr", "create"]), 1)
+
+    def test_a_blocked_run_publishes_nothing_it_committed(self) -> None:
+        # The ingest commits before the distill leaves its scope: publishing after a failed run would push it.
+        run = self.ingest("escape-on-distill", gate=True)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertTrue((self.work / "omoikane/.wiki-ingest.blocked").is_file(), run.stdout + run.stderr)
+        self.assertIn("feat(wiki): ingest article", git(self.work, "log", "--format=%s"))
+        self.assertEqual(git(self.origin, "branch", "--list", "wiki/auto"), "")
+        self.assertEqual(self.gh_calls(), [])
+        self.assertEqual(self.commits(), ["init"])
+        # The next run stops at the marker instead of merging into the blocked worktree.
+        self.assertNotEqual(self.ingest("none", gate=True).returncode, 0)
+        self.assertIn(".wiki-ingest.blocked", (self.repo / "omoikane/.wiki-ingest.log").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
