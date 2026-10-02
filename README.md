@@ -11,7 +11,7 @@ Built on Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893
 ## Two uses, one layout
 
 - **Research.** Drop sources into the inbox; the agent ingests them into entity, concept and source pages.
-- **Build.** Clone this repository as the root of a new system. Code lives at the root; `omoikane/` is its memory. Every coding session that edits files is captured on stop and distilled into decision and gotcha pages, and every new session starts with the wiki index in context.
+- **Build.** Clone this repository as the root of a new system and run `python omoikane/bin/new-system.py` (Setup, below). Code lives at the root; `omoikane/` is its memory. Every coding session that edits files is captured on stop and distilled into decision and gotcha pages, and every new session starts with the wiki index in context.
 
 ## How it works
 
@@ -36,6 +36,7 @@ Built on Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893
 | Promote rules ticked in `_review.md` into `AGENTS.md` | `python omoikane/bin/wiki-rules.py` | same |
 | Measure what every session loads | `python omoikane/bin/context-budget.py` | same |
 | Rebuild index | `python omoikane/bin/wiki-index.py` | same |
+| Start a new system from a fresh clone | `python omoikane/bin/new-system.py` | same |
 | Tests | `python -m unittest discover -s tests` | same |
 
 Both agents run the same prompt files in `omoikane/prompts/`; the skill and command folders are thin wrappers.
@@ -60,8 +61,12 @@ Manual capture from a saved session: `python omoikane/bin/session-capture.py --h
 git clone <repo> my-project
 cd my-project
 python -m unittest discover -s tests       # sanity check
+python omoikane/bin/new-system.py          # empty the template's own memory; then commit
+git remote add origin <new-system-url>     # the script renamed the template's remote to `template`
 omoikane/bin/install-schedule.ps1          # optional: Task Scheduler job every 30 min
 ```
+
+`new-system.py` removes the wiki, log entries, review items and captures the template carries about its own development, which the brief would otherwise inject into every session of the new system. It refuses a tree with uncommitted changes and commits nothing, so `git restore .` undoes it. It also renames `origin` to `template`: the scheduled run publishes to `origin`, and the new system's pages must not reach the template. `docs/specs/` holds the template's own plans; delete it or keep it as history.
 
 Requirements: Python 3.11+, `claude` or `opencode` on PATH (they run the wiki operations; `pi` sessions are captured but Pi has no `/ingest`, `/distill`, `/ask`, `/lint` yet), git.
 
