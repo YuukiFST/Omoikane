@@ -1,5 +1,7 @@
 # Architecture
 
+Objective: every new system starts from this template, and its agents feed the wiki on their own with what the user states while building, domain knowledge included (business rules, design system, organisation conventions). A change to this repository is worth making only when it moves the tool towards that; the plan that set it down is [specs/2026-10-02-realign-to-objective.md](specs/2026-10-02-realign-to-objective.md).
+
 Three layers, as in Karpathy's LLM Wiki pattern, plus one rule that makes it run unattended: bookkeeping is code, only meaning goes through the LLM.
 
 ## Layers
@@ -46,6 +48,7 @@ Deleting a bullet is the whole rejection. At the start of each scheduled run, `o
 coding session ends a turn  --stop hook of the harness-->  omoikane/bin/session-capture.py --harness <claude|pi|opencode>
    reads the harness transcript, no LLM
    skips: OMOIKANE_NO_CAPTURE set, first prompt runs an operation of omoikane/prompts/, no file edited, subagent session
+   replaces every term listed in omoikane/.capture-redact (gitignored) with [redacted]
    writes omoikane/raw/inbox/sessions/<date>-<id8>.md   (rewritten on every turn: idempotent)
 
 new session starts  --start hook of the harness-->  omoikane/bin/session-context.py
@@ -56,6 +59,8 @@ new session starts  --start hook of the harness-->  omoikane/bin/session-context
 Why the hook and not the agent: an instruction "save what is valuable" fails silently when the agent forgets or when the session is cut short. The harness fires the hook every time.
 
 Why capture without an LLM: the hook runs on every turn and must return in well under a second. Selection happens once, in `/distill`, on the scheduled run.
+
+Why redact at capture: the scheduled run commits and pushes every capture, and under `raw/sources/` it is immutable, so a name the user does not want published (an organisation, a customer, a private path) has to be gone before the file is written (#62). The list stays out of git because it names what it hides. A term matches in any case, with `\` and `/` interchangeable and any whitespace run between its words, and the start of a term cut by a clip goes too; the frontmatter keys continuation reads (`session`, `turns`, ...) are left alone. Each drive spelling of a path (`C:/x`, `/c/x`) is a separate line. The list is per checkout: a session in a linked worktree reads that worktree's file. A redacted term in the middle of a path or command loses that detail for `/distill`; the alternative was a hand redaction after the fact (`286fbc6`), which reaches the remote only if someone remembers.
 
 Why the quiet period: Stop fires per turn, so a session file may still be growing. `wiki-ingest.ps1` waits until the file has been untouched for `-QuietMinutes`. A session that continues after its file was distilled produces a `-part2` file with only the turns not yet covered; `session-capture.py` reads `turns:` from the distilled copy under `raw/sources/sessions/`.
 
@@ -91,7 +96,7 @@ The objective names it: the business rules, design system and organisation conve
 
 Why a type of its own (#64):
 
-- The existing types were shaped for lessons about code. A practice needs two sessions; a rule the user states once is already true. A decision needs rejected alternatives; "prices are integer cents" has none. A concept page is not imperative, has no source floor and is cut first from the brief.
+- The existing types were shaped for lessons about code. A practice needs two sessions; a rule the user states once is already true. A decision needs rejected alternatives; "prices are integer cents" has none. A concept page is not imperative, has no source floor and comes after decisions, gotchas and practices in the brief.
 - One type, not three: a business rule, a design-system rule and a convention share the lifecycle (stated by an authority, valid from one statement, may contradict the code, needs the statement). Tags tell them apart.
 - `wiki-lint.py` fails a domain page that cites no existing source page: a rule nobody stated is the agent's guess, and every later session would obey it. `session-context.py` lists domain pages first, so the brief cuts them last.
 
@@ -121,11 +126,6 @@ Why a cap of 15 and a budget gate: `AGENTS.md` is a shared budget, and adherence
   - OpenCode: `opencode run --pure --agent omoikane-headless-<random>` with the prompt as the message; the agent is defined in `OPENCODE_CONFIG_CONTENT`, every permission map opening with `"*": "deny"`. Why an agent: OpenCode merges config maps key by key, so a user's `"bash": {"*": "allow", "git *": "allow"}` kept `git *` after a top-level `"*": "deny"`, and the last matching rule wins; agent rules come after the top-level ones. Why a random name: a same-named agent in the user's config merges into it the same way. Why not `--command`: a command's own `agent` overrides `--agent`. No rule restricts `apply_patch`: OpenCode offers it in place of edit and write to a gpt- model, it checks `edit` on the source of a move only, and a deny on it maps onto `edit`. So before each call `wiki-ingest.ps1` reads the tools OpenCode resolves (`opencode debug agent`, no model call) and refuses to run when any tool outside the scope is offered. `--pure` keeps user plugins out; user MCP servers still start, and `read` denies their resources.
 - Permission rules belong to the harness and have holes the harness owns, so `wiki-ingest.ps1` also snapshots the tree (HEAD, the staged tree, a hash of every changed or untracked file, size and mtime of every ignored one: a user's global git ignore hides paths such as `.claude/settings.local.json` from `git status`; the git hooks, `info/exclude`, `info/attributes` and the config keys that can run code, which the git commands after the agent run or read; not `branch.*`, `remote.*` or `info/refs`, which routine git work in any worktree of the repository rewrites) before each operation and runs `headless-scope.py verify` after every agent call, from a private copy under `python -I` so nothing the agent wrote is on its path. A change outside the scope writes `omoikane/.wiki-ingest.blocked` (under the review gate, in its worktree), stops the run with nothing committed and makes every later run refuse until the human deletes the file; nothing is restored, the human reads what happened. A check that fails to give a verdict blocks the same way (a crash of `verify` once failed open), and so does a failure of `review-ticks.py`, `wiki-index.py`, `git add` or `git commit`. `-Commit` commits only the paths an operation may change, the moved source by name, and nothing the human had staged. It refuses to start an operation while those paths hold uncommitted changes, and a failed operation that left some blocks the run: the next commit would otherwise take them under its own message. Not seen by the check: paths outside the repository and the inside of a nested repository. Anything else writing ignored files during a run (a coding session's `__pycache__`, an editor's state) blocks it, so a scheduled run needs a tree nobody else works in (the review gate gives it its own worktree). Any `[x]` tick the run adds to `_review.md` is undone by `review-ticks.py`, since ticking is the human's approval.
 - `session-capture.py` and `session-context.py` never exit non-zero: a failure there must not stop the harness.
-
-## Across systems
-
-An organisation that builds several systems has one wiki per system. `omoikane/bin/org-candidates.py` reads them and lists the decisions, gotchas and practices whose `org:` key or slug appears in two or more systems, frontmatter only, as proposals for the organisation's own knowledge base.
-Why not an organisation-wide wiki: the organisation usually curates one already (a starter kit, a standards repository), and a second home for the same rules drifts from it. Omoikane feeds that base and leaves the decision to its intake. Design and rejected alternatives: [docs/specs/2026-10-01-org-knowledge.md](specs/2026-10-01-org-knowledge.md).
 
 ## Where the human stays
 
