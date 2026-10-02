@@ -63,6 +63,7 @@ git clone <repo> my-project
 cd my-project
 python -m unittest discover -s tests       # sanity check
 python omoikane/bin/new-system.py          # empty the template's own memory; then commit
+                                           # --from <another system>: keep its conventions and design-system rules
 git remote add origin <new-system-url>     # the script renamed the template's remote to `template`
 omoikane/bin/install-schedule.ps1          # optional: Task Scheduler job every 30 min
 ```

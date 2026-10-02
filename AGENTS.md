@@ -14,7 +14,7 @@ Everything Omoikane owns lives under `omoikane/`; the repository root belongs to
 - `omoikane/wiki/domain/` — a business rule, design-system rule or convention the human stated; `summary` is the rule.
 - `omoikane/wiki/decisions/` — a choice made, the alternatives rejected, the reason.
 - `omoikane/wiki/gotchas/` — behaviour learned by running something, and the workaround.
-- `omoikane/wiki/practices/` — a procedure or a user preference seen in two or more sessions, written by `/synthesize`.
+- `omoikane/wiki/practices/` — a procedure or a user preference seen in two or more sessions.
 - `omoikane/wiki/entities/` — people, organisations, products, places, modules, libraries.
 - `omoikane/wiki/concepts/` — ideas, methods, recurring themes, comparisons.
 - `omoikane/wiki/queries/` — filed answers to questions.
@@ -80,7 +80,7 @@ A scheduled run (`wiki-ingest.ps1`) has no shell: skip these commands; lint runs
 
 ## Rules
 
-Practices the human approved for every session. `python omoikane/bin/wiki-rules.py` promotes the rule proposals ticked in `omoikane/_review.md` into this block, at most 15; the human deletes a line to retire it. `python omoikane/bin/context-budget.py` fails CI when this file, the skill descriptions or the session brief outgrow their budget.
+Practices and domain rules the human approved for every session. `python omoikane/bin/wiki-rules.py` promotes the rule proposals ticked in `omoikane/_review.md` into this block, at most 15; the human deletes a line to retire it. `python omoikane/bin/context-budget.py` fails CI when this file, the skill descriptions or the session brief outgrow their budget.
 
 <!-- omoikane:rules:start -->
 - Before merging a PR, post a subagent review on it and fix the real findings; merge only when the user authorized it (omoikane/wiki/practices/review-each-pr-with-a-subagent-before-merging.md)
