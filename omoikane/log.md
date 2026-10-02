@@ -88,3 +88,7 @@ Updated: [[headless-runs-have-no-shell]], [[company-internal-material-stays-out-
 - removed (todo) merge-escape-edit-hook-pr-49
 - removed (todo) merge-rule-promotion-pr-50
 - removed (todo) open-org-knowledge-pr-52
+
+## [2026-10-02] distill | session b5b6fb27 | nothing kept
+
+Part 2 holds one captured turn: a handoff prompt restating the merged PRs and the open review gate PR #56 (since merged), clipped before any new finding.
