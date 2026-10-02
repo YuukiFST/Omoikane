@@ -23,7 +23,7 @@ The template's repository is built with Omoikane too, so its `omoikane/` holds t
 ```
 omoikane/raw/inbox/*           --Task Scheduler (omoikane/bin/install-schedule.ps1)-->  omoikane/bin/wiki-ingest.ps1 -Commit
    review-gate.py prepare        worktree <repo>-wiki-auto on wiki/auto: merge origin/wiki/auto, then origin/main;
-                                 move the quiet untracked inbox files into it (a tracked one comes with main)
+                                 move the quiet inbox files into it, except those origin/main holds as they are
    <worktree>/omoikane/bin/wiki-ingest.ps1 -Commit -NoGate
      for each file:  claude -p "/ingest <file>"      plain source   (or opencode run)
                      claude -p "/distill <file>"     captured session, only when idle > 30 min
