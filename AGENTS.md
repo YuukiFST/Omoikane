@@ -11,6 +11,7 @@ Everything Omoikane owns lives under `omoikane/`; the repository root belongs to
 - `omoikane/raw/sources/` — ingested sources. Immutable. Never edit, never delete. Distilled sessions sit in `sessions/`.
 - `omoikane/raw/assets/` — images downloaded by Obsidian. Read only.
 - `omoikane/wiki/sources/` — one page per ingested source or distilled session.
+- `omoikane/wiki/domain/` — a business rule, design-system rule or convention the human stated; `summary` is the rule.
 - `omoikane/wiki/decisions/` — a choice made, the alternatives rejected, the reason.
 - `omoikane/wiki/gotchas/` — behaviour learned by running something, and the workaround.
 - `omoikane/wiki/practices/` — a procedure or a user preference seen in two or more sessions, written by `/synthesize`.
@@ -28,7 +29,7 @@ Every page under `omoikane/wiki/` starts with this frontmatter; `wiki-index.py` 
 ```yaml
 ---
 title: Exact page title
-type: source | entity | concept | query | decision | gotcha | practice
+type: source | entity | concept | query | domain | decision | gotcha | practice
 summary: One line, under 120 characters, used verbatim in index.md
 tags: [tag-a, tag-b]
 created: YYYY-MM-DD                 # when this wiki page was written, not the source
@@ -84,7 +85,3 @@ Practices the human approved for every session. `python omoikane/bin/wiki-rules.
 <!-- omoikane:rules:start -->
 - Before merging a PR, post a subagent review on it and fix the real findings; merge only when the user authorized it (omoikane/wiki/practices/review-each-pr-with-a-subagent-before-merging.md)
 <!-- omoikane:rules:end -->
-
-## Domain
-
-<!-- The human fills this in. Until then, treat sources as general reading. -->

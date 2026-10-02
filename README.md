@@ -19,7 +19,7 @@ Built on Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893
 2. `omoikane/bin/wiki-ingest.ps1` runs on a schedule, calls the agent once per file (`/ingest` for sources, `/distill` for sessions), moves the file to `omoikane/raw/sources/`.
 3. The agent writes and updates pages under `omoikane/wiki/`, appends to `omoikane/log.md`, and leaves anything it could not decide in `omoikane/_review.md`.
 4. `wiki-index.py` regenerates `omoikane/index.md` from page frontmatter. `wiki-lint.py` checks links, orphans, frontmatter and `code:` paths without an LLM.
-5. The `SessionStart` hook (`omoikane/bin/session-context.py`) injects the index into every new session, decisions and gotchas first, plus any captured session not yet distilled. You read the wiki in Obsidian (vault: `omoikane/`), answer `_review.md`, and ask questions with `/ask`.
+5. The `SessionStart` hook (`omoikane/bin/session-context.py`) injects the index into every new session, domain rules, decisions and gotchas first, plus any captured session not yet distilled. You read the wiki in Obsidian (vault: `omoikane/`), answer `_review.md`, and ask questions with `/ask`.
 
 ## Commands
 
