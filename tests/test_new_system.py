@@ -21,9 +21,15 @@ def git(repo: Path, *args: str) -> str:
                           capture_output=True, text=True, check=True).stdout
 
 
-def run(repo: Path, script: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run([sys.executable, str(repo / "omoikane" / "bin" / script)], cwd=repo, capture_output=True,
-                          text=True, encoding="utf-8")
+def run(repo: Path, script: str, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run([sys.executable, str(repo / "omoikane" / "bin" / script), *args], cwd=repo,
+                          capture_output=True, text=True, encoding="utf-8")
+
+
+def page(kind: str, title: str, tags: str, body: str, sources: str = "[wiki/sources/session-2026-09-01-aaaaaaaa.md]",
+         extra: str = "") -> str:
+    return (f"---\ntitle: {title}\ntype: {kind}\nsummary: {title}\ntags: [{tags}]\ncreated: 2026-09-01\n"
+            f"updated: 2026-09-01\nsources: {sources}\n{extra}---\n\n{body}\n")
 
 
 class NewSystem(unittest.TestCase):
@@ -84,6 +90,88 @@ class NewSystem(unittest.TestCase):
         self.assertEqual(run(self.repo, "context-budget.py").returncode, 0)
         # The new system's pages must never be published to the template (review-gate.py publishes to origin).
         self.assertEqual(git(self.repo, "remote").split(), ["template"])
+
+    def test_conventions_of_another_system_come_along(self) -> None:
+        # The organisation's conventions and design-system rules had to be restated in every new system (#80).
+        other = Path(self.tmp.name) / "payroll"
+        wiki = other / "omoikane" / "wiki"
+        pages = {
+            "domain/commit-messages-in-english.md": page(
+                "domain", "Commit messages in English", "convention",
+                "The user, turn 2: \"commits em inglês\" (source: [[session-2026-09-01-aaaaaaaa]]). "
+                "See [[buttons-use-the-primary-token]] and [[why-we-squash]].", extra="code: [src/git.py]\n"),
+            "domain/buttons-use-the-primary-token.md": page("domain", "Buttons use the primary token",
+                                                            "design-system, ui", "Use `color.action.primary`."),
+            "domain/salaries-are-integer-cents.md": page("domain", "Salaries are integer cents", "business-rule", "x"),
+            "decisions/why-we-squash.md": page("decision", "Why we squash", "git", "x"),
+            "sources/session-2026-09-01-aaaaaaaa.md": page("source", "Session", "session", "x", sources="[]",
+                                                           extra="dated: 2026-09-01\n"),
+        }
+        for name, text in pages.items():
+            (wiki / name).parent.mkdir(parents=True, exist_ok=True)
+            (wiki / name).write_text(text, encoding="utf-8")
+        git(other, "init", "-q", "-b", "main")
+        git(other, "add", "-A")
+        git(other, "commit", "-q", "-m", "payroll wiki")
+
+        result = run(self.repo, "new-system.py", "--from", str(other))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        domain = self.repo / "omoikane" / "wiki" / "domain"
+        self.assertEqual(sorted(p.name for p in domain.glob("*.md")),
+                         ["buttons-use-the-primary-token.md", "commit-messages-in-english.md"])
+        self.assertFalse(list((self.repo / "omoikane" / "wiki" / "decisions").glob("*.md")))
+        source = self.repo / "omoikane" / "wiki" / "sources" / "inherited-from-payroll.md"
+        self.assertIn("type: source", source.read_text(encoding="utf-8"))
+        copied = (domain / "commit-messages-in-english.md").read_text(encoding="utf-8")
+        self.assertIn("sources: [wiki/sources/inherited-from-payroll.md]", copied)
+        self.assertNotIn("code:", copied)
+        self.assertIn("[[buttons-use-the-primary-token]]", copied)
+        self.assertNotIn("[[why-we-squash]]", copied)
+        self.assertNotIn("[[session-2026-09-01-aaaaaaaa]]", copied)
+        self.assertIn("\"commits em inglês\"", copied)
+        self.assertIn("[[inherited-from-payroll]]", copied)
+        lint = run(self.repo, "wiki-lint.py")
+        self.assertEqual(lint.returncode, 0, lint.stdout + lint.stderr)
+        self.assertIn("[[commit-messages-in-english]]", run(self.repo, "session-context.py").stdout)
+
+    def test_what_is_disputed_marked_or_unclear_stays_behind_or_is_cleaned(self) -> None:
+        # #85 review: a disputed page crossed without its review entry, a pruned page lost its mark, an alias and a
+        # capitalised or unbracketed tag were mishandled, and a folder name with accents broke the source page.
+        other = Path(self.tmp.name) / "Folha São Paulo"
+        domain = other / "omoikane" / "wiki" / "domain"
+        domain.mkdir(parents=True)
+        for name, text in {
+            "disputed.md": page("domain", "Disputed", "convention", "x").replace("summary: Disputed", "summary: Disputed: a or b"),
+            "pruned.md": page("domain", "Pruned", "convention", "x", extra="prune: stale\n"),
+            "capital-tag.md": page("domain", "Capital tag", "Convention", "See [[gone|the old rule]]."),
+            "bare-tag.md": page("domain", "Bare tag", "x", "y").replace("tags: [x]", "tags: design-system")
+                           .replace("summary: Bare tag", "summary: Bare tag  # with a hash"),
+        }.items():
+            (domain / name).write_text(text, encoding="utf-8")
+        result = run(self.repo, "new-system.py", "--from", str(other))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        wiki = self.repo / "omoikane" / "wiki"
+        self.assertEqual(sorted(p.name for p in (wiki / "domain").glob("*.md")), ["bare-tag.md", "capital-tag.md"])
+        self.assertIn("See the old rule.", (wiki / "domain" / "capital-tag.md").read_text(encoding="utf-8"))
+        self.assertIn("summary: Bare tag  # with a hash", (wiki / "domain" / "bare-tag.md").read_text(encoding="utf-8"))
+        self.assertIn("title: Inherited from folha-sao-paulo",
+                      (wiki / "sources" / "inherited-from-folha-sao-paulo.md").read_text(encoding="utf-8"))
+        self.assertIn("2 other domain pages", result.stdout)
+        lint = run(self.repo, "wiki-lint.py")
+        self.assertEqual(lint.returncode, 0, lint.stdout + lint.stderr)
+
+    def test_from_a_path_it_cannot_use_changes_nothing(self) -> None:
+        # #85 review: the pages were read after the wiki was deleted, so an unreadable page left a half-reset clone.
+        unreadable = Path(self.tmp.name) / "unreadable"
+        (unreadable / "omoikane" / "wiki" / "domain").mkdir(parents=True)
+        (unreadable / "omoikane" / "wiki" / "domain" / "a.md").write_bytes(b"---\ntitle: caf\xe9\n---\n")
+        for origin in (Path(self.tmp.name) / "missing", unreadable, self.repo):
+            with self.subTest(origin=origin.name):
+                result = run(self.repo, "new-system.py", "--from", str(origin))
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn("nothing was changed", result.stdout)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertTrue((self.repo / "omoikane/wiki/concepts/template-concept.md").is_file())
 
     def test_refuses_a_tree_with_uncommitted_changes(self) -> None:
         # Nothing is committed by the script, so git restore undoes a run; that holds only from a clean tree. An
