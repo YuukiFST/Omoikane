@@ -4,8 +4,8 @@ type: entity
 summary: omoikane/bin/session-capture.py, turns a Claude Code, Pi or OpenCode transcript into an inbox session file
 tags: [session-capture, module, build-mode]
 created: 2026-09-30
-updated: 2026-10-01
-sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-09-30-230a182d.md]
+updated: 2026-10-02
+sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-02-1b324082.md]
 code: [omoikane/bin/session-capture.py, tests/test_session_capture.py]
 ---
 
@@ -34,3 +34,8 @@ Files are named by the tail of the session id and continuation matches the full 
 ## Paths
 
 Paths are normalised to `/` before being made relative to the session cwd: [[opencode-mixes-path-separators-on-windows]].
+
+## Redaction
+
+Terms listed in the gitignored `omoikane/.capture-redact` are replaced with `[redacted]` before the capture is written (issue #62, PR #69): [[redact-captures-when-they-are-written]] (source: [[session-2026-10-02-1b324082]], turn 3).
+The frontmatter ids, clipped terms and the term list's encoding each broke the first version: [[capture-redaction-breaks-on-frontmatter-clips-and-encodings]].

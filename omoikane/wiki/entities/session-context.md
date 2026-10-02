@@ -4,12 +4,14 @@ type: entity
 summary: omoikane/bin/session-context.py, the SessionStart brief: index, undistilled sessions, open and approved review items
 tags: [session-context, module, build-mode, review-queue]
 created: 2026-09-30
-updated: 2026-09-30
-sources: [wiki/sources/session-2026-09-30-c14af01e.md]
+updated: 2026-10-02
+sources: [wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-10-02-1b324082.md]
 code: [omoikane/bin/session-context.py, tests/test_wiki_lint.py]
 ---
 
 `omoikane/bin/session-context.py` writes the brief injected at session start: the index filled by type priority, the sessions not yet distilled and the open items of `_review.md` (source: [[session-2026-09-30-c14af01e]], turn 2).
+
+Since the `domain` page type (issue #64, PR #71) the brief header was adjusted for it and domain pages are listed first, so a cut brief drops them last (source: [[session-2026-10-02-1b324082]], turn 3; `docs/architecture.md`).
 
 ## Counting review items
 

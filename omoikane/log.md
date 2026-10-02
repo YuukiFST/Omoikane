@@ -119,3 +119,14 @@ Updated: [[omoikane-objective]], [[omoikane-holds-its-systems-domain-knowledge-i
 - skipped (decided) omoikane-knowledge-for-redacted: the todo to reuse Omoikane knowledge in the company kit, already removed by #58 and reversed by the user (turn 6)
 - skipped (no-root-cause) gh-pr-merge-delete-branch-removes-worktree: the agent noted `gh pr merge --delete-branch` had removed the worktree and the local branch; not checked (turn 4)
 - skipped (one-off) kit-draft-clone-deleted: a clean local clone of the company kit deleted after checking it had no changes (turn 3)
+
+## [2026-10-02] distill | session 1b324082
+
+Created: [[session-2026-10-02-1b324082]], [[redact-captures-when-they-are-written]], [[capture-redaction-breaks-on-frontmatter-clips-and-encodings]], [[new-system-starts-with-an-empty-memory]], [[objective-criterion-stays-out-of-agents-md]].
+Updated: [[omoikane-objective]], [[omoikane-holds-its-systems-domain-knowledge-itself]], [[company-internal-material-stays-out-of-the-public-repo]], [[session-capture]], [[wiki-lint]], [[session-context]].
+
+- routed (todo) second-domain-distill-eval: the second headless distill eval over `distill-domain-session-2.md` was killed for low memory and never ran (turn 5)
+- skipped (missing-env) low-memory-kills-background-runs: Claude Code killed three background test and eval runs because the machine ran low on memory (turn 4)
+- skipped (no-root-cause) auto-mode-classifier-denial: an action was denied by the auto mode classifier, which gave no explanation (turn 3)
+- skipped (self-resolved) write-before-read-tool-error: `File has not been read yet` from the Write tool (turn 3)
+- skipped (self-resolved) chained-sleep-blocked: `sleep 240` before a `tail` was blocked by the harness, which asks for Monitor or run_in_background (turn 3)

@@ -13,3 +13,7 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
 ## [2026-10-02] distill | session d4302021
 
 - todo review-gate-known-limits: four review gate limits left on PR #56: a slid hunk in a replay ends the rebase window early (medium, not verified), `settled` can stop advancing, two squashes between runs record only the first, the next PR body relists squashed commits; see [[review-gate]] (session d4302021, turn 4)
+
+## [2026-10-02] distill | session 1b324082
+
+- todo second-domain-distill-eval: rerun the headless distill eval over `tests/fixtures/distill-domain-session-2.md` (rule a guard would catch, rule given in an answer, code breaking the rule, replaced rule); the run was killed for low memory and never gave a result (session 1b324082, turn 5)

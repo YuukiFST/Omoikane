@@ -5,7 +5,7 @@ summary: Every change to this repo must improve Omoikane at holding, unprompted,
 tags: [convention, objective]
 created: 2026-10-02
 updated: 2026-10-02
-sources: [wiki/sources/2026-10-02-omoikane-objective.md, wiki/sources/session-2026-10-01-d4302021.md]
+sources: [wiki/sources/2026-10-02-omoikane-objective.md, wiki/sources/session-2026-10-01-d4302021.md, wiki/sources/session-2026-10-02-1b324082.md]
 ---
 
 ## The rule
@@ -35,3 +35,5 @@ The knowledge lives in Omoikane itself, not in an external base: [[omoikane-hold
 ## Where it applies
 
 Any proposal, issue or PR on this repository: name how it moves the tool towards the objective before making it.
+The user restated the criterion in [[session-2026-10-02-1b324082]]: "A partir desta sessão, todo desenvolvimento do repositório deve servir para aperfeiçoar a ferramenta." (turn 3).
+Where it is written, and why not in `AGENTS.md`: [[objective-criterion-stays-out-of-agents-md]].
