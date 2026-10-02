@@ -98,3 +98,9 @@ The user asked that the name of a company-internal starter kit appear nowhere in
 
 - updated: [[company-internal-material-stays-out-of-the-public-repo]], [[session-2026-09-30-230a182d]], [[session-2026-09-30-c14af01e]], [[session-2026-10-01-b5b6fb27]]
 - redacted: the `omoikane-knowledge-for-*` todo line above (slug now `omoikane-knowledge-for-redacted`), `omoikane/raw/sources/sessions/2026-09-30-230a182d.md`, `2026-09-30-c14af01e.md`, `2026-10-01-b5b6fb27.md`
+
+## [2026-10-02] review | removed from _review.md
+
+- removed (todo) switch-on-autonomous-loop
+- removed (todo) omoikane-knowledge-for-redacted
+- removed (todo) finish-review-gate-45
