@@ -67,6 +67,12 @@ def lint_pages(pages: list[Page], repo: Path = REPO) -> list[str]:
             if len(sessions) < PRACTICE_MIN_SESSIONS:
                 findings.append(f"{p.rel}: practice cites {len(sessions)} session, "
                                 f"needs {PRACTICE_MIN_SESSIONS} or more")
+        if p.meta.get("type") == "domain":
+            cited = p.meta.get("sources")
+            # Valid from one statement, but only with it: a rule nobody stated is a guess every session would obey.
+            if not any(posixpath.basename(str(s))[:-3] in slugs for s in (cited if isinstance(cited, list) else [])):
+                findings.append(f"{p.rel}: domain page cites no existing source page; cite the session or document "
+                                "that states it")
         if p.meta.get("type") == "source":
             for key in SOURCE_KEYS:
                 if key not in p.meta:

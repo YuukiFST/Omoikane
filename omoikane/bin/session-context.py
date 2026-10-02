@@ -19,7 +19,7 @@ NO_CAPTURE_ENV = "OMOIKANE_NO_CAPTURE"
 PENDING_SESSIONS_SHOWN = 5
 HEADER = (
     "Omoikane wiki brief follows: pending work, then the index. Open a page before touching the area it covers; "
-    "decisions and gotchas "
+    "domain pages hold the rules the human stated, decisions and gotchas "
     "record what earlier sessions learned the hard way. Do not write under omoikane/wiki/ during coding "
     "work: the session is captured on stop and distilled later. Rules: AGENTS.md."
 )

@@ -85,6 +85,18 @@ Why a new page type, `practice`, and one rather than two (`procedure` and `princ
 Why every N distills and not on each one: a pattern needs sessions to cross, and one LLM call per batch costs less than one per session.
 Why the log is the counter: it is already the append-only chronology, so no state file can drift from it.
 
+## Domain knowledge
+
+The objective names it: the business rules, design system and organisation conventions the user states while building. A `domain` page holds one of them, `summary` being the rule itself, since only the summary reaches the brief.
+
+Why a type of its own (#64):
+
+- The existing types were shaped for lessons about code. A practice needs two sessions; a rule the user states once is already true. A decision needs rejected alternatives; "prices are integer cents" has none. A concept page is not imperative, has no source floor and is cut first from the brief.
+- One type, not three: a business rule, a design-system rule and a convention share the lifecycle (stated by an authority, valid from one statement, may contradict the code, needs the statement). Tags tell them apart.
+- `wiki-lint.py` fails a domain page that cites no existing source page: a rule nobody stated is the agent's guess, and every later session would obey it. `session-context.py` lists domain pages first, so the brief cuts them last.
+
+Why the `## Domain` section of `AGENTS.md` went away: it waited for the human to describe the domain by hand, which the objective rules out. The domain now arrives the way everything else does, through capture and distill.
+
 ## Pruning
 
 The wiki only grows unless something removes pages. `/prune` (on demand) marks stale, redundant and low-value pages with `prune:` in their frontmatter and merges each duplicate into the stronger page, repointing the links.
@@ -119,7 +131,6 @@ Why not an organisation-wide wiki: the organisation usually curates one already 
 
 - Curating what enters `omoikane/raw/inbox/`.
 - `omoikane/_review.md`: contradictions and gaps the agent refuses to resolve alone, and the guards and prompt changes it proposes. Ticking `[x]` is the approval.
-- `AGENTS.md` Domain section: what the wiki is about, what to emphasise.
 - Reading the wiki in Obsidian (open `omoikane/` as the vault). The graph view shows hubs and orphans faster than any script.
 
 ## Growing it
