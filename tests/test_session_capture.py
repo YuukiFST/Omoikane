@@ -268,14 +268,48 @@ class Redaction(unittest.TestCase):
                   {"type": "tool_use", "name": "Bash", "input": {"command": "grep -c a.c+me src"}}),
     ]
 
-    def captured(self, redact_list: str | None) -> str:
+    def captured(self, redact_list: str | None, session: list[dict[str, object]] | None = None,
+                 encoding: str = "utf-8") -> str:
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             redact_file = tmp / ".capture-redact"
             if redact_list is not None:
-                redact_file.write_text(redact_list, encoding="utf-8")
-            capture.capture(write_transcript(tmp, self.SESSION), inbox=tmp / "inbox", redact_file=redact_file)
+                redact_file.write_bytes(redact_list.encode(encoding))
+            capture.capture(write_transcript(tmp, session or self.SESSION), inbox=tmp / "inbox",
+                            redact_file=redact_file)
             return next((tmp / "inbox").glob("*.md")).read_text(encoding="utf-8")
+
+    def test_the_list_is_read_whatever_editor_wrote_it(self) -> None:
+        # Notepad and PowerShell 5.1 write a byte-order mark, `>` in PowerShell 5.1 writes UTF-16: the first term
+        # once kept its BOM and matched nothing.
+        for encoding in ("utf-8-sig", "utf-16"):
+            with self.subTest(encoding=encoding):
+                self.assertNotIn("acme", self.captured("acme\nother\n", encoding=encoding).lower())
+
+    def test_frontmatter_ids_survive_so_continuation_still_matches(self) -> None:
+        # ingested_parts() matches distilled parts by `session:` and reads `turns:`; a redacted id re-captured the
+        # whole session as a new part, a redacted count crashed every later turn.
+        for redact_list in ("abcdef\n", "1\n", "claude\n"):
+            with self.subTest(redact_list=redact_list):
+                md = self.captured(redact_list)
+                self.assertTrue(md.startswith("---\nharness: claude\nsession: abcdef12-0000\npart: 1\nturns: 1\n"))
+
+    def test_a_term_cut_by_a_clip_leaves_no_prefix(self) -> None:
+        note = "y" * (capture.NOTE_CHARS - 10) + " Acme Corporation ships"
+        md = self.captured("Acme Corporation\n", [user("Fix"), assistant({"type": "text", "text": note},
+                           {"type": "tool_use", "name": "Edit", "input": {"file_path": "C:/proj/a.py"}})])
+        self.assertNotIn("acme", md.lower())
+        self.assertIn("[redacted] [... ", md)
+
+    def test_a_term_matches_either_path_separator_and_any_whitespace(self) -> None:
+        session = [user("Fix"), assistant({"type": "text", "text": "Acme\n  Corp ships"},
+                                          {"type": "tool_use", "name": "Bash",
+                                           "input": {"command": "type C:\\proj\\acme\\notes.txt"}},
+                                          {"type": "tool_use", "name": "Edit", "input": {"file_path": "C:/proj/a.py"}})]
+        md = self.captured("C:/proj/acme\nAcme Corp\n", session).lower()
+        self.assertNotIn("proj\\acme", md)
+        self.assertNotIn("acme\n", md)
+        self.assertIn("[redacted]\\notes.txt", md)
 
     def test_listed_terms_never_reach_the_capture(self) -> None:
         cases = [

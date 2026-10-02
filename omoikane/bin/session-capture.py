@@ -39,6 +39,7 @@ NO_CAPTURE_ENV = "OMOIKANE_NO_CAPTURE"
 # and under raw/sources/ it is immutable, so redaction happens here. Gitignored: the list itself names them.
 REDACT_FILE = OMOIKANE / ".capture-redact"
 REDACTED = "[redacted]"
+UNREDACTED_KEYS = ("harness", "session", "part", "turns", "started", "ended")
 # Headless runs of these commands are Omoikane maintaining itself; capturing them would loop forever. Read from
 # the prompt files so a new operation cannot be left out of the list.
 OMOIKANE_COMMANDS = {f"/{p.stem}" for p in (OMOIKANE / "prompts").glob("*.md")}
@@ -481,19 +482,54 @@ def redaction_terms(path: Path = REDACT_FILE) -> list[str]:
     """
     if not path.is_file():
         return []
-    return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    raw = path.read_bytes()
+    # Notepad and PowerShell 5.1 write a BOM, and `>` in PowerShell 5.1 writes UTF-16: a BOM left on the first
+    # term made it match nothing.
+    text = raw.decode("utf-16") if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else raw.decode("utf-8-sig")
+    return [line.strip() for line in text.splitlines() if line.strip()]
+
+
+def term_pattern(term: str) -> str:
+    """Regex for a term taken literally, except that `\\` and `/` match each other and a whitespace run matches
+    any whitespace: a path is spelt both ways in one transcript, and a name wraps across lines.
+
+    Example: re.fullmatch(term_pattern("C:/a b"), "C:\\\\a\\n b") matches.
+    """
+    parts = (r"\s+" if part.isspace() else "".join(r"[\\/]" if c in "\\/" else re.escape(c) for c in part)
+             for part in re.split(r"(\s+)", term) if part)
+    return "".join(parts)
 
 
 def redact(text: str, terms: list[str]) -> str:
-    """Replace every term, in any case and taken literally, with [redacted]. Longest first, so a term inside a
-    longer one leaves no tail.
+    """Replace every term, in any case, with [redacted]. Longest first, so a term inside a longer one leaves no
+    tail. The readers clip long text before this runs, so the start of a term cut by a clip, right before the
+    clip marker, goes too.
 
-    Example: redact("ACME-kit and acme", ["acme", "acme-kit"]) returns "[redacted] and [redacted]".
+    Example: redact("ACME-kit and acme", ["acme", "acme-kit"]) returns "[redacted] and [redacted]";
+    redact("see Acme Co [... 9 chars cut]", ["Acme Corporation"]) returns "see [redacted] [... 9 chars cut]".
     """
     if not terms:
         return text
-    pattern = "|".join(re.escape(term) for term in sorted(terms, key=len, reverse=True))
-    return re.sub(pattern, REDACTED, text, flags=re.IGNORECASE)
+    whole = "|".join(term_pattern(term) for term in sorted(terms, key=len, reverse=True))
+    text = re.sub(whole, REDACTED, text, flags=re.IGNORECASE)
+    prefixes = sorted({term[:n].rstrip() for term in terms for n in range(1, len(term))} - {""}, key=len,
+                      reverse=True)
+    if not prefixes:
+        return text
+    cut = r"(?<!\w)(?:" + "|".join(map(term_pattern, prefixes)) + r")(?= \[\.\.\. \d+ chars cut\])"
+    return re.sub(cut, REDACTED, text, flags=re.IGNORECASE)
+
+
+def redact_capture(text: str, terms: list[str]) -> str:
+    """Redact a rendered capture except the frontmatter keys that never hold user text. ingested_parts() matches
+    distilled parts by `session:` and reads `turns:`: a redacted id re-captured a distilled session as a new
+    part, and a redacted count crashed every later turn.
+
+    Example: redact_capture("---\\nsession: ab-1\\ncwd: C:/ab\\n---\\n\\nab", ["ab"]) keeps `session: ab-1`.
+    """
+    head, sep, body = text.partition("\n---\n")
+    kept = (line if line.split(":", 1)[0] in UNREDACTED_KEYS else redact(line, terms) for line in head.split("\n"))
+    return "\n".join(kept) + sep + redact(body, terms)
 
 
 def capture(transcript: Path, session_id: str = "", harness: str = "claude", inbox: Path = INBOX,
@@ -512,7 +548,7 @@ def capture(transcript: Path, session_id: str = "", harness: str = "claude", inb
     suffix = "" if part == 1 else f"-part{part}"
     target = inbox / f"{session.day}-{session.short_id}{suffix}.md"
     inbox.mkdir(parents=True, exist_ok=True)
-    text = redact(render(session, session.turns[covered:], part, worktree), redaction_terms(redact_file))
+    text = redact_capture(render(session, session.turns[covered:], part, worktree), redaction_terms(redact_file))
     target.write_text(text, encoding="utf-8")
     shown = target.relative_to(OMOIKANE.parent) if target.is_relative_to(OMOIKANE.parent) else target
     return f"captured {shown.as_posix()} ({len(session.turns) - covered} turns)"
