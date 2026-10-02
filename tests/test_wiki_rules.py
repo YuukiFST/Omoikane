@@ -50,10 +50,21 @@ class Promote(unittest.TestCase):
         self.assertEqual(problems, [f"eval-in-clone: the block holds {MAX_RULES} rules, the cap; remove one from "
                                     "AGENTS.md first"])
 
+    def test_a_domain_rule_points_at_its_domain_page(self) -> None:
+        # A rule the user stated once ("every table has a tenant_id") governs every task, but only practice
+        # pages could be promoted (#76).
+        review = "- [x] rule every-table-has-a-tenant-id: Every table has a `tenant_id` column. (synthesize)\n"
+        agents, left, problems = rules.promote(agents_md(), review, set(), {"every-table-has-a-tenant-id"})
+        self.assertEqual(problems, [])
+        self.assertEqual(managed_rules(agents), ["- Every table has a `tenant_id` column. "
+                                                 "(omoikane/wiki/domain/every-table-has-a-tenant-id.md)"])
+        self.assertEqual(left, "")
+
     def test_refuses_a_rule_without_its_practice_page(self) -> None:
         agents, review, problems = rules.promote(agents_md(), REVIEW, set())
         self.assertEqual((agents, review), (agents_md(), REVIEW))
-        self.assertEqual(problems, ["eval-in-clone: no page omoikane/wiki/practices/eval-in-clone.md"])
+        self.assertEqual(problems, ["eval-in-clone: no page omoikane/wiki/practices/eval-in-clone.md or "
+                                    "omoikane/wiki/domain/eval-in-clone.md"])
 
     def test_refuses_a_rule_longer_than_one_short_line(self) -> None:
         review = f"- [x] rule long: {'x' * (rules.MAX_RULE_CHARS + 1)} (synthesize)\n"

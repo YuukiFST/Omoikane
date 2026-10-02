@@ -20,12 +20,14 @@ TICKED = re.compile(r"- \[[xX]\] rule ")
 TICKED_RULE = re.compile(r"- \[[xX]\] rule ([a-z0-9-]+): (.+) \([^()]*\)\s*$")
 
 
-def promote(agents: str, review: str, practices: set[str]) -> tuple[str, str, list[str]]:
+def promote(agents: str, review: str, practices: set[str],
+            domain: frozenset[str] | set[str] = frozenset()) -> tuple[str, str, list[str]]:
     """Move each ticked rule proposal of `review` into the managed block of `agents`.
 
-    `practices` holds the slugs of the existing practice pages; a rule points at its page. Returns the new
-    AGENTS.md, the new _review.md, and one line per proposal left in place with the reason. Raises ValueError
-    when AGENTS.md has no managed block.
+    `practices` and `domain` hold the slugs of the existing practice and domain pages; a rule points at its page.
+    A domain rule is valid from one statement, so it reaches the block without a second session (#76). Returns
+    the new AGENTS.md, the new _review.md, and one line per proposal left in place with the reason. Raises
+    ValueError when AGENTS.md has no managed block.
     Example: promote(agents, "- [x] rule s: Do y. (synthesize)\\n", {"s"}) returns
     (agents with "- Do y. (omoikane/wiki/practices/s.md)" in the block, "", []).
     """
@@ -43,20 +45,21 @@ def promote(agents: str, review: str, practices: set[str]) -> tuple[str, str, li
             kept.append(line)
             continue
         slug, rule = m.group(1), m.group(2).strip()
-        pointer = f"(omoikane/wiki/practices/{slug}.md)"
+        page = f"omoikane/wiki/{'domain' if slug in domain else 'practices'}/{slug}.md"
+        pointer = f"({page})"
         entry = f"- {rule} {pointer}"
         current = block + added
         if entry in current:
             continue  # promoted before; the proposal is done
         problem = ""
-        if slug not in practices:
-            problem = f"no page omoikane/wiki/practices/{slug}.md"
+        if slug not in practices and slug not in domain:
+            problem = f"no page omoikane/wiki/practices/{slug}.md or omoikane/wiki/domain/{slug}.md"
         elif "<!--" in rule:
             problem = "rule contains `<!--`"  # would end the managed block early
         elif len(rule) > MAX_RULE_CHARS:
             problem = f"rule is {len(rule)} chars, limit {MAX_RULE_CHARS}"
         elif any(r.endswith(pointer) for r in current):
-            problem = f"omoikane/wiki/practices/{slug}.md already has a rule; remove it first"
+            problem = f"{page} already has a rule; remove it first"
         elif len(current) >= MAX_RULES:
             problem = f"the block holds {MAX_RULES} rules, the cap; remove one from AGENTS.md first"
         if problem:
@@ -73,8 +76,9 @@ def promote(agents: str, review: str, practices: set[str]) -> tuple[str, str, li
 def main() -> int:
     agents_path, review_path = REPO / "AGENTS.md", OMOIKANE / "_review.md"
     practices = {p.stem for p in (OMOIKANE / "wiki" / "practices").glob("*.md")}
+    domain = {p.stem for p in (OMOIKANE / "wiki" / "domain").glob("*.md")}
     agents, review = agents_path.read_text(encoding="utf-8"), review_path.read_text(encoding="utf-8")
-    new_agents, new_review, problems = promote(agents, review, practices)
+    new_agents, new_review, problems = promote(agents, review, practices, domain)
     if new_agents != agents:
         agents_path.write_text(new_agents, encoding="utf-8", newline="\n")
     if new_review != review:
