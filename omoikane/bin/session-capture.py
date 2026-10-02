@@ -44,30 +44,39 @@ UNREDACTED_KEYS = ("harness", "session", "part", "turns", "started", "ended")
 CLIP_MARK = r" \[\.\.\. \d+ chars cut\]"
 CLIPPED = re.compile(CLIP_MARK)
 # Token shapes with a known prefix. A token cut short by a clip still starts with its prefix, so that part goes too.
-TOKENS = (r"gh[pousr]_[A-Za-z0-9]{30,}|github_pat_\w{20,}|sk-[\w-]{20,}|[sr]k_(?:live|test)_[A-Za-z0-9]{16,}"
-          r"|xox[abprs]-[A-Za-z0-9-]{10,}|AIza[\w-]{30,}|(?:AKIA|ASIA)[0-9A-Z]{16}|glpat-[\w-]{20,}"
-          r"|npm_[A-Za-z0-9]{30,}|hf_[A-Za-z0-9]{30,}|ya29\.[\w-]{20,}|SG\.[\w-]{16,}\.[\w-]{16,}"
+TOKENS = (r"gh[pousr]_[A-Za-z0-9]{30,}|github_pat_\w{20,}|sk-(?=[\w-]*\d)[\w-]{20,}"  # a digit: sk-learn-... is prose
+          r"|[sr]k_(?:live|test)_[A-Za-z0-9]{16,}|xox[abprs]-[A-Za-z0-9-]{10,}|xapp-[\w-]{20,}|AIza[\w-]{30,}"
+          r"|(?:AKIA|ASIA)[0-9A-Z]{16}|glpat-[\w-]{20,}|npm_[A-Za-z0-9]{30,}|hf_[A-Za-z0-9]{30,}|pypi-[\w-]{20,}"
+          r"|ya29\.[\w-]{20,}|GOCSPX-[\w-]{20,}|SG\.[\w-]{16,}\.[\w-]{16,}|whsec_[A-Za-z0-9+/]{20,}|hvs\.[\w-]{20,}"
           r"|eyJ[\w-]{8,}\.eyJ[\w-]{8,}(?:\.[\w-]*)?|https://hooks\.slack\.com/services/[\w/]+")
-TOKEN_PREFIXES = r"gh[pousr]_|github_pat_|sk-|[sr]k_(?:live|test)_|xox[abprs]-|AIza|AKIA|ASIA|glpat-|npm_|hf_|ya29\.|SG\.|eyJ"
-# A private key block. With a footer, everything up to it that a key block can hold (base64, header fields,
-# `> ` quoting, escaped `\n` in JSON or .env); without one, only whole base64 lines, so a header quoted in prose
-# takes nothing after it: `.*?` up to a footer that never came erased every later turn of a capture (#82 review).
+TOKEN_PREFIXES = (r"gh[pousr]_|github_pat_|sk-|[sr]k_(?:live|test)_|xox[abprs]-|xapp-|AIza|AKIA|ASIA|glpat-|npm_"
+                  r"|hf_|pypi-|ya29\.|GOCSPX-|SG\.|whsec_|hvs\.|eyJ")
+# A private key block, read by its structure: header, armor fields, base64 lines, footer. A line break may be real,
+# escaped (`\n` in JSON or .env), or a string concatenation in code ("...\n"<newline>"..."), and a line may be
+# `> `-quoted. Without a footer only whole base64 lines of 20+ characters follow, so a header quoted in prose takes
+# nothing after it (#82 reviews: `.*?` up to a footer erased every later turn; a character class ate prose and
+# stopped at an armor field's `(`, leaking the key body).
+KEY_HEADER = r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----"
 KEY_FOOTER = r"-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----"
-KEY_BREAK = r"[ \t]*+(?:\r?\n|\\r?\\n)[ \t]*+(?:>[ \t]?)?"
-PRIVATE_KEY = (r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----(?:[A-Za-z0-9+/=\s>:,\\-]*?" + KEY_FOOTER
+KEY_BREAK = r"[ \t]*+(?:(?:\\r)?\\n(?:[\"'][ \t]*+\+?[ \t]*+\r?\n[ \t]*+[\"'])?|\r?\n)[ \t]*+(?:>[ \t]?)?"
+KEY_ARMOR = r"(?:Proc-Type|DEK-Info|Version|Comment|Hash|Charset):[^\n\\]*"
+PRIVATE_KEY = (KEY_HEADER + r"(?:(?:(?:" + KEY_BREAK + r")+(?:" + KEY_ARMOR + r"|[A-Za-z0-9+/=]+))*(?:" + KEY_BREAK
+               + r")+" + KEY_FOOTER + r"|(?:[ \t]+[A-Za-z0-9+/=]{16,})+[ \t]+" + KEY_FOOTER
                + r"|(?:" + KEY_BREAK + r"[A-Za-z0-9+/=]{20,}(?=" + KEY_BREAK + r"|\Z|" + CLIP_MARK + r"))*"
                r"(?:" + KEY_BREAK + r"[A-Za-z0-9+/=]+(?=" + CLIP_MARK + r"))?)")
 SECRET_SHAPES = re.compile(PRIVATE_KEY + r"|(?<![\w-])(?:" + TOKENS + r")"
                            r"|(?<![\w-])(?:" + TOKEN_PREFIXES + r")[\w.-]*(?=" + CLIP_MARK + r")")
 # A label that stays, then the secret it introduces. Each pattern's group 1 is the label.
 SECRET_AFTER = [re.compile(p) for p in (
-    r"(?i)(\bbearer\s+)(?=[\w.~+/-]*\d)[\w.~+/-]{16,}=*",  # a digit: "bearer authenticationscheme" is prose
-    r"(?i)(\bbearer\s+)[\w.~+/-]+(?=" + CLIP_MARK + r")",
+    r"(?i)(\bbearer[ \t]+)(?=[\w.~+/-]*\d)[\w.~+/-]{16,}=*",  # a digit: "bearer authenticationscheme" is prose
+    r"(?i)(\bbearer[ \t]+)[\w.~+/-]+(?=" + CLIP_MARK + r")",
+    r"(?i)(<(?:password|passwd|secret|token|api[_-]?key)>)[^<\n]{1,200}(?=</)",  # XML, e.g. Maven settings.xml
     # The header line, or its JSON or dict form: "Authorization": "Basic ...".
     r"(?i)(\bauthorization[\"']?[ \t]*[:=][ \t]*[\"']?(?:basic|token)[ \t]+)[A-Za-z0-9+/]+=*",
     # Greedy to the last @ before the path or query: a hand-typed password may hold one.
     r"(?<![\w+.-])([a-z][\w+.-]*+://[^\s:/@]*:)[^\s/?#]+(?=@)",
-    r"(\bcurl\b[^\n|;&]*?\s(?:-u[ \t]*|--user[ =])[^\s:'\"]*:)[^\s'\"]+",  # curl -u user:password
+    # curl -u user:password, curl as the command (at a line start or after ; & | ( or a backtick), not in prose.
+    r"(?m)((?:^|[;&|(`])[ \t]*curl\b[^\n|;&]*?\s(?:-u[ \t]*|--user[ =])[^\s:'\"]*:)[^\s'\"]+",
     # mysql -p<password>, no space; not a path ending in mysql, not a port mapping (docker -p3306:3306).
     r"((?<![/\w.-])mysql(?:dump|admin)?\b(?![/.:-])[^\n|;&]*?\s-p)(?!\d+(?::\d+)?(?:\s|$))[^\s'\"]+",
 )]
@@ -78,21 +87,28 @@ SECRET_NAMES = (r"(?:[a-z_][\w-]{0,40}?)?(?:password|passwd|passphrase|secret|to
                 r"|(?:[\w-]{0,40}?[_-])?(?:db|smtp|mail|user|admin|root|ftp|redis|ldap|proxy|mysql|pg)[_-]?(?:pass|pwd|pw)"
                 r"|pass|pwd|pw"
                 r"|(?:[\w-]{0,40}?[_-]?)?(?:api|access|secret|secretaccess|private|client|signing|encryption|master"
-                r"|auth|license|service|stripe|aws|openai|anthropic)[_-]?keys?")
-# `<name>=<value>`, `--name=<value>` or `--name <value>`, `"<name>": "<value>"`, `**<Name>:** <value>`,
-# `| <name> | <value> |`, and `<name>: <Type> = <value>`. Not `==`, `===`, `:=` or `=>`.
+                r"|auth|license|service|account|stripe|aws|openai|anthropic)[_-]?keys?")
+SECRET_VALUE = r"(?:(?P<quote>[\"'`])(?P<quoted>[^\"'`\n]{1,200}?)(?P=quote)|(?P<opening>[\"']?)(?P<bare>[^\s\"'`,;|)]+))"
+# `<name>=<value>`, `"<name>": "<value>"`, `cfg["<name>"] = <value>`, `**<Name>:** <value>`, `| <name> | <value> |`,
+# `<name>: <Type> = <value>` (the type hint only after a colon), and `:=`, `||=` or `=>` before a quoted literal.
+# Not `==`, `===`, nor `:=`/`=>` before code. A name followed by a space never takes the next word: that consumed
+# the real assignment after it ("the password PGPASSWORD=...", #82 third review).
 SECRET_ASSIGNMENT = re.compile(
-    r"(?i)(?<![\w-])((?:--?)?(?:" + SECRET_NAMES + r"))(?![\w-])"
-    r"([\"']?\**+(?:[ \t]*+(?::(?![:=])|=(?![=>~]))|[ \t]++\|)[ \t]*+\**+[ \t]*+|[ \t]++(?=[^\s-]))"
-    r"([A-Za-z_][\w.]*+(?:\[[^\]\n]*\])?[ \t]*+=(?![=>])[ \t]*+)?"  # a type hint, kept when the separator is `:`
-    r"(?:([\"'`])([^\"'`\n]{1,200}?)\4|([\"']?)([^\s\"'`,;|)]+))")
+    r"(?i)(?<![\w-])(?P<name>(?:--?)?(?:" + SECRET_NAMES + r"))(?![\w-])"
+    r"(?P<sep>[\"']?\]?\**+(?:[ \t]*+(?:(?P<colon>:)(?![:=])|(?:\|\|)?=(?![=>~])|(?::=|=>)(?=[ \t]*+[\"'`]))"
+    r"|[ \t]++\|)[ \t]*+\**+[ \t]*+)"
+    r"(?(colon)(?P<hint>[A-Za-z_][\w.]*+(?:\[[^\]\n]*\])?[ \t]*+=(?![=>])[ \t]*+)?)" + SECRET_VALUE)
+# `--password hunter22`: only a flag takes its value after a space.
+SECRET_FLAG = re.compile(r"(?i)(?<![\w-])(?P<name>--?(?:" + SECRET_NAMES + r"))(?![\w-])(?P<sep>[ \t]++)(?=[^\s-])"
+                         + SECRET_VALUE)
 # A value that names where the secret lives instead of holding it, as a whole.
 SECRET_REFERENCE = re.compile(
     r"(?:\$\{?(?:[A-Z][A-Z0-9_]*|[a-z][a-z_]*)\}?|%[A-Z_][A-Z0-9_]*%|<[^>\n]*>|\[redacted\]"  # $VAR, %VAR%, <token>
+    r"|\$\{\w+:?[-=?+][^}]*\}|\$env:\w+|\$\(.*"  # ${VAR:-default}, PowerShell $env:VAR, $(command)
     r"|\$?\{\{.*|![A-Za-z]\w*"  # a template expression (Actions, Jinja), a YAML tag (!vault)
     r"|[A-Za-z_][\w.]*(?:\(.*\)|\[.*\]|[(\[])"  # a call or an index: get_secret("db"), os.environ["X"]
     r"|(?:os|self|cls|settings|config|conf|cfg|env|environ|process|request|app|ctx|secrets|vault|options|opts|args)"
-    r"\.[\w.]+"
+    r"\.[\w.]+!?"
     r"|[A-Z][A-Z]*(?:_[A-Z][A-Z0-9]*)+"  # the name of an environment variable: GITHUB_TOKEN
     r"|(?:~|\.\.?)?/[\w.-]+/[\w./-]*|[A-Za-z]:[\\/]\S*)\Z")  # a path with a folder in it
 # Headless runs of these commands are Omoikane maintaining itself; capturing them would loop forever. Read from
@@ -584,12 +600,9 @@ def redact_secrets(text: str) -> str:
     redact_secrets('password = get_secret("db")') returns it unchanged.
     """
     def assignment(m: re.Match[str]) -> str:
-        name, separator, hint, quote, quoted, opening, bare = m.groups()
-        value = quoted if quote else bare
-        if not separator.strip() and not name.startswith("-"):
-            return m.group(0)  # a space separates a value only after a flag: `--password hunter22`
-        if hint and ":" not in separator:
-            return m.group(0)  # `password = a = b` is code, not a type hint
+        name, separator, quote, opening = m["name"], m["sep"], m["quote"], m["opening"]
+        hint = m.groupdict().get("hint")
+        value = m["quoted"] if quote else m["bare"]
         if SECRET_REFERENCE.match(value):
             return m.group(0)
         after = m.string[m.end():m.end() + 4]
@@ -606,7 +619,7 @@ def redact_secrets(text: str) -> str:
     text = SECRET_SHAPES.sub(REDACTED, text)
     for pattern in SECRET_AFTER:
         text = pattern.sub(lambda m: m.group(1) + REDACTED, text)
-    return SECRET_ASSIGNMENT.sub(assignment, text)
+    return SECRET_FLAG.sub(assignment, SECRET_ASSIGNMENT.sub(assignment, text))
 
 
 def redact_capture(text: str, terms: list[str]) -> str:

@@ -381,6 +381,19 @@ class Redaction(unittest.TestCase):
              "MIIEow", "> [redacted]"),
             ("Password: `hunter22`", "hunter22", "Password: `[redacted]`"),
             ("password=/hunter22", "hunter22", "password=[redacted]"),
+            # Shapes the third #82 review found leaking.
+            ("-----BEGIN PGP " + "PRIVATE KEY BLOCK-----\nVersion: GnuPG v2.0.22 (GNU/Linux)\n\n" + "lQOYBF" * 5
+             + "\n" + "Zm9vYmFy" * 4 + "\n=abcd\n-----END PGP " + "PRIVATE KEY BLOCK-----", "lQOYBF", "[redacted]"),
+            ("use the password PGPASSWORD=s3cretpw psql", "s3cretpw", "PGPASSWORD=[redacted] psql"),
+            ("Access Token Secret: abc123def456", "abc123", "Secret: [redacted]"),
+            ('password := "hunter22"', "hunter22", 'password := "[redacted]"'),
+            ("'password' => 'hunter22',", "hunter22", "'password' => '[redacted]',"),
+            ('os.environ["DB_PASSWORD"] = "hunter22"', "hunter22", '["DB_PASSWORD"] = "[redacted]"'),
+            ("ENV['DB_PASSWORD'] ||= 'hunter22'", "hunter22", "ENV['DB_PASSWORD'] ||= '[redacted]'"),
+            ('key = ("-----BEGIN ' + 'PRIVATE KEY-----\\n"\n    "' + "MIIEvQ" * 5 + '\\n"\n    "-----END '
+             + 'PRIVATE KEY-----")', "MIIEvQ", 'key = ("[redacted]")'),
+            ("<password>hunter22</password>", "hunter22", "<password>[redacted]</password>"),
+            ("AccountKey=" + "abcd1234" * 4 + "==;", "abcd1234", "AccountKey=[redacted]"),
         ]
         for text, absent, present in cases:
             with self.subTest(text=text[:40]):
@@ -404,7 +417,11 @@ class Redaction(unittest.TestCase):
                 "token: ${{ secrets.GITHUB_TOKEN }}; password: '{{ vault_db_password }}'; password: !vault |; "
                 "bypass=check_v2; first_pass = run1; sort_key: created_at2; primary_key = user_id2; "
                 "public_key = pk2; find /var/lib/mysql -type f -print; docker run --name mysql -p3306:3306 x; "
-                "docker run -u 1000:1000 image; def refresh(token: OAuth2Token) -> None")
+                "docker run -u 1000:1000 image; def refresh(token: OAuth2Token) -> None; "
+                # False positives the third #82 review found.
+                "$token = $env:GITHUB_TOKEN; password=$(cat /run/secrets/db); password=${DB_PASSWORD:-postgres}; "
+                "apiKey: process.env.OPENAI_API_KEY!, I used curl and then docker run -u 1000:1000 image; "
+                "sk-learn-compatible-estimator")
         md = self.captured(None, [user(text), assistant({"type": "tool_use", "name": "Edit",
                                                           "input": {"file_path": "C:/p/a.py"}})])
         self.assertIn(text, md)
@@ -419,9 +436,13 @@ class Redaction(unittest.TestCase):
         self.assertIn("so it is an OpenSSH key", md)
         self.assertIn("Fix the deploy script", md)
         # Nor the blank lines and the heading of the next section, nor a long word on the next line.
-        for after in ("\n\n## Turn 2\n", "\nAuthenticationFailedException thrown by paramiko"):
+        for after in ("\n\n## Turn 2\n", "\nAuthenticationFailedException thrown by paramiko",
+                      "\nSee docs at keygen\n\nNext step: convert it, then\n-----END OPENSSH " + "PRIVATE KEY-----",
+                      " and the footer -----END OPENSSH " + "PRIVATE KEY----- wrap it"):
             text = "-----BEGIN OPENSSH " + "PRIVATE KEY-----" + after
             self.assertEqual(capture.redact_secrets(text), "[redacted]" + after)
+        prose = "the auth scheme is bearer\n\nsrc/auth/middleware2.ts handles it"
+        self.assertEqual(capture.redact_secrets(prose), prose)
 
     def test_long_names_and_values_redact_in_linear_time(self) -> None:
         # A hyphenated run of keywords took 85 s on 8,000 characters, inside the Stop hook (#82 review).
