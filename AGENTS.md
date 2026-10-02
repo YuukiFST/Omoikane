@@ -46,7 +46,6 @@ prune: stale | redundant | low-value  # optional, set by /prune; the human delet
 - Link pages with `[[slug]]` wikilinks. A claim taken from a source cites it inline: `(source: [[slug]])`.
 - One entity or concept per page. A concept mentioned on three pages gets its own page.
 - A contradiction lives where its two sides meet: on the source page when a source contradicts itself, on the entity or concept page when two sources disagree. Keep both claims under `## Contradictions`, add an entry to `omoikane/_review.md`, and do not pick a winner.
-- A decision that reverses an older one links both ways under `## History`; the older page stays.
 
 ## Operations
 
