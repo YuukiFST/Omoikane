@@ -42,23 +42,45 @@ REDACTED = "[redacted]"
 UNREDACTED_KEYS = ("harness", "session", "part", "turns", "started", "ended")
 # Secrets go whether or not a list exists (#77): a key pasted into a prompt was pushed with the capture.
 CLIP_MARK = r" \[\.\.\. \d+ chars cut\]"
-# Token shapes with a fixed prefix; each is redacted whole, or up to a clip marker when a clip cut it short.
-TOKEN_PREFIXES = r"gh[pousr]_|github_pat_|sk-|[sr]k_(?:live|test)_|xox[abprs]-|AIza|AKIA|ASIA"
-SECRET_SHAPES = re.compile(
-    r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?(?:-----END [A-Z ]*PRIVATE KEY-----|(?=" + CLIP_MARK + r")|\Z)"
-    r"|\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_\w{20,}|sk-[\w-]{20,}|[sr]k_(?:live|test)_[A-Za-z0-9]{16,}"
-    r"|xox[abprs]-[A-Za-z0-9-]{10,}|AIza[\w-]{30,}|(?:AKIA|ASIA)[0-9A-Z]{16})\b"
-    r"|\beyJ[\w-]{8,}\.eyJ[\w-]{8,}\.[\w-]{8,}"
-    r"|\b(?:" + TOKEN_PREFIXES + r")[\w-]*(?=" + CLIP_MARK + r")",
-    re.DOTALL)
-# `Bearer <token>`, and the password in `scheme://user:password@host`: the label stays, the value goes.
-SECRET_AFTER = re.compile(r"(?i)(\bbearer\s+)[\w.~+/-]{16,}=*|(\b[a-z][\w+.-]*://[^\s:/@]+:)[^\s@/]+(?=@)")
-# `<name>=<value>` or `<name>: <value>` where the name says it holds a secret.
+CLIPPED = re.compile(CLIP_MARK)
+# Token shapes with a known prefix. A token cut short by a clip still starts with its prefix, so that part goes too.
+TOKENS = (r"gh[pousr]_[A-Za-z0-9]{30,}|github_pat_\w{20,}|sk-[\w-]{20,}|[sr]k_(?:live|test)_[A-Za-z0-9]{16,}"
+          r"|xox[abprs]-[A-Za-z0-9-]{10,}|AIza[\w-]{30,}|(?:AKIA|ASIA)[0-9A-Z]{16}|glpat-[\w-]{20,}"
+          r"|npm_[A-Za-z0-9]{30,}|hf_[A-Za-z0-9]{30,}|ya29\.[\w-]{20,}|SG\.[\w-]{16,}\.[\w-]{16,}"
+          r"|eyJ[\w-]{8,}\.eyJ[\w-]{8,}(?:\.[\w-]*)?|https://hooks\.slack\.com/services/[\w/]+")
+TOKEN_PREFIXES = r"gh[pousr]_|github_pat_|sk-|[sr]k_(?:live|test)_|xox[abprs]-|AIza|AKIA|ASIA|glpat-|npm_|hf_|ya29\.|SG\.|eyJ"
+# A private key block. Only key lines may follow the header, so a header quoted in prose takes nothing after it:
+# `.*?` up to a footer that never came erased every later turn of a capture (#82 review).
+PRIVATE_KEY = (r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----(?:\s*(?:[A-Za-z0-9+/=]{16,}|[A-Za-z-]+: [^\n]*))*"
+               r"\s*(?:-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----|[A-Za-z0-9+/=]+(?=" + CLIP_MARK + r"))?")
+SECRET_SHAPES = re.compile(PRIVATE_KEY + r"|(?<![\w-])(?:" + TOKENS + r")"
+                           r"|(?<![\w-])(?:" + TOKEN_PREFIXES + r")[\w.-]*(?=" + CLIP_MARK + r")")
+# A label that stays, then the secret it introduces. Each pattern's group 1 is the label.
+SECRET_AFTER = [re.compile(p) for p in (
+    r"(?i)(\bbearer\s+)(?=[\w.~+/-]*\d)[\w.~+/-]{16,}=*",  # a digit: "bearer authenticationscheme" is prose
+    r"(?i)(\bbearer\s+)[\w.~+/-]+(?=" + CLIP_MARK + r")",
+    r"(?i)(\bauthorization:\s*basic\s+)[A-Za-z0-9+/]{8,}=*",
+    r"(?i)(\bauthorization:\s*token\s+)[0-9a-f]{20,}",
+    r"(\b[a-z][\w+.-]*://[^\s:/@]*:)[^\s/]+(?=@)",  # greedy to the last @: a hand-typed password may hold one
+    r"(\s-u\s+[^\s:]+:)[^\s'\"]+",  # curl -u user:password
+    r"(\bmysql(?:dump|admin)?\b[^\n|;&]*?\s-p)[^\s'\"]+",  # mysql -p<password>, no space
+)]
+# `<name>=<value>`, `"<name>": "<value>"`, `**<Name>:** <value>`, `| <name> | <value> |`. The name must end in what
+# it holds (`token_path`, `tokenizer`, `secretary`, `api_key_header` do not hold one), checked in the pattern so a
+# name that holds none consumes no value a later name needs. It is bounded and must start a word, so a long
+# hyphenated run cannot backtrack (#82 review: 85 s on 8,000 characters).
 SECRET_ASSIGNMENT = re.compile(
-    r"(?i)(\b[\w-]*(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key)[\w-]*"
-    r"\s*[:=]\s*)(([\"'])[^\"'\s]{4,}\3|[^\s\"'`,;]{6,})")
-# A value that names where the secret lives instead of holding it: a variable, a call, an attribute path.
-SECRET_REFERENCE = re.compile(r"[$%{<\[]|.*[(\[]|[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+\Z")
+    r"(?i)(?<![\w-])((?:[a-z_][\w-]{0,40}?)?(?:password|passwd|pwd|pass|secret|token|credentials?|apikey|[_-]key)s?)"
+    r"(?![\w-])([\"']?\**(?:[ \t]*[:=]|[ \t]+\|)[ \t]*\**[ \t]*)"
+    r"(?:([\"'])([^\"'\n]{1,200}?)\3|([\"']?)([^\s\"'`,;|]+))")
+# A value that names where the secret lives instead of holding it.
+SECRET_REFERENCE = re.compile(
+    r"\$\{?(?:[A-Z][A-Z0-9_]*|[a-z][a-z_]*)\}?\Z|%\w+%\Z|<[^>\n]*>\Z|\[redacted\]"  # $VAR, ${VAR}, %VAR%, <token>
+    r"|[A-Za-z_][\w.]*[(\[]"  # a call or an index: get_secret("db"), os.environ["X"]
+    r"|(?:os|self|cls|settings|config|conf|cfg|env|environ|process|request|app|ctx|secrets|vault|options|opts|args)"
+    r"\.[\w.]+\Z"
+    r"|[A-Z][A-Z0-9]*_[A-Z0-9_]+\Z"  # the name of an environment variable: GITHUB_TOKEN
+    r"|[/~]|\.\.?/|[A-Za-z]:[\\/]")  # a path
 # Headless runs of these commands are Omoikane maintaining itself; capturing them would loop forever. Read from
 # the prompt files so a new operation cannot be left out of the list.
 OMOIKANE_COMMANDS = {f"/{p.stem}" for p in (OMOIKANE / "prompts").glob("*.md")}
@@ -541,20 +563,29 @@ def redact(text: str, terms: list[str]) -> str:
 
 def redact_secrets(text: str) -> str:
     """Replace API keys, tokens, private keys and passwords with [redacted], keeping the name or label before them.
-    A value written unquoted counts only with a letter and a digit, or 20 characters: "token: expired" is prose.
+    A value written unquoted counts only with a letter and a digit, a symbol, or 20 characters ("token: expired" is
+    prose), unless a clip cut it; a value that names where the secret lives stays, quoted or not.
 
     Example: redact_secrets("PGPASSWORD=s3cretpw psql") returns "PGPASSWORD=[redacted] psql";
     redact_secrets('password = get_secret("db")') returns it unchanged.
     """
     def assignment(m: re.Match[str]) -> str:
-        value = m.group(2)
-        if m.group(3):
-            return f"{m.group(1)}{m.group(3)}{REDACTED}{m.group(3)}"
-        secret_like = len(value) >= 20 or (re.search(r"[A-Za-z]", value) and re.search(r"\d", value))
-        return m.group(0) if not secret_like or SECRET_REFERENCE.match(value) else m.group(1) + REDACTED
+        name, separator, quote, quoted, opening, bare = m.groups()
+        value = quoted if quote else bare
+        if SECRET_REFERENCE.match(value):
+            return m.group(0)
+        if ":" in separator and re.match(r"[ \t]*=(?!=)", m.string[m.end():]):
+            return m.group(0)  # a type hint: `token: OAuth2Token = fetch()`
+        cut = CLIPPED.match(m.string, m.end()) is not None
+        secret_like = (len(value) >= 20 or bool(re.search(r"[!@#$%^&*+=?~]", value))
+                       or (bool(re.search(r"[A-Za-z]", value)) and bool(re.search(r"\d", value))))
+        if quote:
+            return f"{name}{separator}{quote}{REDACTED}{quote}" if len(value) >= 4 else m.group(0)
+        return f"{name}{separator}{opening}{REDACTED}" if secret_like or cut else m.group(0)
 
     text = SECRET_SHAPES.sub(REDACTED, text)
-    text = SECRET_AFTER.sub(lambda m: (m.group(1) or m.group(2)) + REDACTED, text)
+    for pattern in SECRET_AFTER:
+        text = pattern.sub(lambda m: m.group(1) + REDACTED, text)
     return SECRET_ASSIGNMENT.sub(assignment, text)
 
 

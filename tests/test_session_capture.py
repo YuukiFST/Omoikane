@@ -5,6 +5,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -346,6 +347,23 @@ class Redaction(unittest.TestCase):
             (f"the key is\n{pem}\nkeep it", "MIIEow", "the key is\n[redacted]\nkeep it"),
             # A clip can cut a secret short of its full shape; the part before the marker goes too.
             ("y" * (capture.NOTE_CHARS - 12) + f" ghp_a1B2a1B2 {gh}", "a1B2", "[redacted] [... "),
+            ("y" * (capture.NOTE_CHARS - 17) + " DB_PASSWORD=hunt" + "x" * 30, "hunt", "DB_PASSWORD=[redacted] [... "),
+            # Shapes the #82 review found leaking.
+            ('{"password": "hunter22", "user": "ana"}', "hunter22", '{"password": "[redacted]", "user": "ana"}'),
+            ("data = {'api_key': 'abcd1234efgh'}", "abcd1234", "{'api_key': '[redacted]'}"),
+            ("mysql -uroot -pS3cr3tPass shop", "S3cr3tPass", "mysql -uroot -p[redacted] shop"),
+            ("Authorization: Basic " + "dXNlcjpwYXNz" + "d29yZA==", "dXNlcjpw", "Authorization: Basic [redacted]"),
+            ("curl -u admin:S3cr3tPass https://x", "S3cr3tPass", "curl -u admin:[redacted] https://x"),
+            ("redis://:s3cr3tpw@cache:6379", "s3cr3tpw", "redis://:[redacted]@cache:6379"),
+            ("postgres://u:p@ss1word@host/db", "ss1word", "postgres://u:[redacted]@host/db"),
+            ("DB_PASS=hunter2xyz and STRIPE_KEY=abcd1234efgh5678", "hunter2xyz", "DB_PASS=[redacted] and STRIPE_KEY=[re"),
+            ("password: 'p@ss w0rd'", "w0rd", "password: '[redacted]'"),
+            ("**Password:** hunter2x", "hunter2x", "**Password:** [redacted]"),
+            ("| password | hunter2x |", "hunter2x", "| password | [redacted] |"),
+            ("DB_PASSWORD=$ecr3tP4ss", "ecr3tP4ss", "DB_PASSWORD=[redacted]"),
+            ("token glpat-" + "a1b2c3d4e5f6g7h8i9j0", "a1b2c3d4", "token [redacted]"),
+            ("-----BEGIN PGP " + "PRIVATE KEY BLOCK-----\n" + "lQOYBF" * 4 + "\n-----END PGP " + "PRIVATE KEY BLOCK-----",
+             "lQOYBF", "[redacted]"),
         ]
         for text, absent, present in cases:
             with self.subTest(text=text[:40]):
@@ -359,11 +377,31 @@ class Redaction(unittest.TestCase):
     def test_code_that_only_names_a_secret_is_kept(self) -> None:
         # Redacting references would strip the code the session talks about, and the distill would lose it.
         text = ('token: str = os.environ["API_TOKEN"]; password = get_secret("db"); export API_KEY=$API_KEY; '
-                "secret_key = settings.SECRET_KEY; max_tokens=100000; when the token: expired, log in again")
+                "secret_key = settings.SECRET_KEY; max_tokens=100000; when the token: expired, log in again; "
+                'password: "${DB_PASSWORD}"; token_env = "GITHUB_TOKEN"; token_type = "bearer"; '
+                "token: OAuth2Token = fetch(); token_path=/home/ana/.config/gh/hosts.yml; pwd=/c/Users/ana/shop; "
+                "tokenizer_name=bert-base-multilingual-cased; secretary=JaneDoe42; api_key_header: X-API-Key2; "
+                "the bearer authenticationscheme; task-sk-learn-compatible-estimator-api")
         md = self.captured(None, [user(text), assistant({"type": "tool_use", "name": "Edit",
                                                           "input": {"file_path": "C:/p/a.py"}})])
         self.assertIn(text, md)
         self.assertNotIn("[redacted]", md)
+
+    def test_a_secret_header_without_its_end_takes_nothing_after_it(self) -> None:
+        # A PEM header with no END line ran on to the end of the capture and erased the turns after it (#82 review).
+        note = "The file starts with `-----BEGIN OPENSSH " + "PRIVATE KEY-----`, so it is an OpenSSH key"
+        md = self.captured(None, [user("What key is this?"), assistant({"type": "text", "text": note}),
+                                  user("Fix the deploy script"),
+                                  assistant({"type": "tool_use", "name": "Edit", "input": {"file_path": "C:/p/a.py"}})])
+        self.assertIn("so it is an OpenSSH key", md)
+        self.assertIn("Fix the deploy script", md)
+
+    def test_long_names_and_values_redact_in_linear_time(self) -> None:
+        # A hyphenated run of keywords took 85 s on 8,000 characters, inside the Stop hook (#82 review).
+        start = time.perf_counter()
+        for text in ("password-" * 900, "token-" * 1300, "a-" * 4000):
+            capture.redact_secrets(text)
+        self.assertLess(time.perf_counter() - start, 2.0)
 
     def test_no_redact_file_changes_nothing(self) -> None:
         for redact_list in (None, "", "\n\n"):
