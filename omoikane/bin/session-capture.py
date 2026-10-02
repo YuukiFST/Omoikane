@@ -32,7 +32,7 @@ from wikilib import OMOIKANE, parse_frontmatter
 
 INBOX = OMOIKANE / "raw" / "inbox" / "sessions"
 INGESTED = OMOIKANE / "raw" / "sources" / "sessions"
-# The review gate commits its distills here before the human merges them (review-gate.py).
+# The review gate commits its distills here before its PR merges them (review-gate.py).
 AUTO_BRANCH = "wiki/auto"
 NO_CAPTURE_ENV = "OMOIKANE_NO_CAPTURE"
 # Terms the user never wants in a capture, one per line (#62). The scheduled run commits and pushes every capture,
@@ -527,8 +527,8 @@ def ingested_parts(session: Session, ingested: Path = INGESTED, repo: Path = OMO
     """`turns:` of every distilled part of this session under raw/sources/sessions/, matched by the full session id
     in the frontmatter, so the file-name scheme can change without losing continuation.
 
-    Also on the review gate's branch: a part it distilled stays on wiki/auto until the human merges the PR and
-    pulls (#45), and a session that goes on meanwhile must not capture those turns again.
+    Also on the review gate's branch: a part it distilled stays on wiki/auto until the PR merges and the human
+    pulls (#45, #74), and a session that goes on meanwhile must not capture those turns again.
     Example: ingested_parts(Session(session_id="abcdef12-0000", ...)) returns [2] after a two-turn distill.
     """
     texts = {path.name: path.read_text(encoding="utf-8") for path in ingested.glob(f"{session.day}-*.md")}

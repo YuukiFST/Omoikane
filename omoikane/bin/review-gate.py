@@ -33,6 +33,9 @@ REVIEW = "omoikane/_review.md"
 # nothing else: it is not a protected branch (#56 review).
 COMMITTED = ("omoikane/wiki", "omoikane/raw", "omoikane/log.md", REVIEW, INDEX)
 BLOCKED = "omoikane/.wiki-ingest.blocked"
+# expectedHeadOid: GitHub refuses when the PR head is no longer the commit publish pushed.
+AUTO_MERGE = ("mutation($id: ID!, $head: GitObjectID!) { enablePullRequestAutoMerge(input: {pullRequestId: $id, "
+              "mergeMethod: MERGE, expectedHeadOid: $head}) { clientMutationId } }")
 
 
 class GateError(Exception):
@@ -332,18 +335,23 @@ def publish(worktree: Path, gh: Sequence[str] = ("gh",)) -> str:
                 f"opened. To start over, reset {BRANCH} to origin/main in the worktree and delete the remote branch")
     git(worktree, "push", "-q", "-u", "origin", f"HEAD:refs/heads/{BRANCH}")
     open_prs = json.loads(run_gh("pr", "list", "--head", BRANCH, "--base", "main", "--state", "open",
-                                 "--json", "number,url") or "[]")
+                                 "--json", "number,url,autoMergeRequest") or "[]")
     if open_prs:
-        return f"pushed; PR #{open_prs[0]['number']} updated"
+        # Off when GitHub refused it at opening, or the human holds the PR; either way it waits for a human.
+        held = "" if open_prs[0].get("autoMergeRequest") else "; auto-merge off"
+        return f"pushed; PR #{open_prs[0]['number']} updated{held}"
     body = ("Opened by the scheduled run of `omoikane/bin/wiki-ingest.ps1 -Commit` (review gate). "
             "It merges itself once the required checks pass; disable auto-merge or close the PR to hold it.\n\n"
             + ahead + "\n")
     url = run_gh("pr", "create", "--base", "main", "--head", BRANCH, "--title", "wiki: scheduled updates",
                  "--body", body).strip()
-    # Asked once, here: a later push leaves auto-merge as the human last set it. The head pins what CI must pass.
+    # Asked once, here: a later push leaves auto-merge as the human last set it. Not `gh pr merge --auto`: on a PR
+    # GitHub already computes mergeable (no required check) it merges at once, before CI (gh merge.go,
+    # isImmediatelyMergeable); the mutation is refused there instead.
     head = git(worktree, "rev-parse", "HEAD").strip()
     try:
-        run_gh("pr", "merge", url.rsplit("/", 1)[-1], "--auto", "--merge", "--match-head-commit", head)
+        node = run_gh("pr", "view", url, "--json", "id", "-q", ".id").strip()
+        run_gh("api", "graphql", "-f", f"query={AUTO_MERGE}", "-f", f"id={node}", "-f", f"head={head}")
     except GateError as exc:
         raise GateError(f"opened {url}, but auto-merge was refused ({exc}); the repository needs 'Allow "
                         "auto-merge' and a required status check on main") from exc

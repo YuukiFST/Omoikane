@@ -91,7 +91,7 @@ Contract: `summary` is the rule or fact itself in one line, since only the summa
 Outcome of each, recorded 2026-10-02 (#87).
 
 - **Closed** by #74, the user's decision of 2026-10-02: knowledge reached the user's sessions only after a human merged the `wiki/auto` PR (`docs/architecture.md`, "Why a gate"), and the objective asks for no involvement.
-  `review-gate.py publish` now asks GitHub to merge the PR by merge commit once the required checks pass (`gh pr merge --auto --merge --match-head-commit <head>`), keeping the PR as the audit trail and reversing part of #45; the repository needs "Allow auto-merge" and a required status check on `main`.
+  `review-gate.py publish` now asks GitHub to merge the PR by merge commit once the required checks pass (the `enablePullRequestAutoMerge` mutation; `gh pr merge --auto`, the proposal, merges at once a PR already mergeable), keeping the PR as the audit trail and reversing part of #45; the repository needs "Allow auto-merge" and a required status check on `main`.
   The agent's permission classifier had refused this edit once, so it waited for the user.
   Even merged, a session sees the pages after `git pull`: the brief reads the checkout.
 - **Discarded.** Latency (30-minute quiet period plus the schedule).

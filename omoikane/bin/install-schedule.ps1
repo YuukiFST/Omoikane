@@ -3,7 +3,7 @@
 Register a Windows Task Scheduler job that runs wiki-ingest.ps1 -Commit every N minutes.
 
 -Commit goes through the review gate (review-gate.py): each run works in the worktree <repo>-wiki-auto on branch
-wiki/auto, never on this checkout, and pushes one PR to main that the human merges. Needs a remote `origin` and a
+wiki/auto, never on this checkout, and pushes one PR to main that merges itself once its checks pass. Needs a remote `origin` and a
 `gh auth login` session; a blocked run leaves <repo>-wiki-auto/omoikane/.wiki-ingest.blocked.
 
 .EXAMPLE

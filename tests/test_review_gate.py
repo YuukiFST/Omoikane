@@ -23,10 +23,18 @@ with open(os.environ["FAKE_GH_LOG"], "a", encoding="utf-8") as log:
 if sys.argv[1:3] == ["pr", "list"] and sys.argv[sys.argv.index("--state") + 1] == "closed":
     print(os.environ.get("FAKE_GH_CLOSED", "[]"))
 elif sys.argv[1:3] == ["pr", "list"]:
-    print(json.dumps([{"number": 7, "url": "https://example.invalid/pull/7"}] if os.path.exists(state) else []))
+    auto = {"mergeMethod": "MERGE"} if os.path.exists(state + ".auto") else None
+    print(json.dumps([{"number": 7, "url": "https://example.invalid/pull/7", "autoMergeRequest": auto}]
+                     if os.path.exists(state) else []))
 elif sys.argv[1:3] == ["pr", "create"]:
     open(state, "w").close()
     print("https://example.invalid/pull/7")
+elif sys.argv[1:3] == ["pr", "view"]:
+    print("PR_node7")
+elif sys.argv[1:3] == ["api", "graphql"]:
+    if os.environ.get("FAKE_GH_REFUSE"):
+        sys.exit("GraphQL: Pull request is in clean status (enablePullRequestAutoMerge)")
+    open(state + ".auto", "w").close()
 """
 
 
@@ -135,14 +143,33 @@ class Gate(unittest.TestCase):
         self.assertEqual(git(self.repo, "ls-remote", "--heads", "origin", "wiki/auto").split()[0], first_head)
         self.prepare()
         self.commit_in_worktree("omoikane/log.md", "# Log\n\n## distill | a\n\n## distill | b\n", "feat(wiki): distill b")
-        self.assertIn("PR #7 updated", gate.publish(self.work, self.gh))
+        self.assertEqual(gate.publish(self.work, self.gh), "pushed; PR #7 updated")
         creates = [c for c in self.gh_calls() if c[:2] == ["pr", "create"]]
         self.assertEqual(len(creates), 1)
         self.assertIn("feat(wiki): distill a", creates[0][creates[0].index("--body") + 1])
         # Knowledge reached sessions only after a human merged the PR (#74). Auto-merge is asked once, when the PR
         # opens, for the head just pushed: asked again on every push, it would undo a human's "disable auto-merge".
-        merges = [c for c in self.gh_calls() if c[:2] == ["pr", "merge"]]
-        self.assertEqual(merges, [["pr", "merge", "7", "--auto", "--merge", "--match-head-commit", first_head]])
+        # Through the GraphQL mutation, never `gh pr merge --auto`, which merges at once a PR already mergeable.
+        self.assertFalse([c for c in self.gh_calls() if c[:2] == ["pr", "merge"]])
+        mutations = [" ".join(c) for c in self.gh_calls() if c[:2] == ["api", "graphql"]]
+        self.assertEqual(len(mutations), 1)
+        for part in ("enablePullRequestAutoMerge", "mergeMethod: MERGE", "id=PR_node7", f"head={first_head}"):
+            self.assertIn(part, mutations[0])
+
+    def test_a_refused_auto_merge_fails_the_publish_and_later_ones_report_it(self) -> None:
+        # Without "Allow auto-merge" and a required check GitHub refuses; the PR must not wait silently.
+        self.prepare()
+        self.commit_in_worktree("omoikane/log.md", "# Log\n\n## distill | a\n", "feat(wiki): distill a")
+        os.environ["FAKE_GH_REFUSE"] = "1"
+        try:
+            with self.assertRaisesRegex(gate.GateError, "pull/7.*clean status.*Allow auto-merge"):
+                gate.publish(self.work, self.gh)
+        finally:
+            del os.environ["FAKE_GH_REFUSE"]
+        self.prepare()
+        self.commit_in_worktree("omoikane/log.md", "# Log\n\n## distill | a\n\n## distill | b\n", "feat(wiki): distill b")
+        self.assertEqual(gate.publish(self.work, self.gh), "pushed; PR #7 updated; auto-merge off")
+        self.assertEqual(len([c for c in self.gh_calls() if c[:2] == ["api", "graphql"]]), 1)
 
     def test_main_comes_in_by_merge_and_the_log_by_union(self) -> None:
         self.prepare()
