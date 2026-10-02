@@ -1,5 +1,7 @@
 # Architecture
 
+Objective: every new system starts from this template, and its agents feed the wiki on their own with what the user states while building, domain knowledge included (business rules, design system, organisation conventions). A change to this repository is worth making only when it moves the tool towards that; the plan that set it down is [specs/2026-10-02-realign-to-objective.md](specs/2026-10-02-realign-to-objective.md).
+
 Three layers, as in Karpathy's LLM Wiki pattern, plus one rule that makes it run unattended: bookkeeping is code, only meaning goes through the LLM.
 
 ## Layers

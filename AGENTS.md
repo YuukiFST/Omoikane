@@ -1,11 +1,6 @@
 # Omoikane — agent operating manual
 
-You maintain this wiki. The human curates sources and asks questions; you write every page under `omoikane/wiki/`.
-
-Two ways this repository is used, one layout:
-
-- Research: the human drops sources into the inbox; you ingest them.
-- Build: the repository root holds a system under construction and `omoikane/` is its memory. Your coding sessions are captured by a hook and distilled into pages later. Layout and page contract are the same in both.
+Every new system starts from this template, and `omoikane/` is its memory. Agents feed it without the human's involvement: what the human states while building (decisions, gotchas, business rules, design system, organisation conventions) is captured by a hook and distilled into `omoikane/wiki/`; you write every page. Sources the human drops into the inbox are ingested the same way.
 
 ## Layout
 
