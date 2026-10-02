@@ -74,3 +74,17 @@ Updated: [[headless-runs-have-no-shell]], [[company-internal-material-stays-out-
 - skipped (self-resolved) write-before-read-tool-error: `File has not been read yet` from the Write tool (turn 2)
 - skipped (self-resolved) test-fixture-global-hookspath: two test details adjusted, a global `core.hooksPath` and a directory status, cause not stated beyond that (turn 2)
 - skipped (self-resolved) budget-test-assumed-empty-rules-block: the context budget test went red once a rule was promoted; recorded on [[wiki-rules]], not a gotcha (turn 2)
+
+## [2026-10-02] review | removed from _review.md
+
+- removed (guard) typecheck-harness-plugins
+- removed (todo) wiki-lint-backslash-code-paths
+- removed (guard) user-settings-apply-to-headless-claude-runs
+- removed (todo) phase-2-pendencies
+- removed (rule) review-each-pr-with-a-subagent-before-merging
+- removed (todo) finish-rejection-memory-pr-44
+- removed (todo) close-resolved-review-items
+- removed (todo) merge-typecheck-plugins-pr-48
+- removed (todo) merge-escape-edit-hook-pr-49
+- removed (todo) merge-rule-promotion-pr-50
+- removed (todo) open-org-knowledge-pr-52
