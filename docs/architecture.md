@@ -91,7 +91,7 @@ The objective names it: the business rules, design system and organisation conve
 
 Why a type of its own (#64):
 
-- The existing types were shaped for lessons about code. A practice needs two sessions; a rule the user states once is already true. A decision needs rejected alternatives; "prices are integer cents" has none. A concept page is not imperative, has no source floor and is cut first from the brief.
+- The existing types were shaped for lessons about code. A practice needs two sessions; a rule the user states once is already true. A decision needs rejected alternatives; "prices are integer cents" has none. A concept page is not imperative, has no source floor and comes after decisions, gotchas and practices in the brief.
 - One type, not three: a business rule, a design-system rule and a convention share the lifecycle (stated by an authority, valid from one statement, may contradict the code, needs the statement). Tags tell them apart.
 - `wiki-lint.py` fails a domain page that cites no existing source page: a rule nobody stated is the agent's guess, and every later session would obey it. `session-context.py` lists domain pages first, so the brief cuts them last.
 
