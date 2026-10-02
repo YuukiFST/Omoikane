@@ -134,7 +134,7 @@ class ContextBudget(unittest.TestCase):
         # so raising the brief's cap in session-context.py turns the last assertion red.
         brief, error = budget.worst_case_brief()
         self.assertEqual(error, "")
-        self.assertIn("Omitted by budget: Decisions", brief)
+        self.assertIn("Omitted by budget: Domain", brief)
         self.assertIn("- ... 100 older", brief)
         for line in ("open items", "approved proposals", "approved rules"):
             self.assertIn(line, brief)

@@ -11,7 +11,9 @@ REPO = OMOIKANE.parent
 WIKI = OMOIKANE / "wiki"
 REQUIRED_KEYS = ("title", "type", "summary", "tags", "created", "updated", "sources")
 # Order matters: wiki-index.py and session-context.py emit groups in this order, most useful to a coding agent first.
-PAGE_TYPES = ("decision", "gotcha", "practice", "concept", "entity", "source", "query")
+# Domain pages (business rules, design system, organisation conventions the user stated) lead: they govern the code
+# being written, so the brief cuts them last (#64).
+PAGE_TYPES = ("domain", "decision", "gotcha", "practice", "concept", "entity", "source", "query")
 # A practice page must cite at least this many distinct sessions: one session is distill's job, not a pattern.
 PRACTICE_MIN_SESSIONS = 2
 # wiki/sources/session-<YYYY-MM-DD>-<id8>[-part<n>].md; the id tail names the session across its parts.

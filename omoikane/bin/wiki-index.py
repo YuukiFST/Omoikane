@@ -8,6 +8,7 @@ from __future__ import annotations
 from wikilib import CODE_KEY, OMOIKANE, PAGE_TYPES, PRUNE_KEY, Page, load_pages
 
 HEADINGS = {
+    "domain": "Domain",
     "decision": "Decisions",
     "gotcha": "Gotchas",
     "practice": "Practices",
