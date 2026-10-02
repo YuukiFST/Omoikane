@@ -17,3 +17,7 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
 ## [2026-10-02] distill | session 1b324082
 
 - todo second-domain-distill-eval: rerun the headless distill eval over `tests/fixtures/distill-domain-session-2.md` (rule a guard would catch, rule given in an answer, code breaking the rule, replaced rule); the run was killed for low memory and never gave a result (session 1b324082, turn 5)
+
+## [2026-10-02] synthesize
+
+- [ ] rule stop-and-ask-at-every-decidir-in-a-handoff-prompt: Mark each user choice DECIDIR in a handoff prompt; at a DECIDIR you receive, stop and ask (synthesize)

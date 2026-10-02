@@ -130,3 +130,18 @@ Updated: [[omoikane-objective]], [[omoikane-holds-its-systems-domain-knowledge-i
 - skipped (no-root-cause) auto-mode-classifier-denial: an action was denied by the auto mode classifier, which gave no explanation (turn 3)
 - skipped (self-resolved) write-before-read-tool-error: `File has not been read yet` from the Write tool (turn 3)
 - skipped (self-resolved) chained-sleep-blocked: `sleep 240` before a `tail` was blocked by the harness, which asks for Monitor or run_in_background (turn 3)
+
+## [2026-10-02] synthesize | 6 sessions
+
+Created: [[run-a-headless-eval-in-a-throwaway-clone-before-a-prompt-pr]], [[stop-and-ask-at-every-decidir-in-a-handoff-prompt]].
+Updated: [[review-each-pr-with-a-subagent-before-merging]] (sessions 230a182d, b5b6fb27, d4302021, 1b324082), [[session-2026-10-02-1b324082]], [[session-2026-10-01-d4302021]], [[session-2026-10-01-b5b6fb27]] (links to the practices).
+
+- routed (rule) stop-and-ask-at-every-decidir-in-a-handoff-prompt: mark user choices DECIDIR in handoff prompts, stop and ask at each one received (sessions 230a182d, b5b6fb27, d4302021, 1b324082; turns 4, 2, 3, 3)
+- dropped (known) write-before-read-tool-error: skipped in three distills; the Write tool itself refuses a write before a read
+- dropped (not-imperative) auto-mode-classifier-denial: denials and a missing verdict from the auto mode classifier in e04462b2, b5b6fb27 and 1b324082, with no cause an agent could act on
+- dropped (known) issue-branch-worktree-pr: every session worked one issue, branch and `$TEMP` worktree per PR, the flow the user's global git rules route to the `git-workflow` skill
+- dropped (known) red-test-first: every session wrote failing tests first, already required by the user's global CLAUDE.md
+- dropped (known) scan-captures-before-publishing: d4302021 and 1b324082 checked captures for the company kit's name before a public push; covered by [[company-internal-material-stays-out-of-the-public-repo]]
+- dropped (not-imperative) handoff-prompt-at-session-end: c14af01e, d4302021 and 1b324082 wrote a handoff prompt because the user asked for one
+- dropped (one-session) kill-the-class-with-a-guard: stated only in 230a182d turn 2, and the user's global CLAUDE.md already says to automate a repeated class of problem
+- dropped (not-imperative) prompt-eval-rule: [[run-a-headless-eval-in-a-throwaway-clone-before-a-prompt-pr]] governs only prompt PRs, not most tasks, so no rule is filed
