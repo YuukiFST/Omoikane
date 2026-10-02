@@ -46,6 +46,7 @@ Deleting a bullet is the whole rejection. At the start of each scheduled run, `o
 coding session ends a turn  --stop hook of the harness-->  omoikane/bin/session-capture.py --harness <claude|pi|opencode>
    reads the harness transcript, no LLM
    skips: OMOIKANE_NO_CAPTURE set, first prompt runs an operation of omoikane/prompts/, no file edited, subagent session
+   replaces every term listed in omoikane/.capture-redact (gitignored) with [redacted]
    writes omoikane/raw/inbox/sessions/<date>-<id8>.md   (rewritten on every turn: idempotent)
 
 new session starts  --start hook of the harness-->  omoikane/bin/session-context.py
@@ -56,6 +57,8 @@ new session starts  --start hook of the harness-->  omoikane/bin/session-context
 Why the hook and not the agent: an instruction "save what is valuable" fails silently when the agent forgets or when the session is cut short. The harness fires the hook every time.
 
 Why capture without an LLM: the hook runs on every turn and must return in well under a second. Selection happens once, in `/distill`, on the scheduled run.
+
+Why redact at capture: the scheduled run commits and pushes every capture, and under `raw/sources/` it is immutable, so a name the user does not want published (an organisation, a customer, a private path) has to be gone before the file is written (#62). The list stays out of git because it names what it hides. A redacted term in the middle of a path or command loses that detail for `/distill`; the alternative was a hand redaction after the fact (`286fbc6`), which reaches the remote only if someone remembers.
 
 Why the quiet period: Stop fires per turn, so a session file may still be growing. `wiki-ingest.ps1` waits until the file has been untouched for `-QuietMinutes`. A session that continues after its file was distilled produces a `-part2` file with only the turns not yet covered; `session-capture.py` reads `turns:` from the distilled copy under `raw/sources/sessions/`.
 

@@ -258,6 +258,50 @@ class Render(unittest.TestCase):
         self.assertEqual(capture.keep_ends([10, 10], 100), (2, 0))
 
 
+class Redaction(unittest.TestCase):
+    # A capture is committed and pushed by the scheduled run, then immutable under raw/sources/ (#62). A name the
+    # user lists in omoikane/.capture-redact must never reach the file, wherever the session wrote it.
+    SESSION = [
+        user("Read the Acme-Kit rules"),
+        assistant({"type": "text", "text": "The ACME-KIT says prices are cents; axcme agrees."},
+                  {"type": "tool_use", "name": "Edit", "input": {"file_path": "C:/proj/acme/prices.py"}},
+                  {"type": "tool_use", "name": "Bash", "input": {"command": "grep -c a.c+me src"}}),
+    ]
+
+    def captured(self, redact_list: str | None) -> str:
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            redact_file = tmp / ".capture-redact"
+            if redact_list is not None:
+                redact_file.write_text(redact_list, encoding="utf-8")
+            capture.capture(write_transcript(tmp, self.SESSION), inbox=tmp / "inbox", redact_file=redact_file)
+            return next((tmp / "inbox").glob("*.md")).read_text(encoding="utf-8")
+
+    def test_listed_terms_never_reach_the_capture(self) -> None:
+        cases = [
+            # (redact file, absent from the lower-cased capture, present in it)
+            ("acme\nacme-kit\n", ["acme", "-kit"], ["Read the [redacted] rules", "[redacted]/prices.py"]),
+            ("ACME\n", ["acme"], ["[redacted]-Kit"]),
+            ("\n  \nacme\n", ["acme"], ["Read the", "says prices"]),
+            ("a.c+me\n", ["a.c+me"], ["grep -c [redacted] src", "axcme agrees"]),
+        ]
+        for redact_list, absent, present in cases:
+            with self.subTest(redact_list=redact_list):
+                md = self.captured(redact_list)
+                for term in absent:
+                    self.assertNotIn(term, md.lower())
+                for needle in present:
+                    self.assertIn(needle, md)
+                self.assertIn("session: abcdef12-0000\n", md)
+
+    def test_no_redact_file_changes_nothing(self) -> None:
+        for redact_list in (None, "", "\n\n"):
+            with self.subTest(redact_list=redact_list):
+                md = self.captured(redact_list)
+                self.assertIn("Read the Acme-Kit rules", md)
+                self.assertNotIn("[redacted]", md)
+
+
 class Continuation(unittest.TestCase):
     # The review gate distills in a worktree on wiki/auto (#45): until its PR is merged and pulled, the distilled
     # capture is on that branch only. A session that goes on must not capture those turns again.

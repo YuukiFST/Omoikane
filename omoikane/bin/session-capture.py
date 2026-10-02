@@ -35,6 +35,10 @@ INGESTED = OMOIKANE / "raw" / "sources" / "sessions"
 # The review gate commits its distills here before the human merges them (review-gate.py).
 AUTO_BRANCH = "wiki/auto"
 NO_CAPTURE_ENV = "OMOIKANE_NO_CAPTURE"
+# Terms the user never wants in a capture, one per line (#62). The scheduled run commits and pushes every capture,
+# and under raw/sources/ it is immutable, so redaction happens here. Gitignored: the list itself names them.
+REDACT_FILE = OMOIKANE / ".capture-redact"
+REDACTED = "[redacted]"
 # Headless runs of these commands are Omoikane maintaining itself; capturing them would loop forever. Read from
 # the prompt files so a new operation cannot be left out of the list.
 OMOIKANE_COMMANDS = {f"/{p.stem}" for p in (OMOIKANE / "prompts").glob("*.md")}
@@ -469,7 +473,31 @@ def ingested_parts(session: Session, ingested: Path = INGESTED, repo: Path = OMO
     return parts
 
 
-def capture(transcript: Path, session_id: str = "", harness: str = "claude") -> str:
+def redaction_terms(path: Path = REDACT_FILE) -> list[str]:
+    """Non-blank lines of the redact file, stripped; none when it is missing.
+
+    Example: a file holding "Acme\\n\\n  \\n" returns ["Acme"]. A blank line must not count: an empty term would
+    match everywhere.
+    """
+    if not path.is_file():
+        return []
+    return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def redact(text: str, terms: list[str]) -> str:
+    """Replace every term, in any case and taken literally, with [redacted]. Longest first, so a term inside a
+    longer one leaves no tail.
+
+    Example: redact("ACME-kit and acme", ["acme", "acme-kit"]) returns "[redacted] and [redacted]".
+    """
+    if not terms:
+        return text
+    pattern = "|".join(re.escape(term) for term in sorted(terms, key=len, reverse=True))
+    return re.sub(pattern, REDACTED, text, flags=re.IGNORECASE)
+
+
+def capture(transcript: Path, session_id: str = "", harness: str = "claude", inbox: Path = INBOX,
+            redact_file: Path = REDACT_FILE) -> str:
     session = READERS[harness](transcript, session_id)
     worktree = git_status(session.cwd)
     reason = skip_reason(session, worktree)
@@ -482,10 +510,12 @@ def capture(transcript: Path, session_id: str = "", harness: str = "claude") -> 
         return "skip: already ingested"
     part = len(parts) + 1
     suffix = "" if part == 1 else f"-part{part}"
-    target = INBOX / f"{session.day}-{session.short_id}{suffix}.md"
-    INBOX.mkdir(parents=True, exist_ok=True)
-    target.write_text(render(session, session.turns[covered:], part, worktree), encoding="utf-8")
-    return f"captured {target.relative_to(OMOIKANE.parent).as_posix()} ({len(session.turns) - covered} turns)"
+    target = inbox / f"{session.day}-{session.short_id}{suffix}.md"
+    inbox.mkdir(parents=True, exist_ok=True)
+    text = redact(render(session, session.turns[covered:], part, worktree), redaction_terms(redact_file))
+    target.write_text(text, encoding="utf-8")
+    shown = target.relative_to(OMOIKANE.parent) if target.is_relative_to(OMOIKANE.parent) else target
+    return f"captured {shown.as_posix()} ({len(session.turns) - covered} turns)"
 
 
 def main(argv: list[str] | None = None) -> int:
