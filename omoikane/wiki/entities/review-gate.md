@@ -5,7 +5,7 @@ summary: omoikane/bin/review-gate.py keeps the scheduled run on a wiki/auto work
 tags: [review-gate, module, autonomy-loop, git]
 created: 2026-10-02
 updated: 2026-10-02
-sources: [wiki/sources/session-2026-10-01-d4302021.md]
+sources: [wiki/sources/session-2026-10-01-d4302021.md, wiki/sources/session-2026-10-02-a8b45323.md]
 code: [omoikane/bin/review-gate.py, tests/test_review_gate.py, docs/architecture.md]
 ---
 
@@ -30,3 +30,12 @@ The agent declined a reviewer's suggested fix because it "reabriria o achado da 
 ## Known limits
 
 Recorded on PR #56 and not fixed (turn 4): a slid hunk in a replay ends the window early (medium, not verified); `settled` can stop advancing (low); two squashes between runs record only the first (low); after a squash the next PR body lists the old commits again (low).
+
+## Captures main already holds
+
+`move_captures` leaves in the human's checkout an inbox file that `origin/main` holds byte for byte: the worktree gets it from `main`, and moving it left a deletion in the checkout (issue #78, PR #81, merged) (source: [[session-2026-10-02-a8b45323]], turn 2; `omoikane/bin/review-gate.py`).
+The review of #81 sent more findings back, reproduced by a red test and fixed in `move_captures` (turn 2); the test is `test_only_quiet_captures_move_into_the_worktree`.
+
+## Auto-merge
+
+Gap 1 of the realignment plan, issue #74: `publish` would enable auto-merge on the `wiki/auto` PR with `gh pr merge --auto --merge --match-head-commit`. The permission classifier blocked the action, and the agent dropped its worktree and branch and left the choice to the user (source: [[session-2026-10-02-a8b45323]], turn 2).

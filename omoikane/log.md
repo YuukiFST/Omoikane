@@ -150,3 +150,16 @@ Updated: [[review-each-pr-with-a-subagent-before-merging]] (sessions 230a182d, b
 
 Created: [[2026-10-02-omoikane-references]], [[omoikane-references]].
 Updated: [[omoikane-objective]].
+
+## [2026-10-02] distill | session a8b45323
+
+Created: [[session-2026-10-02-a8b45323]], [[secret-redaction-patterns-leak-swallow-and-backtrack]], [[lint-findings-the-scheduled-agent-cannot-fix-are-warnings]], [[brief-floors-only-the-rule-and-lesson-sections]], [[new-system-inherits-conventions-with-from]], [[bootstrap]].
+Updated: [[review-gate]], [[session-capture]], [[session-context]], [[wiki-rules]], [[wiki-lint]], [[new-system-starts-with-an-empty-memory]], [[omoikane-holds-its-systems-domain-knowledge-itself]], [[run-a-headless-eval-in-a-throwaway-clone-before-a-prompt-pr]].
+
+- routed (todo) auto-merge-wiki-pr-74: auto-merge of the `wiki/auto` PR blocked by the permission classifier, left for the user (turn 2)
+- routed (todo) close-second-domain-distill-eval: the second domain distill eval ran and passed; the older todo can go (turn 2)
+- routed (todo) cut-realignment-prompt: the user's realignment prompt is cut by the capture (turn 2)
+- skipped (no-root-cause) auto-mode-classifier-denial: the auto mode classifier denied an action without an explanation (turn 2)
+- skipped (self-resolved) write-before-read-tool-error: `File has not been read yet` from the Write tool (turn 2)
+- skipped (self-resolved) chained-sleep-blocked: `sleep 60` before a `cat` was blocked by the harness, which asks for Monitor or run_in_background (turn 2)
+- skipped (self-resolved) gh-no-github-remote-in-eval-clone: `gh` could not determine the repository in a clone whose remote is a local path (turn 2)

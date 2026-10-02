@@ -5,7 +5,7 @@ summary: omoikane/bin/session-capture.py, turns a Claude Code, Pi or OpenCode tr
 tags: [session-capture, module, build-mode]
 created: 2026-09-30
 updated: 2026-10-02
-sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-02-1b324082.md]
+sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-02-1b324082.md, wiki/sources/session-2026-10-02-a8b45323.md]
 code: [omoikane/bin/session-capture.py, tests/test_session_capture.py]
 ---
 
@@ -39,3 +39,6 @@ Paths are normalised to `/` before being made relative to the session cwd: [[ope
 
 Terms listed in the gitignored `omoikane/.capture-redact` are replaced with `[redacted]` before the capture is written (issue #62, PR #69): [[redact-captures-when-they-are-written]] (source: [[session-2026-10-02-1b324082]], turn 3).
 The frontmatter ids, clipped terms and the term list's encoding each broke the first version: [[capture-redaction-breaks-on-frontmatter-clips-and-encodings]].
+
+Since issue #77 (PR #82) `redact_secrets` also replaces API keys, tokens, private keys and passwords, with or without a term list, before the listed terms (source: [[session-2026-10-02-a8b45323]], turn 2; `redact_capture`). Three review rounds found leaks, an unterminated PEM erasing turns and 85 s of backtracking: [[secret-redaction-patterns-leak-swallow-and-backtrack]].
+[[bootstrap]] runs the same redaction on what it seeds.
