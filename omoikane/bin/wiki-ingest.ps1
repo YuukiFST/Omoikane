@@ -6,7 +6,8 @@ Plain sources go through /ingest; captured coding sessions under raw/inbox/sessi
 A session file modified less than -QuietMinutes ago may still be growing (Stop fires on every turn), so it waits.
 After -SynthesizeEvery distills since the last cross-session pass, /synthesize runs once; 0 turns it off.
 -Commit goes through the review gate (review-gate.py, #45): the run happens in a worktree on wiki/auto beside the
-repository, one commit per operation, and the branch is pushed as a PR to main. The human's checkout is not touched.
+repository, one commit per operation, and the branch is pushed as a PR to main that merges itself once the required
+checks pass (#74). The human's checkout is not touched.
 
 .EXAMPLE
 omoikane/bin/wiki-ingest.ps1                      # Claude Code, changes left in the working tree

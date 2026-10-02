@@ -2,8 +2,8 @@
 
 `prepare` brings the worktree up to date (origin/wiki/auto, then origin/main, both by merge: no rebase, no
 force-push) and moves the quiet captures from the human's inbox into it; wiki-ingest.ps1 then runs there and
-commits each operation. `publish` pushes wiki/auto and opens the PR, or lets the push update the open one.
-Merging stays the human's act (#45).
+commits each operation. `publish` pushes wiki/auto and opens the PR with auto-merge on, or lets the push update the
+open one. GitHub merges it once the required checks pass (#74); the human can disable auto-merge or close the PR.
 
 Usage: python omoikane/bin/review-gate.py prepare [--quiet-minutes 30] [--worktree DIR]
        python omoikane/bin/review-gate.py publish [--worktree DIR] [--gh PATH]
@@ -336,10 +336,18 @@ def publish(worktree: Path, gh: Sequence[str] = ("gh",)) -> str:
     if open_prs:
         return f"pushed; PR #{open_prs[0]['number']} updated"
     body = ("Opened by the scheduled run of `omoikane/bin/wiki-ingest.ps1 -Commit` (review gate). "
-            "Read the diff before merging; the run never merges.\n\n" + ahead + "\n")
+            "It merges itself once the required checks pass; disable auto-merge or close the PR to hold it.\n\n"
+            + ahead + "\n")
     url = run_gh("pr", "create", "--base", "main", "--head", BRANCH, "--title", "wiki: scheduled updates",
                  "--body", body).strip()
-    return f"pushed; opened {url}"
+    # Asked once, here: a later push leaves auto-merge as the human last set it. The head pins what CI must pass.
+    head = git(worktree, "rev-parse", "HEAD").strip()
+    try:
+        run_gh("pr", "merge", url.rsplit("/", 1)[-1], "--auto", "--merge", "--match-head-commit", head)
+    except GateError as exc:
+        raise GateError(f"opened {url}, but auto-merge was refused ({exc}); the repository needs 'Allow "
+                        "auto-merge' and a required status check on main") from exc
+    return f"pushed; opened {url}, auto-merge on"
 
 
 def main(argv: list[str] | None = None) -> int:

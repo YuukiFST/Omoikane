@@ -131,14 +131,18 @@ class Gate(unittest.TestCase):
         self.assertEqual(self.gh_calls(), [])
         self.commit_in_worktree("omoikane/log.md", "# Log\n\n## distill | a\n", "feat(wiki): distill a")
         self.assertIn("opened https://example.invalid/pull/7", gate.publish(self.work, self.gh))
-        self.assertEqual(git(self.repo, "ls-remote", "--heads", "origin", "wiki/auto").split()[0],
-                         git(self.work, "rev-parse", "HEAD").strip())
+        first_head = git(self.work, "rev-parse", "HEAD").strip()
+        self.assertEqual(git(self.repo, "ls-remote", "--heads", "origin", "wiki/auto").split()[0], first_head)
         self.prepare()
         self.commit_in_worktree("omoikane/log.md", "# Log\n\n## distill | a\n\n## distill | b\n", "feat(wiki): distill b")
         self.assertIn("PR #7 updated", gate.publish(self.work, self.gh))
         creates = [c for c in self.gh_calls() if c[:2] == ["pr", "create"]]
         self.assertEqual(len(creates), 1)
         self.assertIn("feat(wiki): distill a", creates[0][creates[0].index("--body") + 1])
+        # Knowledge reached sessions only after a human merged the PR (#74). Auto-merge is asked once, when the PR
+        # opens, for the head just pushed: asked again on every push, it would undo a human's "disable auto-merge".
+        merges = [c for c in self.gh_calls() if c[:2] == ["pr", "merge"]]
+        self.assertEqual(merges, [["pr", "merge", "7", "--auto", "--merge", "--match-head-commit", first_head]])
 
     def test_main_comes_in_by_merge_and_the_log_by_union(self) -> None:
         self.prepare()
