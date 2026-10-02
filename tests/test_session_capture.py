@@ -328,6 +328,43 @@ class Redaction(unittest.TestCase):
                     self.assertIn(needle, md)
                 self.assertIn("session: abcdef12-0000\n", md)
 
+    def test_secrets_never_reach_the_capture_without_a_list(self) -> None:
+        # A key pasted into a prompt or printed in the agent's notes was committed and pushed with the capture (#77).
+        # Built by concatenation, so the repository holds no string a secret scanner would flag.
+        gh, aws, sk = "ghp_" + "a1B2" * 9, "AKIA" + "Q7XZ" * 4, "sk-ant-api03-" + "x9Y_" * 8
+        jwt = "eyJ" + "hbGciOiJIUzI1NiJ9" + ".eyJ" + "zdWIiOiIxIn0" + "." + "c2lnbmF0dXJlLXZhbHVl"
+        pem = "-----BEGIN RSA " + "PRIVATE KEY-----\nMIIEow" + "IBAAKCAQEA\n-----END RSA " + "PRIVATE KEY-----"
+        cases = [
+            # (text in the session, secret absent from the capture, context kept)
+            (f"use token {gh} for the API", gh[4:], "use token [redacted] for the API"),
+            (f"aws key {aws} in prod", aws, "aws key [redacted] in prod"),
+            (f"ANTHROPIC_API_KEY={sk}", sk, "ANTHROPIC_API_KEY=[redacted]"),
+            (f"curl -H 'Authorization: Bearer {jwt}'", "c2lnbmF0dXJl", "Bearer [redacted]"),
+            ("DB_PASSWORD='hunter-Correct'", "hunter", "DB_PASSWORD='[redacted]'"),
+            ("run PGPASSWORD=s3cretpw psql -h db", "s3cretpw", "PGPASSWORD=[redacted] psql -h db"),
+            ("connect to postgres://app:s3cr3t-pw@db.local/shop", "s3cr3t", "postgres://app:[redacted]@db.local"),
+            (f"the key is\n{pem}\nkeep it", "MIIEow", "the key is\n[redacted]\nkeep it"),
+            # A clip can cut a secret short of its full shape; the part before the marker goes too.
+            ("y" * (capture.NOTE_CHARS - 12) + f" ghp_a1B2a1B2 {gh}", "a1B2", "[redacted] [... "),
+        ]
+        for text, absent, present in cases:
+            with self.subTest(text=text[:40]):
+                prompt = text if len(text) < capture.NOTE_CHARS else "Fix"  # the clip case is about notes
+                session = [user(prompt), assistant({"type": "text", "text": text},
+                                                 {"type": "tool_use", "name": "Edit", "input": {"file_path": "C:/p/a.py"}})]
+                md = self.captured(None, session)
+                self.assertNotIn(absent, md)
+                self.assertIn(present, md)
+
+    def test_code_that_only_names_a_secret_is_kept(self) -> None:
+        # Redacting references would strip the code the session talks about, and the distill would lose it.
+        text = ('token: str = os.environ["API_TOKEN"]; password = get_secret("db"); export API_KEY=$API_KEY; '
+                "secret_key = settings.SECRET_KEY; max_tokens=100000; when the token: expired, log in again")
+        md = self.captured(None, [user(text), assistant({"type": "tool_use", "name": "Edit",
+                                                          "input": {"file_path": "C:/p/a.py"}})])
+        self.assertIn(text, md)
+        self.assertNotIn("[redacted]", md)
+
     def test_no_redact_file_changes_nothing(self) -> None:
         for redact_list in (None, "", "\n\n"):
             with self.subTest(redact_list=redact_list):

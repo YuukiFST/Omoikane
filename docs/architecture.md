@@ -50,7 +50,8 @@ Deleting a bullet is the whole rejection. At the start of each scheduled run, `o
 coding session ends a turn  --stop hook of the harness-->  omoikane/bin/session-capture.py --harness <claude|pi|opencode>
    reads the harness transcript, no LLM
    skips: OMOIKANE_NO_CAPTURE set, first prompt runs an operation of omoikane/prompts/, no file edited, subagent session
-   replaces every term listed in omoikane/.capture-redact (gitignored) with [redacted]
+   replaces secrets (API keys, tokens, private keys, passwords) and every term listed in
+   omoikane/.capture-redact (gitignored) with [redacted]
    writes omoikane/raw/inbox/sessions/<date>-<id8>.md   (rewritten on every turn: idempotent)
 
 new session starts  --start hook of the harness-->  omoikane/bin/session-context.py
@@ -63,6 +64,7 @@ Why the hook and not the agent: an instruction "save what is valuable" fails sil
 Why capture without an LLM: the hook runs on every turn and must return in well under a second. Selection happens once, in `/distill`, on the scheduled run.
 
 Why redact at capture: the scheduled run commits and pushes every capture, and under `raw/sources/` it is immutable, so a name the user does not want published (an organisation, a customer, a private path) has to be gone before the file is written (#62). The list stays out of git because it names what it hides. A term matches in any case, with `\` and `/` interchangeable and any whitespace run between its words, and the start of a term cut by a clip goes too; the frontmatter keys continuation reads (`session`, `turns`, ...) are left alone. Each drive spelling of a path (`C:/x`, `/c/x`) is a separate line. The list is per checkout: a session in a linked worktree reads that worktree's file. A redacted term in the middle of a path or command loses that detail for `/distill`; the alternative was a hand redaction after the fact (`286fbc6`), which reaches the remote only if someone remembers.
+Secrets go with no list (#77): a key pasted into a prompt or printed by a command would otherwise be pushed in the capture. `redact_secrets` matches token shapes with a known prefix (GitHub, OpenAI and Anthropic, Stripe, Slack, Google, AWS), JWTs, PEM private keys, the token after `Bearer`, the password in `scheme://user:password@host`, and the value of a name that says it holds a secret (`DB_PASSWORD=...`, `api_key: ...`). The name stays, so `/distill` still sees which setting the session touched. A value that names where the secret lives (`$API_KEY`, `os.environ[...]`, `settings.SECRET_KEY`) stays, and so does an unquoted value with no digit under 20 characters ("token: expired" is prose); a secret of that shape is missed, the price of keeping code the session discussed.
 
 Why the quiet period: Stop fires per turn, so a session file may still be growing. `wiki-ingest.ps1` waits until the file has been untouched for `-QuietMinutes`. A session that continues after its file was distilled produces a `-part2` file with only the turns not yet covered; `session-capture.py` reads `turns:` from the distilled copy under `raw/sources/sessions/`.
 

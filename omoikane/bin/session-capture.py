@@ -40,6 +40,25 @@ NO_CAPTURE_ENV = "OMOIKANE_NO_CAPTURE"
 REDACT_FILE = OMOIKANE / ".capture-redact"
 REDACTED = "[redacted]"
 UNREDACTED_KEYS = ("harness", "session", "part", "turns", "started", "ended")
+# Secrets go whether or not a list exists (#77): a key pasted into a prompt was pushed with the capture.
+CLIP_MARK = r" \[\.\.\. \d+ chars cut\]"
+# Token shapes with a fixed prefix; each is redacted whole, or up to a clip marker when a clip cut it short.
+TOKEN_PREFIXES = r"gh[pousr]_|github_pat_|sk-|[sr]k_(?:live|test)_|xox[abprs]-|AIza|AKIA|ASIA"
+SECRET_SHAPES = re.compile(
+    r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?(?:-----END [A-Z ]*PRIVATE KEY-----|(?=" + CLIP_MARK + r")|\Z)"
+    r"|\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_\w{20,}|sk-[\w-]{20,}|[sr]k_(?:live|test)_[A-Za-z0-9]{16,}"
+    r"|xox[abprs]-[A-Za-z0-9-]{10,}|AIza[\w-]{30,}|(?:AKIA|ASIA)[0-9A-Z]{16})\b"
+    r"|\beyJ[\w-]{8,}\.eyJ[\w-]{8,}\.[\w-]{8,}"
+    r"|\b(?:" + TOKEN_PREFIXES + r")[\w-]*(?=" + CLIP_MARK + r")",
+    re.DOTALL)
+# `Bearer <token>`, and the password in `scheme://user:password@host`: the label stays, the value goes.
+SECRET_AFTER = re.compile(r"(?i)(\bbearer\s+)[\w.~+/-]{16,}=*|(\b[a-z][\w+.-]*://[^\s:/@]+:)[^\s@/]+(?=@)")
+# `<name>=<value>` or `<name>: <value>` where the name says it holds a secret.
+SECRET_ASSIGNMENT = re.compile(
+    r"(?i)(\b[\w-]*(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key)[\w-]*"
+    r"\s*[:=]\s*)(([\"'])[^\"'\s]{4,}\3|[^\s\"'`,;]{6,})")
+# A value that names where the secret lives instead of holding it: a variable, a call, an attribute path.
+SECRET_REFERENCE = re.compile(r"[$%{<\[]|.*[(\[]|[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+\Z")
 # Headless runs of these commands are Omoikane maintaining itself; capturing them would loop forever. Read from
 # the prompt files so a new operation cannot be left out of the list.
 OMOIKANE_COMMANDS = {f"/{p.stem}" for p in (OMOIKANE / "prompts").glob("*.md")}
@@ -520,16 +539,39 @@ def redact(text: str, terms: list[str]) -> str:
     return re.sub(cut, REDACTED, text, flags=re.IGNORECASE)
 
 
+def redact_secrets(text: str) -> str:
+    """Replace API keys, tokens, private keys and passwords with [redacted], keeping the name or label before them.
+    A value written unquoted counts only with a letter and a digit, or 20 characters: "token: expired" is prose.
+
+    Example: redact_secrets("PGPASSWORD=s3cretpw psql") returns "PGPASSWORD=[redacted] psql";
+    redact_secrets('password = get_secret("db")') returns it unchanged.
+    """
+    def assignment(m: re.Match[str]) -> str:
+        value = m.group(2)
+        if m.group(3):
+            return f"{m.group(1)}{m.group(3)}{REDACTED}{m.group(3)}"
+        secret_like = len(value) >= 20 or (re.search(r"[A-Za-z]", value) and re.search(r"\d", value))
+        return m.group(0) if not secret_like or SECRET_REFERENCE.match(value) else m.group(1) + REDACTED
+
+    text = SECRET_SHAPES.sub(REDACTED, text)
+    text = SECRET_AFTER.sub(lambda m: (m.group(1) or m.group(2)) + REDACTED, text)
+    return SECRET_ASSIGNMENT.sub(assignment, text)
+
+
 def redact_capture(text: str, terms: list[str]) -> str:
-    """Redact a rendered capture except the frontmatter keys that never hold user text. ingested_parts() matches
-    distilled parts by `session:` and reads `turns:`: a redacted id re-captured a distilled session as a new
-    part, and a redacted count crashed every later turn.
+    """Redact secrets and the listed terms from a rendered capture, except the frontmatter keys that never hold user
+    text. ingested_parts() matches distilled parts by `session:` and reads `turns:`: a redacted id re-captured a
+    distilled session as a new part, and a redacted count crashed every later turn. Secrets go first, while a
+    listed term inside a token cannot yet break its shape.
 
     Example: redact_capture("---\\nsession: ab-1\\ncwd: C:/ab\\n---\\n\\nab", ["ab"]) keeps `session: ab-1`.
     """
+    def scrub(part: str) -> str:
+        return redact(redact_secrets(part), terms)
+
     head, sep, body = text.partition("\n---\n")
-    kept = (line if line.split(":", 1)[0] in UNREDACTED_KEYS else redact(line, terms) for line in head.split("\n"))
-    return "\n".join(kept) + sep + redact(body, terms)
+    kept = (line if line.split(":", 1)[0] in UNREDACTED_KEYS else scrub(line) for line in head.split("\n"))
+    return "\n".join(kept) + sep + scrub(body)
 
 
 def capture(transcript: Path, session_id: str = "", harness: str = "claude", inbox: Path = INBOX,
