@@ -318,6 +318,26 @@ class Gate(unittest.TestCase):
                          "# Review queue\n\n- [ ] rule a: A. (s)\n")
         self.assertEqual(gate.publish(self.work, self.gh), "nothing to publish")
 
+    def test_a_rebase_with_a_repeated_patch_is_recorded_whole(self) -> None:
+        # c1 and c3 share a patch; counting distinct patches cut the window before c4 (#56 review 7).
+        a = "# Review queue\n\n- [ ] rule a: A. (s)\n"
+        self.human_pushes_to_main("omoikane/_review.md", a)
+        self.prepare()
+        shas = []
+        for text in (a + "- [ ] rule c: C. (s)\n", a, a + "- [ ] rule c: C. (s)\n",
+                     a + "- [ ] rule c: C. (s)\n- [ ] rule d: D. (s)\n"):
+            self.commit_in_worktree("omoikane/_review.md", text, f"feat(wiki): step {len(shas)}")
+            shas.append(git(self.work, "rev-parse", "HEAD").strip())
+        gate.publish(self.work, self.gh)
+        git(self.repo, "pull", "-q", "--ff-only")
+        git(self.repo, "fetch", "-q", "origin")
+        git(self.repo, "cherry-pick", f"{shas[0]}^..{shas[3]}")
+        git(self.repo, "push", "-q", "origin", "main")
+        self.human_pushes_to_main("omoikane/_review.md", a + "- [ ] rule c: C. (s)\n")
+        self.prepare()
+        self.assertEqual((self.work / "omoikane/_review.md").read_text(encoding="utf-8"),
+                         a + "- [ ] rule c: C. (s)\n")
+
     def test_a_human_revert_right_after_a_rebase_is_not_recorded_with_it(self) -> None:
         # x'^..revert of y' equals x's own patch; the longest window ended on the revert (#56 review 6).
         self.human_pushes_to_main("omoikane/_review.md", "# Review queue\n\n- [ ] rule a: A. (s)\n")

@@ -164,8 +164,9 @@ def find_landed(worktree: Path) -> tuple[str, str] | None:
         base = git(worktree, "merge-base", commit, "origin/main").strip()
         wanted.add(patch_id(worktree, base, commit))
     wanted.discard("")
-    own = {patch_id(worktree, f"{c}^", c)
-           for c in git(worktree, "rev-list", "--no-merges", "HEAD", *exclude).split()}
+    # A list, not a set: its length caps the window, and two branch commits can share a patch (#56 review 7).
+    own = [patch_id(worktree, f"{c}^", c)
+           for c in git(worktree, "rev-list", "--no-merges", "HEAD", *exclude).split()]
     if not wanted or not own:
         return None
     chain = git(worktree, "rev-list", "--first-parent", "--reverse", "origin/main", "^HEAD").split()
