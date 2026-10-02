@@ -225,16 +225,20 @@ def take_landed(worktree: Path, regenerate: Callable[[Path], None]) -> None:
 
 
 def move_captures(repo: Path, worktree: Path, quiet_minutes: int, now: float) -> list[str]:
-    """Move inbox files from the checkout into the worktree. A captured session modified in the last
-    `quiet_minutes` may still be growing (the Stop hook rewrites it every turn) and stays.
+    """Move untracked inbox files from the checkout into the worktree. A captured session modified in the last
+    `quiet_minutes` may still be growing (the Stop hook rewrites it every turn) and stays. A tracked file stays
+    too: the worktree gets it from main, and moving it would leave a deletion in the human's checkout (#78).
     Example: move_captures(repo, work, 30, time.time()) returns ["omoikane/raw/inbox/sessions/<day>-<id8>.md"].
     """
     moved: list[str] = []
     inbox = repo / INBOX
+    tracked = set(git(repo, "ls-files", "-z", "--", INBOX.as_posix()).split("\0"))
     for path in sorted(p for p in inbox.rglob("*") if p.is_file() and p.name != ".gitkeep") if inbox.is_dir() else []:
         if path.parent.name == "sessions" and path.stat().st_mtime > now - quiet_minutes * 60:
             continue
         rel = path.relative_to(repo).as_posix()
+        if rel in tracked:
+            continue
         (worktree / rel).parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(path), str(worktree / rel))
         moved.append(rel)

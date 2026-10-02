@@ -97,6 +97,11 @@ class Gate(unittest.TestCase):
 
     def test_only_quiet_captures_move_into_the_worktree(self) -> None:
         inbox = self.repo / "omoikane/raw/inbox"
+        # Committed to main, so the worktree has it already; moved, it would show as deleted in the checkout (#78).
+        write(inbox / "committed.md", "a committed source")
+        git(self.repo, "add", "omoikane/raw/inbox/committed.md")
+        git(self.repo, "commit", "-q", "-m", "human commits a source")
+        git(self.repo, "push", "-q", "origin", "main")
         write(inbox / "sessions/2026-09-30-aaaaaaaa.md", "old")
         write(inbox / "sessions/2026-09-30-bbbbbbbb.md", "still growing")
         write(inbox / "article.md", "a source")
@@ -108,6 +113,8 @@ class Gate(unittest.TestCase):
         self.assertTrue((self.work / "omoikane/raw/inbox/sessions/2026-09-30-aaaaaaaa.md").is_file())
         self.assertTrue((inbox / "sessions/2026-09-30-bbbbbbbb.md").is_file())
         self.assertFalse((inbox / "article.md").exists())
+        self.assertEqual(git(self.repo, "status", "--short", "--", "omoikane/raw/inbox/committed.md"), "")
+        self.assertTrue((self.work / "omoikane/raw/inbox/committed.md").is_file())
 
     def test_publish_pushes_and_opens_one_pr(self) -> None:
         self.prepare()
