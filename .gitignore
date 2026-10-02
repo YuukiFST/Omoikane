@@ -5,3 +5,4 @@ __pycache__/
 *.pyc
 omoikane/.wiki-ingest.log
 omoikane/.wiki-ingest.blocked
+omoikane/.capture-redact

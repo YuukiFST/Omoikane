@@ -8,7 +8,7 @@ A page earns its place when a later agent would get something wrong without it a
 - `redundant`: another page says the same thing: one entity under two slugs, a gotcha restating a decision, two sessions writing one lesson twice.
 - `low-value`: a later agent would get it right without the page: it restates the code, the prompt or `AGENTS.md`, or records a one-line choice.
 
-Not findings: source pages (the record of what was ingested; claims cite them); an older decision linked under `## History` from the decision that reversed it, which `AGENTS.md` keeps; a page with a `## Contradictions` section, whose two sides wait for the human; a page whose only flaw is style; a page already marked.
+Not findings: source pages (the record of what was ingested; claims cite them); an older decision linked under `## History` from the decision that reversed it, which `AGENTS.md` keeps; a page with a `## Contradictions` section, whose two sides wait for the human; `stale` on a domain page that no later statement or source replaced, even when the code disagrees (the code may be what breaks the rule; two domain pages holding one rule are still `redundant`); a page whose only flaw is style; a page already marked.
 
 Steps:
 

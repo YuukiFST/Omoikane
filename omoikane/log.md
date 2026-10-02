@@ -29,7 +29,7 @@ Updated: [[session-capture]].
 - routed (guard) user-settings-apply-to-headless-claude-runs: no test pins the headless scope flags in `wiki-ingest.ps1` (turn 2)
 - routed (todo) switch-on-autonomous-loop: distill captured sessions and turn the scheduled loop on (turn 4)
 - routed (todo) phase-2-pendencies: Phase 2 pendencies from the handoff prompt, list clipped by capture (turn 4)
-- routed (todo) omoikane-knowledge-for-sb360-kit: make Omoikane knowledge reusable as company knowledge in sb360-kit (turn 4)
+- routed (todo) omoikane-knowledge-for-redacted: make Omoikane knowledge reusable as company knowledge in [redacted] (turn 4)
 - skipped (self-resolved) remove-item-protected-path: `Remove-Item` on `omoikane/wiki/*` blocked as a protected path, eval clones cleared with `-LiteralPath` instead (turn 2)
 - skipped (one-off) eval-clone-planted-regression: `/lint` in an eval clone found a regression the agent introduced in the clone copy (turn 2)
 
@@ -92,3 +92,9 @@ Updated: [[headless-runs-have-no-shell]], [[company-internal-material-stays-out-
 ## [2026-10-02] distill | session b5b6fb27 | nothing kept
 
 Part 2 holds one captured turn: a handoff prompt restating the merged PRs and the open review gate PR #56 (since merged), clipped before any new finding.
+## [2026-10-02] cleanup | company-internal name removed (#63)
+
+The user asked that the name of a company-internal starter kit appear nowhere in this public repository, and approved redacting it, once, in this log and in raw captures, which are otherwise append-only and immutable. Bodies only; frontmatter untouched. Git history still holds the name.
+
+- updated: [[company-internal-material-stays-out-of-the-public-repo]], [[session-2026-09-30-230a182d]], [[session-2026-09-30-c14af01e]], [[session-2026-10-01-b5b6fb27]]
+- redacted: the `omoikane-knowledge-for-*` todo line above (slug now `omoikane-knowledge-for-redacted`), `omoikane/raw/sources/sessions/2026-09-30-230a182d.md`, `2026-09-30-c14af01e.md`, `2026-10-01-b5b6fb27.md`

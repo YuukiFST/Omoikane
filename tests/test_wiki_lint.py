@@ -118,6 +118,25 @@ class CodePaths(unittest.TestCase):
                 pages = [hub, p] + [page(s, "source", dated="2026-09-15", sources=[]) for s in (a, a2, b)]
                 self.assertEqual(lint.lint_pages(pages, Path(".")), findings)
 
+    def test_domain_page_cites_a_source_that_exists(self) -> None:
+        # A business rule or design-system rule is valid from one statement (#64), but only with the statement:
+        # a rule nobody stated is the agent's guess, and every later session would obey it.
+        s = "session-2026-10-02-aaaaaaaa"
+        no_source = ["/wiki/r.md: domain page cites no existing source page; cite the session or document that "
+                     "states it"]
+        for sources, findings in (([f"wiki/sources/{s}.md"], []), ([], no_source),
+                                  (["wiki/sources/session-2026-10-02-bbbbbbbb.md"], no_source),
+                                  # The agent's own pages are not a statement: itself, a concept, a source slug
+                                  # cited from the wrong folder.
+                                  (["wiki/domain/r.md"], no_source), (["wiki/concepts/hub.md"], no_source),
+                                  ([f"wiki/decisions/{s}.md"], no_source)):
+            with self.subTest(sources=sources):
+                r = page("r", "domain", sources=sources)
+                hub = page("hub", "concept")
+                hub.links, r.links = {"r", s}, {"hub"}
+                pages = [hub, r, page(s, "source", dated="2026-10-02", sources=[])]
+                self.assertEqual(lint.lint_pages(pages, Path(".")), findings)
+
     def test_prune_mark_must_be_a_known_reason(self) -> None:
         for mark, findings in (("stale", []), ("redundant", []), ("low-value", []),
                                ("obsolete", ["/wiki/p.md: `prune` is `obsolete`, expected stale, redundant or low-value"])):
@@ -287,6 +306,12 @@ class RenderIndex(unittest.TestCase):
         out = index.render(pages)
         self.assertIn("- [[kept]] — k `2026-09-15`\n", out)
         self.assertIn("- [[old]] — o `2026-09-15` `prune: stale`", out)
+
+    def test_domain_section_comes_first(self) -> None:
+        # The brief keeps sections in index order up to its budget: the rules of the domain govern the code being
+        # written, so they are the last to be cut (#64).
+        out = index.render([page("d", "decision"), page("r", "domain", summary="Prices are integer cents")])
+        self.assertLess(out.index("## Domain (1)\n\n- [[r]] — Prices are integer cents"), out.index("## Decisions"))
 
 
 class PendingNotes(unittest.TestCase):
