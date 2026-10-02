@@ -1,9 +1,12 @@
 # Omoikane
 
-An LLM-maintained wiki that feeds itself, so what one agent session learns is not lost to the next.
+Each coding agent session starts blank: the business rules, design system and conventions the user explained, and what the last session learned, are gone.
+
+Omoikane is a template every new system starts from.
+Its agents keep a wiki of that knowledge on their own, from what the user states while building, without asking the user to write anything down.
 
 Named after 思金神 (Omoikane), the kami who gathers the thoughts of the other gods and returns a synthesis.
-Follows Karpathy's LLM Wiki pattern with one addition: coding sessions are a source too.
+Built on Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) pattern, with [brainmaxxing](https://github.com/poteto/brainmaxxing) and [ai-memory](https://github.com/akitaonrails/ai-memory) as references. Omoikane's addition: coding sessions are a source too.
 
 ## Two uses, one layout
 
