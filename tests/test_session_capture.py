@@ -5,6 +5,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -327,6 +328,129 @@ class Redaction(unittest.TestCase):
                 for needle in present:
                     self.assertIn(needle, md)
                 self.assertIn("session: abcdef12-0000\n", md)
+
+    def test_secrets_never_reach_the_capture_without_a_list(self) -> None:
+        # A key pasted into a prompt or printed in the agent's notes was committed and pushed with the capture (#77).
+        # Built by concatenation, so the repository holds no string a secret scanner would flag.
+        gh, aws, sk = "ghp_" + "a1B2" * 9, "AKIA" + "Q7XZ" * 4, "sk-ant-api03-" + "x9Y_" * 8
+        jwt = "eyJ" + "hbGciOiJIUzI1NiJ9" + ".eyJ" + "zdWIiOiIxIn0" + "." + "c2lnbmF0dXJlLXZhbHVl"
+        pem = "-----BEGIN RSA " + "PRIVATE KEY-----\nMIIEow" + "IBAAKCAQEA\n-----END RSA " + "PRIVATE KEY-----"
+        cases = [
+            # (text in the session, secret absent from the capture, context kept)
+            (f"use token {gh} for the API", gh[4:], "use token [redacted] for the API"),
+            (f"aws key {aws} in prod", aws, "aws key [redacted] in prod"),
+            (f"ANTHROPIC_API_KEY={sk}", sk, "ANTHROPIC_API_KEY=[redacted]"),
+            (f"curl -H 'Authorization: Bearer {jwt}'", "c2lnbmF0dXJl", "Bearer [redacted]"),
+            ("DB_PASSWORD='hunter-Correct'", "hunter", "DB_PASSWORD='[redacted]'"),
+            ("run PGPASSWORD=s3cretpw psql -h db", "s3cretpw", "PGPASSWORD=[redacted] psql -h db"),
+            ("connect to postgres://app:s3cr3t-pw@db.local/shop", "s3cr3t", "postgres://app:[redacted]@db.local"),
+            (f"the key is\n{pem}\nkeep it", "MIIEow", "the key is\n[redacted]\nkeep it"),
+            # A clip can cut a secret short of its full shape; the part before the marker goes too.
+            ("y" * (capture.NOTE_CHARS - 12) + f" ghp_a1B2a1B2 {gh}", "a1B2", "[redacted] [... "),
+            ("y" * (capture.NOTE_CHARS - 17) + " DB_PASSWORD=hunt" + "x" * 30, "hunt", "DB_PASSWORD=[redacted] [... "),
+            # Shapes the #82 review found leaking.
+            ('{"password": "hunter22", "user": "ana"}', "hunter22", '{"password": "[redacted]", "user": "ana"}'),
+            ("data = {'api_key': 'abcd1234efgh'}", "abcd1234", "{'api_key': '[redacted]'}"),
+            ("mysql -uroot -pS3cr3tPass shop", "S3cr3tPass", "mysql -uroot -p[redacted] shop"),
+            ("Authorization: Basic " + "dXNlcjpwYXNz" + "d29yZA==", "dXNlcjpw", "Authorization: Basic [redacted]"),
+            ("curl -u admin:S3cr3tPass https://x", "S3cr3tPass", "curl -u admin:[redacted] https://x"),
+            ("redis://:s3cr3tpw@cache:6379", "s3cr3tpw", "redis://:[redacted]@cache:6379"),
+            ("postgres://u:p@ss1word@host/db", "ss1word", "postgres://u:[redacted]@host/db"),
+            ("DB_PASS=hunter2xyz and STRIPE_KEY=abcd1234efgh5678", "hunter2xyz", "DB_PASS=[redacted] and STRIPE_KEY=[re"),
+            ("password: 'p@ss w0rd'", "w0rd", "password: '[redacted]'"),
+            ("**Password:** hunter2x", "hunter2x", "**Password:** [redacted]"),
+            ("| password | hunter2x |", "hunter2x", "| password | [redacted] |"),
+            ("DB_PASSWORD=$ecr3tP4ss", "ecr3tP4ss", "DB_PASSWORD=[redacted]"),
+            ("token glpat-" + "a1b2c3d4e5f6g7h8i9j0", "a1b2c3d4", "token [redacted]"),
+            ("-----BEGIN PGP " + "PRIVATE KEY BLOCK-----\n" + "lQOYBF" * 4 + "\n-----END PGP " + "PRIVATE KEY BLOCK-----",
+             "lQOYBF", "[redacted]"),
+            # Shapes the second #82 review found leaking.
+            ("mysql --user=root --password=hunter22 shop", "hunter22", "--password=[redacted] shop"),
+            ("gh secret set --api-key hunter22x now", "hunter22x", "--api-key [redacted] now"),
+            ('"private_key": "-----BEGIN ' + 'PRIVATE KEY-----\\nMIIEvQ' + "IBADANBg" * 3 + '\\nAB==\\n-----END '
+             + 'PRIVATE KEY-----\\n"', "IBADANBg", '"private_key": "[redacted]'),
+            ("secretAccessKey: 'wJalrXUtnF" + "EMIK7MDENG'", "wJalrXUtnF", "secretAccessKey: '[redacted]'"),
+            ("privateKey: 'hunter22'", "hunter22", "privateKey: '[redacted]'"),
+            ('DB_PASSWORD: str = "hunter22"', "hunter22", 'DB_PASSWORD: str = "[redacted]"'),
+            ('headers = {"Authorization": "Basic QWxhZGRp' + 'bjpvcGVu"}', "QWxhZGRp", '"Authorization": "Basic [redacted]"'),
+            ("curl --user ana:hunter22 https://x", "hunter22", "curl --user ana:[redacted] https://x"),
+            ("https://u:hunter22@host?email=a@b.com", "hunter22", "https://u:[redacted]@host?email=a@b.com"),
+            ("-----BEGIN RSA " + "PRIVATE KEY-----\n" + "MIIEow" * 6 + "\nAAAAAAAAAA\n-----END RSA " + "PRIVATE KEY-----",
+             "AAAAAAAAAA", "[redacted]"),
+            ("> -----BEGIN RSA " + "PRIVATE KEY-----\n> " + "MIIEow" * 6 + "\n> -----END RSA " + "PRIVATE KEY-----",
+             "MIIEow", "> [redacted]"),
+            ("Password: `hunter22`", "hunter22", "Password: `[redacted]`"),
+            ("password=/hunter22", "hunter22", "password=[redacted]"),
+            # Shapes the third #82 review found leaking.
+            ("-----BEGIN PGP " + "PRIVATE KEY BLOCK-----\nVersion: GnuPG v2.0.22 (GNU/Linux)\n\n" + "lQOYBF" * 5
+             + "\n" + "Zm9vYmFy" * 4 + "\n=abcd\n-----END PGP " + "PRIVATE KEY BLOCK-----", "lQOYBF", "[redacted]"),
+            ("use the password PGPASSWORD=s3cretpw psql", "s3cretpw", "PGPASSWORD=[redacted] psql"),
+            ("Access Token Secret: abc123def456", "abc123", "Secret: [redacted]"),
+            ('password := "hunter22"', "hunter22", 'password := "[redacted]"'),
+            ("'password' => 'hunter22',", "hunter22", "'password' => '[redacted]',"),
+            ('os.environ["DB_PASSWORD"] = "hunter22"', "hunter22", '["DB_PASSWORD"] = "[redacted]"'),
+            ("ENV['DB_PASSWORD'] ||= 'hunter22'", "hunter22", "ENV['DB_PASSWORD'] ||= '[redacted]'"),
+            ('key = ("-----BEGIN ' + 'PRIVATE KEY-----\\n"\n    "' + "MIIEvQ" * 5 + '\\n"\n    "-----END '
+             + 'PRIVATE KEY-----")', "MIIEvQ", 'key = ("[redacted]")'),
+            ("<password>hunter22</password>", "hunter22", "<password>[redacted]</password>"),
+            ("AccountKey=" + "abcd1234" * 4 + "==;", "abcd1234", "AccountKey=[redacted]"),
+        ]
+        for text, absent, present in cases:
+            with self.subTest(text=text[:40]):
+                prompt = text if len(text) < capture.NOTE_CHARS else "Fix"  # the clip case is about notes
+                session = [user(prompt), assistant({"type": "text", "text": text},
+                                                 {"type": "tool_use", "name": "Edit", "input": {"file_path": "C:/p/a.py"}})]
+                md = self.captured(None, session)
+                self.assertNotIn(absent, md)
+                self.assertIn(present, md)
+
+    def test_code_that_only_names_a_secret_is_kept(self) -> None:
+        # Redacting references would strip the code the session talks about, and the distill would lose it.
+        text = ('token: str = os.environ["API_TOKEN"]; password = get_secret("db"); export API_KEY=$API_KEY; '
+                "secret_key = settings.SECRET_KEY; max_tokens=100000; when the token: expired, log in again; "
+                'password: "${DB_PASSWORD}"; token_env = "GITHUB_TOKEN"; token_type = "bearer"; '
+                "token: OAuth2Token = fetch(); token_path=/home/ana/.config/gh/hosts.yml; pwd=/c/Users/ana/shop; "
+                "tokenizer_name=bert-base-multilingual-cased; secretary=JaneDoe42; api_key_header: X-API-Key2; "
+                "the bearer authenticationscheme; task-sk-learn-compatible-estimator-api; "
+                # False positives the second #82 review found.
+                'if password == expected: token === other; token := os.Getenv("GITHUB_TOKEN"); '
+                "token: ${{ secrets.GITHUB_TOKEN }}; password: '{{ vault_db_password }}'; password: !vault |; "
+                "bypass=check_v2; first_pass = run1; sort_key: created_at2; primary_key = user_id2; "
+                "public_key = pk2; find /var/lib/mysql -type f -print; docker run --name mysql -p3306:3306 x; "
+                "docker run -u 1000:1000 image; def refresh(token: OAuth2Token) -> None; "
+                # False positives the third #82 review found.
+                "$token = $env:GITHUB_TOKEN; password=$(cat /run/secrets/db); password=${DB_PASSWORD:-postgres}; "
+                "apiKey: process.env.OPENAI_API_KEY!, I used curl and then docker run -u 1000:1000 image; "
+                "sk-learn-compatible-estimator")
+        md = self.captured(None, [user(text), assistant({"type": "tool_use", "name": "Edit",
+                                                          "input": {"file_path": "C:/p/a.py"}})])
+        self.assertIn(text, md)
+        self.assertNotIn("[redacted]", md)
+
+    def test_a_secret_header_without_its_end_takes_nothing_after_it(self) -> None:
+        # A PEM header with no END line ran on to the end of the capture and erased the turns after it (#82 review).
+        note = "The file starts with `-----BEGIN OPENSSH " + "PRIVATE KEY-----`, so it is an OpenSSH key"
+        md = self.captured(None, [user("What key is this?"), assistant({"type": "text", "text": note}),
+                                  user("Fix the deploy script"),
+                                  assistant({"type": "tool_use", "name": "Edit", "input": {"file_path": "C:/p/a.py"}})])
+        self.assertIn("so it is an OpenSSH key", md)
+        self.assertIn("Fix the deploy script", md)
+        # Nor the blank lines and the heading of the next section, nor a long word on the next line.
+        for after in ("\n\n## Turn 2\n", "\nAuthenticationFailedException thrown by paramiko",
+                      "\nSee docs at keygen\n\nNext step: convert it, then\n-----END OPENSSH " + "PRIVATE KEY-----",
+                      " and the footer -----END OPENSSH " + "PRIVATE KEY----- wrap it"):
+            text = "-----BEGIN OPENSSH " + "PRIVATE KEY-----" + after
+            self.assertEqual(capture.redact_secrets(text), "[redacted]" + after)
+        prose = "the auth scheme is bearer\n\nsrc/auth/middleware2.ts handles it"
+        self.assertEqual(capture.redact_secrets(prose), prose)
+
+    def test_long_names_and_values_redact_in_linear_time(self) -> None:
+        # A hyphenated run of keywords took 85 s on 8,000 characters, inside the Stop hook (#82 review).
+        start = time.perf_counter()
+        for text in ("password-" * 900, "token-" * 1300, "a-" * 4000, "password:" + " " * 8000,
+                     "password" + " " * 4000 + "|" + " " * 4000, "a-" * 4000 + "://"):
+            capture.redact_secrets(text)
+        self.assertLess(time.perf_counter() - start, 2.0)
 
     def test_no_redact_file_changes_nothing(self) -> None:
         for redact_list in (None, "", "\n\n"):

@@ -23,39 +23,56 @@ HEADER = (
     "record what earlier sessions learned the hard way. Do not write under omoikane/wiki/ during coding "
     "work: the session is captured on stop and distilled later. Rules: AGENTS.md."
 )
+# The index sections that hold rules and lessons (wiki-index.py HEADINGS). Each gets a floor of the brief, so many
+# pages of one cannot push the others out (#75); sources, entities, concepts and queries get none, since the
+# omitted line sends the agent to index.md for them and a floor there would come out of the rules.
+FLOORED = ("Domain", "Decisions", "Gotchas", "Practices")
 
 
 def compact_index(text: str, budget: int) -> str:
     """Drop the generated header and fill the budget entry by entry, sections in index order (PAGE_TYPES).
 
-    A section larger than the budget keeps its first entries instead of vanishing, so decisions and gotchas
-    survive a long list of sources (#11). Priority is strict: filling stops at the first entry that does not
-    fit, so no source takes the room a longer decision needed. A last line names how many entries each
-    section lost.
+    Two passes. First each FLOORED section takes its first entry, and more up to a floor (half the budget shared
+    among them), so some 60 domain pages cannot push every decision and gotcha out of the brief (#75). Then the
+    rest of the budget fills in index order, and priority is strict: filling stops at the first entry that does
+    not fit, so no source takes the room a longer decision needed. A section larger than the budget keeps its
+    first entries instead of vanishing (#11). The blank line between sections counts against the budget; the
+    last line, naming how many entries each section lost, does not.
 
     Example: compact_index("# Index\\n\\nGenerated...\\n\\n## Decisions (2)\\n\\n- [[x]] — a\\n- [[y]] — b", 40)
     returns "## Decisions (2)\\n\\n- [[x]] — a\\n\\nOmitted by budget: Decisions 1. Read omoikane/index.md for them."
     """
-    kept: list[str] = []
-    omitted: list[str] = []
-    used = 0
-    full = False
+    sections: list[tuple[str, list[str]]] = []
     for section in [s for s in text.split("\n## ") if s.strip()][1:]:
         heading, *lines = section.rstrip().splitlines()
-        entries = [line for line in lines if line.startswith("- ")]
-        cost = len(heading) + 4  # "## " plus the blank line after the heading
-        fit = 0
-        for entry in entries:
-            if full or used + cost + len(entry) + 1 > budget:
-                full = True
-                break
-            cost += len(entry) + 1
-            fit += 1
-        if fit:
-            kept.append("\n".join(["## " + heading, "", *entries[:fit]]))
-            used += cost
-        if fit < len(entries):
-            omitted.append(f"{heading.split(' (')[0]} {len(entries) - fit}")
+        sections.append((heading, [line for line in lines if line.startswith("- ")]))
+    fit = [0] * len(sections)
+    # Each section's first entry pays for the "\n\n" before it too; the first section has none, hence the + 2.
+    limit = budget + 2
+
+    def cost(i: int) -> int:
+        """Characters the next entry of section i adds; the first also pays for "## ", the heading, a blank line
+        and the separator before the section."""
+        return len(sections[i][1][fit[i]]) + 1 + (len(sections[i][0]) + 6 if fit[i] == 0 else 0)
+
+    floored = [i for i, (heading, entries) in enumerate(sections) if heading.split(" (")[0] in FLOORED and entries]
+    floor = budget // (2 * len(floored)) if floored else 0
+    used = 0
+    for i in floored:
+        spent = 0
+        while fit[i] < len(sections[i][1]) and used + cost(i) <= limit and (fit[i] == 0 or spent + cost(i) <= floor):
+            spent += cost(i)
+            used += cost(i)
+            fit[i] += 1
+    for i, (_, entries) in enumerate(sections):
+        while fit[i] < len(entries) and used + cost(i) <= limit:
+            used += cost(i)
+            fit[i] += 1
+        if fit[i] < len(entries):
+            break
+    kept = ["\n".join(["## " + heading, "", *entries[:n]]) for (heading, entries), n in zip(sections, fit) if n]
+    omitted = [f"{heading.split(' (')[0]} {len(entries) - n}"
+               for (heading, entries), n in zip(sections, fit) if n < len(entries)]
     if omitted:
         kept.append(f"Omitted by budget: {', '.join(omitted)}. Read omoikane/index.md for them.")
     return "\n\n".join(kept)

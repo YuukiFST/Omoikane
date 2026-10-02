@@ -17,6 +17,7 @@ Three layers, as in Karpathy's LLM Wiki pattern, plus one rule that makes it run
 Everything Omoikane owns sits under `omoikane/` so the same clone serves as a research wiki or as the root of a software project.
 
 The template's repository is built with Omoikane too, so its `omoikane/` holds the memory of Omoikane's own development. `omoikane/bin/new-system.py` empties it in a fresh clone (#66): every page, capture and source, the log and review entries, the rules block of `AGENTS.md`. Why a script and not a separate empty template branch: the branch would drift from `main` on every change to the prompts and scripts. Why it refuses uncommitted changes and never commits: `git restore .` then undoes a run, including one started by mistake in the template itself.
+With `--from <checkout of another system>` the new wiki starts with that system's domain pages tagged `convention` or `design-system`, citing one `inherited-from-<system>` source page (#80). Why only those: an organisation's conventions and design system hold in each of its systems, while business rules, decisions and gotchas belong to one system and its code. Why a copy and not a link: the knowledge stays in each system's own wiki, never in a shared base (the reading reverted in #68), and no run in one system can rewrite another's rules. Design and alternatives: [specs/2026-10-02-cross-system-knowledge.md](specs/2026-10-02-cross-system-knowledge.md).
 
 ## Autonomy loop
 
@@ -50,12 +51,15 @@ Deleting a bullet is the whole rejection. At the start of each scheduled run, `o
 coding session ends a turn  --stop hook of the harness-->  omoikane/bin/session-capture.py --harness <claude|pi|opencode>
    reads the harness transcript, no LLM
    skips: OMOIKANE_NO_CAPTURE set, first prompt runs an operation of omoikane/prompts/, no file edited, subagent session
-   replaces every term listed in omoikane/.capture-redact (gitignored) with [redacted]
+   replaces secrets (API keys, tokens, private keys, passwords) and every term listed in
+   omoikane/.capture-redact (gitignored) with [redacted]
    writes omoikane/raw/inbox/sessions/<date>-<id8>.md   (rewritten on every turn: idempotent)
 
 new session starts  --start hook of the harness-->  omoikane/bin/session-context.py
    prints pending work (undistilled captures, open _review.md items), then omoikane/index.md
-   index filled entry by entry in PAGE_TYPES order up to a character budget; a last line counts what was omitted
+   index filled entry by entry up to a character budget: domain, decision, gotcha and practice sections first
+   get their first entry and a floor (half the budget, shared), the rest goes in PAGE_TYPES order; a last line
+   counts what was omitted
 ```
 
 Why the hook and not the agent: an instruction "save what is valuable" fails silently when the agent forgets or when the session is cut short. The harness fires the hook every time.
@@ -63,6 +67,7 @@ Why the hook and not the agent: an instruction "save what is valuable" fails sil
 Why capture without an LLM: the hook runs on every turn and must return in well under a second. Selection happens once, in `/distill`, on the scheduled run.
 
 Why redact at capture: the scheduled run commits and pushes every capture, and under `raw/sources/` it is immutable, so a name the user does not want published (an organisation, a customer, a private path) has to be gone before the file is written (#62). The list stays out of git because it names what it hides. A term matches in any case, with `\` and `/` interchangeable and any whitespace run between its words, and the start of a term cut by a clip goes too; the frontmatter keys continuation reads (`session`, `turns`, ...) are left alone. Each drive spelling of a path (`C:/x`, `/c/x`) is a separate line. The list is per checkout: a session in a linked worktree reads that worktree's file. A redacted term in the middle of a path or command loses that detail for `/distill`; the alternative was a hand redaction after the fact (`286fbc6`), which reaches the remote only if someone remembers.
+Secrets go with no list (#77): a key pasted into a prompt or printed by a command would otherwise be pushed in the capture. `redact_secrets` matches token shapes with a known prefix (GitHub, GitLab, npm, Hugging Face, OpenAI and Anthropic, Stripe, Slack, SendGrid, Google, AWS), JWTs, private key blocks (PEM, PGP), the credential after `Bearer`, `Authorization: Basic` and `Authorization: token`, the password in `scheme://user:password@host`, `curl -u` and `mysql -p`, and the value of a name that ends in what it holds (`DB_PASSWORD=...`, `--password=...`, `"api_key": "..."`, `secretAccessKey: '...'`, `**Password:** ...`, a Markdown table row; `pass` and `key` only after a prefix that says so, since `bypass` and `sort_key` hold nothing). The name stays, so `/distill` still sees which setting the session touched. A value that names where the secret lives (`$API_KEY`, `${DB_PASSWORD}`, `GITHUB_TOKEN`, `os.environ[...]`, `settings.SECRET_KEY`, a path) stays, so does a type hint (`token: OAuth2Token = ...`), and so does an unquoted value under 20 characters with no digit or symbol ("token: expired" is prose); a secret of that shape is missed, the price of keeping code the session discussed, and so is a token broken across lines. A key header takes only the key lines after it: matching up to a footer that never came erased every later turn of a capture. Every pattern is bounded and anchored at a word start, since the hook runs on every turn with no timeout.
 
 Why the quiet period: Stop fires per turn, so a session file may still be growing. `wiki-ingest.ps1` waits until the file has been untouched for `-QuietMinutes`. A session that continues after its file was distilled produces a `-part2` file with only the turns not yet covered; `session-capture.py` reads `turns:` from the distilled copy under `raw/sources/sessions/`.
 
@@ -112,8 +117,10 @@ Why it stops under three findings: a diff is worth a human's review only when it
 
 ## Promoted rules and the context budget
 
-A practice page reaches an agent only when the agent opens it. The few practices that govern most tasks can be promoted into the rules block of `AGENTS.md`, which every session loads.
+A practice page reaches an agent only when the agent opens it. The few practices that govern most tasks can be promoted into the rules block of `AGENTS.md`, which every session loads, and so can a domain rule that does (#76).
 `/synthesize` proposes them as `- [ ] rule` bullets in `_review.md`; the human ticks one and runs `python omoikane/bin/wiki-rules.py`, which moves it into the block with a pointer to its page.
+Why a domain rule needs no second session: a practice is a pattern, and one session cannot show a pattern; a business rule is true the first time the user states it. The brief carries only its summary, cut by budget, so "every table has a `tenant_id`" could miss the session that writes a migration. The tick stays the human's: a wrong rule in `AGENTS.md` misleads every session.
+A promoted rule is a copy, and a domain page changes in place (`## History`, `Disputed:`), so the copy can go stale. `wiki-lint.py` warns on a rule whose page is gone, disputed or marked `prune:` (a warning, since a finding would go back to the scheduled run's agent, which may not edit `AGENTS.md`); `/distill` files a todo when it replaces or disputes such a page; `/prune` leaves those pages alone; `wiki-rules.py` refuses to promote a disputed or pruned page. `/synthesize` proposes no more rules than the block has room for, so the human is not asked to tick rules the cap will refuse.
 
 Why a script and not the agent: approval must be a human act. The scheduled run's permissions do not include `wiki-rules.py`, so an agent cannot tick a box and promote in the same run.
 Why a cap of 15 and a budget gate: `AGENTS.md` is a shared budget, and adherence drops for every rule as it grows, not only for the new ones. `wiki-rules.py` refuses at the cap, so admitting a rule means retiring one. `context-budget.py` estimates the tokens of `AGENTS.md`, the skill descriptions and the `session-context.py` output at 3.5 characters each and fails CI above the limits in the script. The brief is measured on a generated tree past every bound (an index past its budget in every section, more pending captures than the brief lists; within one index entry of the cap), not only on this repository's wiki: the wiki was empty in CI, so a raised cap would have passed.
