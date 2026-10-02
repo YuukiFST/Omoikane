@@ -5,7 +5,7 @@ summary: Every change to this repo must improve Omoikane at holding, unprompted,
 tags: [convention, objective]
 created: 2026-10-02
 updated: 2026-10-02
-sources: [wiki/sources/2026-10-02-omoikane-objective.md]
+sources: [wiki/sources/2026-10-02-omoikane-objective.md, wiki/sources/session-2026-10-01-d4302021.md]
 ---
 
 ## The rule
@@ -21,6 +21,13 @@ The user, in the source's "The objective" section:
 > Todo sistema novo deve nascer a partir do Omoikane.
 > O agente deve alimentar a base de conhecimento de forma autônoma, sem envolvimento do usuário, com as informações importantes que o usuário fornece durante o desenvolvimento do sistema.
 > Isso inclui conhecimento de domínio: regras de negócio, design system e convenções da organização.
+
+The user's first statement of it, in the session that found the misreading (source: [[session-2026-10-01-d4302021]], turn 7):
+
+> O que eu tinha dito para o agente é que o Omoikane é um template baseado no LLM Wiki de Karpathy (https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) + https://github.com/poteto/brainmaxxing + https://github.com/akitaonrails/ai-memory o intuito é fazer com que qualquer sistema que for desenvolvido seja feito a partir do Omoikane, com o objetivo de fazer com que de forma autonoma (sem envolvimento do usuario) o agente alimente sua base de conhecimentos com base em informaçoes importantes fornecidas pelo usuario durante o desenvolvimento do sistema.
+
+The company toolkit was the example: "as regras de negocio da empresa, design system dos sistemas e etc são todas escritas nesse toolkit ([redacted]), e eu utilizei como um exemplo pois quero que o Omoikane tambem lembre de informações assim" (turn 7).
+In turn 8 the user asked that "todo o desenvolvimento do projeto seja voltado a aperfeiçoamento da ferramenta", and that later agents know the objective.
 
 So: every new system starts from the template; the agent feeds the knowledge base on its own, without the user's involvement, with what the user states while building, business rules, design system and organisation conventions included (source: [[2026-10-02-omoikane-objective]]).
 The knowledge lives in Omoikane itself, not in an external base: [[omoikane-holds-its-systems-domain-knowledge-itself]].

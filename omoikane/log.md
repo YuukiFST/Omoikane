@@ -109,3 +109,13 @@ The user asked that the name of a company-internal starter kit appear nowhere in
 
 Created: [[2026-10-02-omoikane-objective]], [[omoikane-objective]], [[omoikane-holds-its-systems-domain-knowledge-itself]].
 Updated: [[company-internal-material-stays-out-of-the-public-repo]], [[session-2026-10-01-b5b6fb27]].
+
+## [2026-10-02] distill | session d4302021
+
+Created: [[session-2026-10-01-d4302021]], [[review-gate]].
+Updated: [[omoikane-objective]], [[omoikane-holds-its-systems-domain-knowledge-itself]], [[company-internal-material-stays-out-of-the-public-repo]], [[wiki-ingest]], [[wiki-rules]].
+
+- routed (todo) review-gate-known-limits: four review gate limits recorded on PR #56 and not fixed (turn 4)
+- skipped (decided) omoikane-knowledge-for-redacted: the todo to reuse Omoikane knowledge in the company kit, already removed by #58 and reversed by the user (turn 6)
+- skipped (no-root-cause) gh-pr-merge-delete-branch-removes-worktree: the agent noted `gh pr merge --delete-branch` had removed the worktree and the local branch; not checked (turn 4)
+- skipped (one-off) kit-draft-clone-deleted: a clean local clone of the company kit deleted after checking it had no changes (turn 3)

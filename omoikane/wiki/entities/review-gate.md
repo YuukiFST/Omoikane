@@ -1,0 +1,32 @@
+---
+title: review-gate
+type: entity
+summary: omoikane/bin/review-gate.py keeps the scheduled run on a wiki/auto worktree and publishes it as a PR to main
+tags: [review-gate, module, autonomy-loop, git]
+created: 2026-10-02
+updated: 2026-10-02
+sources: [wiki/sources/session-2026-10-01-d4302021.md]
+code: [omoikane/bin/review-gate.py, tests/test_review_gate.py, docs/architecture.md]
+---
+
+`omoikane/bin/review-gate.py` (issue #45, PR #56) moves the scheduled run of [[wiki-ingest]] off the human's checkout: `prepare` brings a worktree on `wiki/auto` up to date and moves quiet captures into it, `publish` pushes it as a PR to `main`. Merging stays the human's act.
+PR #56 merged as `f2ba8ff` (source: [[session-2026-10-01-d4302021]], turn 4).
+
+## Landing detection
+
+When the human lands `wiki/auto` by squash or rebase merge, the gate must record it, or the next merge of `main` brings back a bullet the human deleted from `_review.md` afterwards.
+`find_landed` / `take_landed` replaced `find_squash` / `take_squash`, which did not recognise a rebase merge (a high finding) nor a squash of an earlier head (medium) (source: [[session-2026-10-01-d4302021]], turns 3, 4).
+They look on `main` for a run of consecutive non-merge commits whose combined `-U0` patch equals what the branch changed up to one of its commits, then merge `first^` normally and `last` with `-s ours` (turn 3).
+
+Each later review round tightened it, with a red test first (turns 3, 4):
+
+- a rebase is recorded whole, and a human revert on `main` is not taken for a landing (`632bc7f`);
+- `settled` bounds the candidates, keeping subprocess calls per `prepare` at 24, where they ranged from 21 to 84 (`632bc7f`);
+- `settled` only accepts a merge whose tree is main's, and the rebase window only accepts replays of branch commits (`4223240`);
+- the window is capped by commit count, not by distinct patches (`2ef4bdb`).
+
+The agent declined a reviewer's suggested fix because it "reabriria o achado da review 6 (o revert humano)" (turn 3).
+
+## Known limits
+
+Recorded on PR #56 and not fixed (turn 4): a slid hunk in a replay ends the window early (medium, not verified); `settled` can stop advancing (low); two squashes between runs record only the first (low); after a squash the next PR body lists the old commits again (low).
