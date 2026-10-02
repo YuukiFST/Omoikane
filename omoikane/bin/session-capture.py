@@ -49,38 +49,52 @@ TOKENS = (r"gh[pousr]_[A-Za-z0-9]{30,}|github_pat_\w{20,}|sk-[\w-]{20,}|[sr]k_(?
           r"|npm_[A-Za-z0-9]{30,}|hf_[A-Za-z0-9]{30,}|ya29\.[\w-]{20,}|SG\.[\w-]{16,}\.[\w-]{16,}"
           r"|eyJ[\w-]{8,}\.eyJ[\w-]{8,}(?:\.[\w-]*)?|https://hooks\.slack\.com/services/[\w/]+")
 TOKEN_PREFIXES = r"gh[pousr]_|github_pat_|sk-|[sr]k_(?:live|test)_|xox[abprs]-|AIza|AKIA|ASIA|glpat-|npm_|hf_|ya29\.|SG\.|eyJ"
-# A private key block. Only key lines may follow the header, so a header quoted in prose takes nothing after it:
-# `.*?` up to a footer that never came erased every later turn of a capture (#82 review).
-PRIVATE_KEY = (r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----(?:\s*(?:[A-Za-z0-9+/=]{16,}|[A-Za-z-]+: [^\n]*))*"
-               r"\s*(?:-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----|[A-Za-z0-9+/=]+(?=" + CLIP_MARK + r"))?")
+# A private key block. With a footer, everything up to it that a key block can hold (base64, header fields,
+# `> ` quoting, escaped `\n` in JSON or .env); without one, only whole base64 lines, so a header quoted in prose
+# takes nothing after it: `.*?` up to a footer that never came erased every later turn of a capture (#82 review).
+KEY_FOOTER = r"-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----"
+KEY_BREAK = r"[ \t]*+(?:\r?\n|\\r?\\n)[ \t]*+(?:>[ \t]?)?"
+PRIVATE_KEY = (r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----(?:[A-Za-z0-9+/=\s>:,\\-]*?" + KEY_FOOTER
+               + r"|(?:" + KEY_BREAK + r"[A-Za-z0-9+/=]{20,}(?=" + KEY_BREAK + r"|\Z|" + CLIP_MARK + r"))*"
+               r"(?:" + KEY_BREAK + r"[A-Za-z0-9+/=]+(?=" + CLIP_MARK + r"))?)")
 SECRET_SHAPES = re.compile(PRIVATE_KEY + r"|(?<![\w-])(?:" + TOKENS + r")"
                            r"|(?<![\w-])(?:" + TOKEN_PREFIXES + r")[\w.-]*(?=" + CLIP_MARK + r")")
 # A label that stays, then the secret it introduces. Each pattern's group 1 is the label.
 SECRET_AFTER = [re.compile(p) for p in (
     r"(?i)(\bbearer\s+)(?=[\w.~+/-]*\d)[\w.~+/-]{16,}=*",  # a digit: "bearer authenticationscheme" is prose
     r"(?i)(\bbearer\s+)[\w.~+/-]+(?=" + CLIP_MARK + r")",
-    r"(?i)(\bauthorization:\s*basic\s+)[A-Za-z0-9+/]{8,}=*",
-    r"(?i)(\bauthorization:\s*token\s+)[0-9a-f]{20,}",
-    r"(\b[a-z][\w+.-]*://[^\s:/@]*:)[^\s/]+(?=@)",  # greedy to the last @: a hand-typed password may hold one
-    r"(\s-u\s+[^\s:]+:)[^\s'\"]+",  # curl -u user:password
-    r"(\bmysql(?:dump|admin)?\b[^\n|;&]*?\s-p)[^\s'\"]+",  # mysql -p<password>, no space
+    # The header line, or its JSON or dict form: "Authorization": "Basic ...".
+    r"(?i)(\bauthorization[\"']?[ \t]*[:=][ \t]*[\"']?(?:basic|token)[ \t]+)[A-Za-z0-9+/]+=*",
+    # Greedy to the last @ before the path or query: a hand-typed password may hold one.
+    r"(?<![\w+.-])([a-z][\w+.-]*+://[^\s:/@]*:)[^\s/?#]+(?=@)",
+    r"(\bcurl\b[^\n|;&]*?\s(?:-u[ \t]*|--user[ =])[^\s:'\"]*:)[^\s'\"]+",  # curl -u user:password
+    # mysql -p<password>, no space; not a path ending in mysql, not a port mapping (docker -p3306:3306).
+    r"((?<![/\w.-])mysql(?:dump|admin)?\b(?![/.:-])[^\n|;&]*?\s-p)(?!\d+(?::\d+)?(?:\s|$))[^\s'\"]+",
 )]
-# `<name>=<value>`, `"<name>": "<value>"`, `**<Name>:** <value>`, `| <name> | <value> |`. The name must end in what
-# it holds (`token_path`, `tokenizer`, `secretary`, `api_key_header` do not hold one), checked in the pattern so a
-# name that holds none consumes no value a later name needs. It is bounded and must start a word, so a long
-# hyphenated run cannot backtrack (#82 review: 85 s on 8,000 characters).
+# Names that hold a secret. `pass` and `key` only with a prefix that says so: `bypass`, `first_pass`, `sort_key`
+# and `primary_key` hold none. Matched in the pattern, so a name that holds none consumes no value a later name
+# needs, and bounded, so a long hyphenated run cannot backtrack (#82 review: 85 s on 8,000 characters).
+SECRET_NAMES = (r"(?:[a-z_][\w-]{0,40}?)?(?:password|passwd|passphrase|secret|token|credentials?)s?"
+                r"|(?:[\w-]{0,40}?[_-])?(?:db|smtp|mail|user|admin|root|ftp|redis|ldap|proxy|mysql|pg)[_-]?(?:pass|pwd|pw)"
+                r"|pass|pwd|pw"
+                r"|(?:[\w-]{0,40}?[_-]?)?(?:api|access|secret|secretaccess|private|client|signing|encryption|master"
+                r"|auth|license|service|stripe|aws|openai|anthropic)[_-]?keys?")
+# `<name>=<value>`, `--name=<value>` or `--name <value>`, `"<name>": "<value>"`, `**<Name>:** <value>`,
+# `| <name> | <value> |`, and `<name>: <Type> = <value>`. Not `==`, `===`, `:=` or `=>`.
 SECRET_ASSIGNMENT = re.compile(
-    r"(?i)(?<![\w-])((?:[a-z_][\w-]{0,40}?)?(?:password|passwd|pwd|pass|secret|token|credentials?|apikey|[_-]key)s?)"
-    r"(?![\w-])([\"']?\**(?:[ \t]*[:=]|[ \t]+\|)[ \t]*\**[ \t]*)"
-    r"(?:([\"'])([^\"'\n]{1,200}?)\3|([\"']?)([^\s\"'`,;|]+))")
-# A value that names where the secret lives instead of holding it.
+    r"(?i)(?<![\w-])((?:--?)?(?:" + SECRET_NAMES + r"))(?![\w-])"
+    r"([\"']?\**+(?:[ \t]*+(?::(?![:=])|=(?![=>~]))|[ \t]++\|)[ \t]*+\**+[ \t]*+|[ \t]++(?=[^\s-]))"
+    r"([A-Za-z_][\w.]*+(?:\[[^\]\n]*\])?[ \t]*+=(?![=>])[ \t]*+)?"  # a type hint, kept when the separator is `:`
+    r"(?:([\"'`])([^\"'`\n]{1,200}?)\4|([\"']?)([^\s\"'`,;|)]+))")
+# A value that names where the secret lives instead of holding it, as a whole.
 SECRET_REFERENCE = re.compile(
-    r"\$\{?(?:[A-Z][A-Z0-9_]*|[a-z][a-z_]*)\}?\Z|%\w+%\Z|<[^>\n]*>\Z|\[redacted\]"  # $VAR, ${VAR}, %VAR%, <token>
-    r"|[A-Za-z_][\w.]*[(\[]"  # a call or an index: get_secret("db"), os.environ["X"]
+    r"(?:\$\{?(?:[A-Z][A-Z0-9_]*|[a-z][a-z_]*)\}?|%[A-Z_][A-Z0-9_]*%|<[^>\n]*>|\[redacted\]"  # $VAR, %VAR%, <token>
+    r"|\$?\{\{.*|![A-Za-z]\w*"  # a template expression (Actions, Jinja), a YAML tag (!vault)
+    r"|[A-Za-z_][\w.]*(?:\(.*\)|\[.*\]|[(\[])"  # a call or an index: get_secret("db"), os.environ["X"]
     r"|(?:os|self|cls|settings|config|conf|cfg|env|environ|process|request|app|ctx|secrets|vault|options|opts|args)"
-    r"\.[\w.]+\Z"
-    r"|[A-Z][A-Z0-9]*_[A-Z0-9_]+\Z"  # the name of an environment variable: GITHUB_TOKEN
-    r"|[/~]|\.\.?/|[A-Za-z]:[\\/]")  # a path
+    r"\.[\w.]+"
+    r"|[A-Z][A-Z]*(?:_[A-Z][A-Z0-9]*)+"  # the name of an environment variable: GITHUB_TOKEN
+    r"|(?:~|\.\.?)?/[\w.-]+/[\w./-]*|[A-Za-z]:[\\/]\S*)\Z")  # a path with a folder in it
 # Headless runs of these commands are Omoikane maintaining itself; capturing them would loop forever. Read from
 # the prompt files so a new operation cannot be left out of the list.
 OMOIKANE_COMMANDS = {f"/{p.stem}" for p in (OMOIKANE / "prompts").glob("*.md")}
@@ -570,18 +584,24 @@ def redact_secrets(text: str) -> str:
     redact_secrets('password = get_secret("db")') returns it unchanged.
     """
     def assignment(m: re.Match[str]) -> str:
-        name, separator, quote, quoted, opening, bare = m.groups()
+        name, separator, hint, quote, quoted, opening, bare = m.groups()
         value = quoted if quote else bare
+        if not separator.strip() and not name.startswith("-"):
+            return m.group(0)  # a space separates a value only after a flag: `--password hunter22`
+        if hint and ":" not in separator:
+            return m.group(0)  # `password = a = b` is code, not a type hint
         if SECRET_REFERENCE.match(value):
             return m.group(0)
-        if ":" in separator and re.match(r"[ \t]*=(?!=)", m.string[m.end():]):
-            return m.group(0)  # a type hint: `token: OAuth2Token = fetch()`
+        after = m.string[m.end():m.end() + 4]
+        if ":" in separator and not hint and not quote and re.match(r"[ \t]*(?:[),\]]|->)", after) \
+                and re.fullmatch(r"[A-Za-z_][\w.]*", value):
+            return m.group(0)  # a parameter's type: `def f(token: OAuth2Token) -> None`
         cut = CLIPPED.match(m.string, m.end()) is not None
         secret_like = (len(value) >= 20 or bool(re.search(r"[!@#$%^&*+=?~]", value))
                        or (bool(re.search(r"[A-Za-z]", value)) and bool(re.search(r"\d", value))))
         if quote:
-            return f"{name}{separator}{quote}{REDACTED}{quote}" if len(value) >= 4 else m.group(0)
-        return f"{name}{separator}{opening}{REDACTED}" if secret_like or cut else m.group(0)
+            return f"{name}{separator}{hint or ''}{quote}{REDACTED}{quote}" if len(value) >= 4 else m.group(0)
+        return f"{name}{separator}{hint or ''}{opening}{REDACTED}" if secret_like or cut else m.group(0)
 
     text = SECRET_SHAPES.sub(REDACTED, text)
     for pattern in SECRET_AFTER:

@@ -364,6 +364,23 @@ class Redaction(unittest.TestCase):
             ("token glpat-" + "a1b2c3d4e5f6g7h8i9j0", "a1b2c3d4", "token [redacted]"),
             ("-----BEGIN PGP " + "PRIVATE KEY BLOCK-----\n" + "lQOYBF" * 4 + "\n-----END PGP " + "PRIVATE KEY BLOCK-----",
              "lQOYBF", "[redacted]"),
+            # Shapes the second #82 review found leaking.
+            ("mysql --user=root --password=hunter22 shop", "hunter22", "--password=[redacted] shop"),
+            ("gh secret set --api-key hunter22x now", "hunter22x", "--api-key [redacted] now"),
+            ('"private_key": "-----BEGIN ' + 'PRIVATE KEY-----\\nMIIEvQ' + "IBADANBg" * 3 + '\\nAB==\\n-----END '
+             + 'PRIVATE KEY-----\\n"', "IBADANBg", '"private_key": "[redacted]'),
+            ("secretAccessKey: 'wJalrXUtnF" + "EMIK7MDENG'", "wJalrXUtnF", "secretAccessKey: '[redacted]'"),
+            ("privateKey: 'hunter22'", "hunter22", "privateKey: '[redacted]'"),
+            ('DB_PASSWORD: str = "hunter22"', "hunter22", 'DB_PASSWORD: str = "[redacted]"'),
+            ('headers = {"Authorization": "Basic QWxhZGRp' + 'bjpvcGVu"}', "QWxhZGRp", '"Authorization": "Basic [redacted]"'),
+            ("curl --user ana:hunter22 https://x", "hunter22", "curl --user ana:[redacted] https://x"),
+            ("https://u:hunter22@host?email=a@b.com", "hunter22", "https://u:[redacted]@host?email=a@b.com"),
+            ("-----BEGIN RSA " + "PRIVATE KEY-----\n" + "MIIEow" * 6 + "\nAAAAAAAAAA\n-----END RSA " + "PRIVATE KEY-----",
+             "AAAAAAAAAA", "[redacted]"),
+            ("> -----BEGIN RSA " + "PRIVATE KEY-----\n> " + "MIIEow" * 6 + "\n> -----END RSA " + "PRIVATE KEY-----",
+             "MIIEow", "> [redacted]"),
+            ("Password: `hunter22`", "hunter22", "Password: `[redacted]`"),
+            ("password=/hunter22", "hunter22", "password=[redacted]"),
         ]
         for text, absent, present in cases:
             with self.subTest(text=text[:40]):
@@ -381,7 +398,13 @@ class Redaction(unittest.TestCase):
                 'password: "${DB_PASSWORD}"; token_env = "GITHUB_TOKEN"; token_type = "bearer"; '
                 "token: OAuth2Token = fetch(); token_path=/home/ana/.config/gh/hosts.yml; pwd=/c/Users/ana/shop; "
                 "tokenizer_name=bert-base-multilingual-cased; secretary=JaneDoe42; api_key_header: X-API-Key2; "
-                "the bearer authenticationscheme; task-sk-learn-compatible-estimator-api")
+                "the bearer authenticationscheme; task-sk-learn-compatible-estimator-api; "
+                # False positives the second #82 review found.
+                'if password == expected: token === other; token := os.Getenv("GITHUB_TOKEN"); '
+                "token: ${{ secrets.GITHUB_TOKEN }}; password: '{{ vault_db_password }}'; password: !vault |; "
+                "bypass=check_v2; first_pass = run1; sort_key: created_at2; primary_key = user_id2; "
+                "public_key = pk2; find /var/lib/mysql -type f -print; docker run --name mysql -p3306:3306 x; "
+                "docker run -u 1000:1000 image; def refresh(token: OAuth2Token) -> None")
         md = self.captured(None, [user(text), assistant({"type": "tool_use", "name": "Edit",
                                                           "input": {"file_path": "C:/p/a.py"}})])
         self.assertIn(text, md)
@@ -395,11 +418,16 @@ class Redaction(unittest.TestCase):
                                   assistant({"type": "tool_use", "name": "Edit", "input": {"file_path": "C:/p/a.py"}})])
         self.assertIn("so it is an OpenSSH key", md)
         self.assertIn("Fix the deploy script", md)
+        # Nor the blank lines and the heading of the next section, nor a long word on the next line.
+        for after in ("\n\n## Turn 2\n", "\nAuthenticationFailedException thrown by paramiko"):
+            text = "-----BEGIN OPENSSH " + "PRIVATE KEY-----" + after
+            self.assertEqual(capture.redact_secrets(text), "[redacted]" + after)
 
     def test_long_names_and_values_redact_in_linear_time(self) -> None:
         # A hyphenated run of keywords took 85 s on 8,000 characters, inside the Stop hook (#82 review).
         start = time.perf_counter()
-        for text in ("password-" * 900, "token-" * 1300, "a-" * 4000):
+        for text in ("password-" * 900, "token-" * 1300, "a-" * 4000, "password:" + " " * 8000,
+                     "password" + " " * 4000 + "|" + " " * 4000, "a-" * 4000 + "://"):
             capture.redact_secrets(text)
         self.assertLess(time.perf_counter() - start, 2.0)
 
