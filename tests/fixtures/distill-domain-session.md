@@ -9,7 +9,7 @@ cwd: C:\Users\dev\Desktop\shop
 branch: feat/12-checkout-total
 ---
 
-# Coding session 2026-10-02 (eva1d0m, part 1)
+# Coding session 2026-10-02 (0eva1d0m, part 1)
 
 Captured by `omoikane/bin/session-capture.py`, no LLM involved. Agent notes are clipped, not summarised.
 
