@@ -44,6 +44,8 @@ class NewSystem(unittest.TestCase):
         git(self.repo, "init", "-q", "-b", "main")
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "clone of the template")
+        # A clone's origin is the template; the review gate fetches and pushes wiki/auto there.
+        git(self.repo, "remote", "add", "origin", "https://example.invalid/template.git")
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
@@ -61,6 +63,7 @@ class NewSystem(unittest.TestCase):
             self.assertTrue(all(name.endswith("/.gitkeep") for name in left), left)
         self.assertTrue((omoikane / "wiki/decisions/.gitkeep").is_file())
         log = (omoikane / "log.md").read_text(encoding="utf-8")
+        self.assertTrue(log.startswith("# Log\n\nAppend-only."), log)
         self.assertEqual(log.count("## ["), 1, log)
         self.assertIn(f"## [{date.today().isoformat()}] init |", log)
         review = (omoikane / "_review.md").read_text(encoding="utf-8")
@@ -79,13 +82,28 @@ class NewSystem(unittest.TestCase):
         self.assertEqual(lint.returncode, 0, lint.stdout + lint.stderr)
         self.assertNotIn("[[", run(self.repo, "session-context.py").stdout)
         self.assertEqual(run(self.repo, "context-budget.py").returncode, 0)
+        # The new system's pages must never be published to the template (review-gate.py publishes to origin).
+        self.assertEqual(git(self.repo, "remote").split(), ["template"])
 
     def test_refuses_a_tree_with_uncommitted_changes(self) -> None:
-        # Nothing is committed by the script, so git restore undoes a run; that holds only from a clean tree.
-        (self.repo / "AGENTS.md").write_text("edited\n", encoding="utf-8")
+        # Nothing is committed by the script, so git restore undoes a run; that holds only from a clean tree. An
+        # untracked capture is the worst case: git restore cannot bring it back.
+        for path, text in (("AGENTS.md", "edited\n"), ("omoikane/raw/inbox/sessions/2026-10-02-new00000.md", "x")):
+            with self.subTest(path=path):
+                (self.repo / path).write_text(text, encoding="utf-8")
+                result = run(self.repo, "new-system.py")
+                self.assertEqual(result.returncode, 2)
+                self.assertIn(Path(path).name, result.stdout)
+                self.assertTrue((self.repo / "omoikane/wiki/concepts/template-concept.md").is_file())
+                git(self.repo, "checkout", "-q", "--", ".")
+                git(self.repo, "clean", "-q", "-f")
+
+    def test_outside_a_git_clone_it_explains_and_stops(self) -> None:
+        shutil.rmtree(self.repo / ".git", onerror=lambda f, p, e: (Path(p).chmod(0o700), f(p)))
         result = run(self.repo, "new-system.py")
         self.assertEqual(result.returncode, 2)
-        self.assertIn("AGENTS.md", result.stdout)
+        self.assertIn("git clone", result.stdout)
+        self.assertNotIn("Traceback", result.stderr)
         self.assertTrue((self.repo / "omoikane/wiki/concepts/template-concept.md").is_file())
 
 
