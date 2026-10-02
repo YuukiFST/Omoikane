@@ -29,6 +29,7 @@ def lint_pages(pages: list[Page], repo: Path = REPO) -> list[str]:
     returns ["...: code path `gone.py` does not exist", ...].
     """
     slugs = {p.slug for p in pages}
+    source_pages = {f"wiki/sources/{p.slug}.md" for p in pages if p.meta.get("type") == "source"}
     inbound: dict[str, int] = {s: 0 for s in slugs}
     findings: list[str] = []
     # A wikilink names a slug, not a folder: `decisions/x.md` and `gotchas/x.md` would both answer [[x]].
@@ -70,7 +71,8 @@ def lint_pages(pages: list[Page], repo: Path = REPO) -> list[str]:
         if p.meta.get("type") == "domain":
             cited = p.meta.get("sources")
             # Valid from one statement, but only with it: a rule nobody stated is a guess every session would obey.
-            if not any(posixpath.basename(str(s))[:-3] in slugs for s in (cited if isinstance(cited, list) else [])):
+            # Only a source page records a statement; the agent's own pages (this one, a concept) do not.
+            if not any(str(s) in source_pages for s in (cited if isinstance(cited, list) else [])):
                 findings.append(f"{p.rel}: domain page cites no existing source page; cite the session or document "
                                 "that states it")
         if p.meta.get("type") == "source":

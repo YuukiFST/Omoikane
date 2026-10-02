@@ -125,7 +125,11 @@ class CodePaths(unittest.TestCase):
         no_source = ["/wiki/r.md: domain page cites no existing source page; cite the session or document that "
                      "states it"]
         for sources, findings in (([f"wiki/sources/{s}.md"], []), ([], no_source),
-                                  (["wiki/sources/session-2026-10-02-bbbbbbbb.md"], no_source)):
+                                  (["wiki/sources/session-2026-10-02-bbbbbbbb.md"], no_source),
+                                  # The agent's own pages are not a statement: itself, a concept, a source slug
+                                  # cited from the wrong folder.
+                                  (["wiki/domain/r.md"], no_source), (["wiki/concepts/hub.md"], no_source),
+                                  ([f"wiki/decisions/{s}.md"], no_source)):
             with self.subTest(sources=sources):
                 r = page("r", "domain", sources=sources)
                 hub = page("hub", "concept")
