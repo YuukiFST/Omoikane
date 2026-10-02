@@ -5,7 +5,7 @@ summary: Every change to this repo must improve Omoikane at holding, unprompted,
 tags: [convention, objective]
 created: 2026-10-02
 updated: 2026-10-02
-sources: [wiki/sources/2026-10-02-omoikane-objective.md, wiki/sources/session-2026-10-01-d4302021.md, wiki/sources/session-2026-10-02-1b324082.md, wiki/sources/2026-10-02-omoikane-references.md]
+sources: [wiki/sources/2026-10-02-omoikane-objective.md, wiki/sources/session-2026-10-01-d4302021.md, wiki/sources/session-2026-10-02-1b324082.md, wiki/sources/2026-10-02-omoikane-references.md, wiki/sources/2026-10-02-ste-and-oversight-posts.md]
 ---
 
 ## The rule
@@ -32,6 +32,7 @@ In turn 8 the user asked that "todo o desenvolvimento do projeto seja voltado a 
 So: every new system starts from the template; the agent feeds the knowledge base on its own, without the user's involvement, with what the user states while building, business rules, design system and organisation conventions included (source: [[2026-10-02-omoikane-objective]]).
 The knowledge lives in Omoikane itself, not in an external base: [[omoikane-holds-its-systems-domain-knowledge-itself]].
 When to read the three references and what each gave: [[omoikane-references]] (source: [[2026-10-02-omoikane-references]]).
+A business term's meaning is part of that knowledge; a [[domain-glossary]] to hold it is proposed, not built (source: [[2026-10-02-ste-and-oversight-posts]]).
 
 ## Where it applies
 

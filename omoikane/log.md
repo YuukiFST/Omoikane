@@ -163,3 +163,8 @@ Updated: [[review-gate]], [[session-capture]], [[session-context]], [[wiki-rules
 - skipped (self-resolved) write-before-read-tool-error: `File has not been read yet` from the Write tool (turn 2)
 - skipped (self-resolved) chained-sleep-blocked: `sleep 60` before a `cat` was blocked by the harness, which asks for Monitor or run_in_background (turn 2)
 - skipped (self-resolved) gh-no-github-remote-in-eval-clone: `gh` could not determine the repository in a clone whose remote is a local path (turn 2)
+
+## [2026-10-02] ingest | 2026-10-02 STE and oversight posts
+
+Created: [[2026-10-02-ste-and-oversight-posts]], [[asd-ste100]], [[domain-glossary]].
+Updated: [[omoikane-objective]].
