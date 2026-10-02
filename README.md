@@ -37,6 +37,7 @@ Built on Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893
 | Measure what every session loads | `python omoikane/bin/context-budget.py` | same |
 | Rebuild index | `python omoikane/bin/wiki-index.py` | same |
 | Start a new system from a fresh clone | `python omoikane/bin/new-system.py` | same |
+| Seed the inbox from an existing project's docs, rule files and history | `python omoikane/bin/bootstrap.py [--from <path>]` | same |
 | Tests | `python -m unittest discover -s tests` | same |
 
 Both agents run the same prompt files in `omoikane/prompts/`; the skill and command folders are thin wrappers.

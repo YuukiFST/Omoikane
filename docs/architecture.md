@@ -104,6 +104,8 @@ Why a type of its own (#64):
 
 Why the `## Domain` section of `AGENTS.md` went away: it waited for the human to describe the domain by hand, which the objective rules out. The domain now arrives the way everything else does, through capture and distill.
 
+A project that adopts Omoikane, or a system that replaces one, has written much of its domain down already. `omoikane/bin/bootstrap.py [--from <path>]` copies the tracked README, `docs/` pages, agent rule files (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules/`, ...) and a summary of the first-parent git log into the inbox, one file each, and the scheduled run ingests them (#79, after ai-memory's `bootstrap` and brainmaxxing's `/ruminate`). Why copies and not a list of paths: `/ingest` reads one inbox file, and a copy fixes what it read; each copy names its path and the date of its last commit, which becomes the source page's `dated`. Why not code: a rule the code follows without stating it is the code's business, and `/distill` meets it when a session touches it. Skipped: `omoikane/`, and in a system born from the template (remote `template`, which `new-system.py` names), every file still identical to the template's and every commit the template made; those describe Omoikane.
+
 ## Pruning
 
 The wiki only grows unless something removes pages. `/prune` (on demand) marks stale, redundant and low-value pages with `prune:` in their frontmatter and merges each duplicate into the stronger page, repointing the links.
