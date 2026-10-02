@@ -75,9 +75,91 @@ Updated: [[headless-runs-have-no-shell]], [[company-internal-material-stays-out-
 - skipped (self-resolved) test-fixture-global-hookspath: two test details adjusted, a global `core.hooksPath` and a directory status, cause not stated beyond that (turn 2)
 - skipped (self-resolved) budget-test-assumed-empty-rules-block: the context budget test went red once a rule was promoted; recorded on [[wiki-rules]], not a gotcha (turn 2)
 
+## [2026-10-02] review | removed from _review.md
+
+- removed (guard) typecheck-harness-plugins
+- removed (todo) wiki-lint-backslash-code-paths
+- removed (guard) user-settings-apply-to-headless-claude-runs
+- removed (todo) phase-2-pendencies
+- removed (rule) review-each-pr-with-a-subagent-before-merging
+- removed (todo) finish-rejection-memory-pr-44
+- removed (todo) close-resolved-review-items
+- removed (todo) merge-typecheck-plugins-pr-48
+- removed (todo) merge-escape-edit-hook-pr-49
+- removed (todo) merge-rule-promotion-pr-50
+- removed (todo) open-org-knowledge-pr-52
+
+## [2026-10-02] distill | session b5b6fb27 | nothing kept
+
+Part 2 holds one captured turn: a handoff prompt restating the merged PRs and the open review gate PR #56 (since merged), clipped before any new finding.
 ## [2026-10-02] cleanup | company-internal name removed (#63)
 
 The user asked that the name of a company-internal starter kit appear nowhere in this public repository, and approved redacting it, once, in this log and in raw captures, which are otherwise append-only and immutable. Bodies only; frontmatter untouched. Git history still holds the name.
 
 - updated: [[company-internal-material-stays-out-of-the-public-repo]], [[session-2026-09-30-230a182d]], [[session-2026-09-30-c14af01e]], [[session-2026-10-01-b5b6fb27]]
 - redacted: the `omoikane-knowledge-for-*` todo line above (slug now `omoikane-knowledge-for-redacted`), `omoikane/raw/sources/sessions/2026-09-30-230a182d.md`, `2026-09-30-c14af01e.md`, `2026-10-01-b5b6fb27.md`
+
+## [2026-10-02] review | removed from _review.md
+
+- removed (todo) switch-on-autonomous-loop
+- removed (todo) omoikane-knowledge-for-redacted
+- removed (todo) finish-review-gate-45
+
+## [2026-10-02] ingest | 2026-10-02 Omoikane objective
+
+Created: [[2026-10-02-omoikane-objective]], [[omoikane-objective]], [[omoikane-holds-its-systems-domain-knowledge-itself]].
+Updated: [[company-internal-material-stays-out-of-the-public-repo]], [[session-2026-10-01-b5b6fb27]].
+
+## [2026-10-02] distill | session d4302021
+
+Created: [[session-2026-10-01-d4302021]], [[review-gate]].
+Updated: [[omoikane-objective]], [[omoikane-holds-its-systems-domain-knowledge-itself]], [[company-internal-material-stays-out-of-the-public-repo]], [[wiki-ingest]], [[wiki-rules]].
+
+- routed (todo) review-gate-known-limits: four review gate limits recorded on PR #56 and not fixed (turn 4)
+- skipped (decided) omoikane-knowledge-for-redacted: the todo to reuse Omoikane knowledge in the company kit, already removed by #58 and reversed by the user (turn 6)
+- skipped (no-root-cause) gh-pr-merge-delete-branch-removes-worktree: the agent noted `gh pr merge --delete-branch` had removed the worktree and the local branch; not checked (turn 4)
+- skipped (one-off) kit-draft-clone-deleted: a clean local clone of the company kit deleted after checking it had no changes (turn 3)
+
+## [2026-10-02] distill | session 1b324082
+
+Created: [[session-2026-10-02-1b324082]], [[redact-captures-when-they-are-written]], [[capture-redaction-breaks-on-frontmatter-clips-and-encodings]], [[new-system-starts-with-an-empty-memory]], [[objective-criterion-stays-out-of-agents-md]].
+Updated: [[omoikane-objective]], [[omoikane-holds-its-systems-domain-knowledge-itself]], [[company-internal-material-stays-out-of-the-public-repo]], [[session-capture]], [[wiki-lint]], [[session-context]].
+
+- routed (todo) second-domain-distill-eval: the second headless distill eval over `distill-domain-session-2.md` was killed for low memory and never ran (turn 5)
+- skipped (missing-env) low-memory-kills-background-runs: Claude Code killed three background test and eval runs because the machine ran low on memory (turn 4)
+- skipped (no-root-cause) auto-mode-classifier-denial: an action was denied by the auto mode classifier, which gave no explanation (turn 3)
+- skipped (self-resolved) write-before-read-tool-error: `File has not been read yet` from the Write tool (turn 3)
+- skipped (self-resolved) chained-sleep-blocked: `sleep 240` before a `tail` was blocked by the harness, which asks for Monitor or run_in_background (turn 3)
+
+## [2026-10-02] synthesize | 6 sessions
+
+Created: [[run-a-headless-eval-in-a-throwaway-clone-before-a-prompt-pr]], [[stop-and-ask-at-every-decidir-in-a-handoff-prompt]].
+Updated: [[review-each-pr-with-a-subagent-before-merging]] (sessions 230a182d, b5b6fb27, d4302021, 1b324082), [[session-2026-10-02-1b324082]], [[session-2026-10-01-d4302021]], [[session-2026-10-01-b5b6fb27]] (links to the practices).
+
+- routed (rule) stop-and-ask-at-every-decidir-in-a-handoff-prompt: mark user choices DECIDIR in handoff prompts, stop and ask at each one received (sessions 230a182d, b5b6fb27, d4302021, 1b324082; turns 4, 2, 3, 3)
+- dropped (known) write-before-read-tool-error: skipped in three distills; the Write tool itself refuses a write before a read
+- dropped (not-imperative) auto-mode-classifier-denial: denials and a missing verdict from the auto mode classifier in e04462b2, b5b6fb27 and 1b324082, with no cause an agent could act on
+- dropped (known) issue-branch-worktree-pr: every session worked one issue, branch and `$TEMP` worktree per PR, the flow the user's global git rules route to the `git-workflow` skill
+- dropped (known) red-test-first: every session wrote failing tests first, already required by the user's global CLAUDE.md
+- dropped (known) scan-captures-before-publishing: d4302021 and 1b324082 checked captures for the company kit's name before a public push; covered by [[company-internal-material-stays-out-of-the-public-repo]]
+- dropped (not-imperative) handoff-prompt-at-session-end: c14af01e, d4302021 and 1b324082 wrote a handoff prompt because the user asked for one
+- dropped (one-session) kill-the-class-with-a-guard: stated only in 230a182d turn 2, and the user's global CLAUDE.md already says to automate a repeated class of problem
+- dropped (not-imperative) prompt-eval-rule: [[run-a-headless-eval-in-a-throwaway-clone-before-a-prompt-pr]] governs only prompt PRs, not most tasks, so no rule is filed
+
+## [2026-10-02] ingest | 2026-10-02 Omoikane references
+
+Created: [[2026-10-02-omoikane-references]], [[omoikane-references]].
+Updated: [[omoikane-objective]].
+
+## [2026-10-02] distill | session a8b45323
+
+Created: [[session-2026-10-02-a8b45323]], [[secret-redaction-patterns-leak-swallow-and-backtrack]], [[lint-findings-the-scheduled-agent-cannot-fix-are-warnings]], [[brief-floors-only-the-rule-and-lesson-sections]], [[new-system-inherits-conventions-with-from]], [[bootstrap]].
+Updated: [[review-gate]], [[session-capture]], [[session-context]], [[wiki-rules]], [[wiki-lint]], [[new-system-starts-with-an-empty-memory]], [[omoikane-holds-its-systems-domain-knowledge-itself]], [[run-a-headless-eval-in-a-throwaway-clone-before-a-prompt-pr]].
+
+- routed (todo) auto-merge-wiki-pr-74: auto-merge of the `wiki/auto` PR blocked by the permission classifier, left for the user (turn 2)
+- routed (todo) close-second-domain-distill-eval: the second domain distill eval ran and passed; the older todo can go (turn 2)
+- routed (todo) cut-realignment-prompt: the user's realignment prompt is cut by the capture (turn 2)
+- skipped (no-root-cause) auto-mode-classifier-denial: the auto mode classifier denied an action without an explanation (turn 2)
+- skipped (self-resolved) write-before-read-tool-error: `File has not been read yet` from the Write tool (turn 2)
+- skipped (self-resolved) chained-sleep-blocked: `sleep 60` before a `cat` was blocked by the harness, which asks for Monitor or run_in_background (turn 2)
+- skipped (self-resolved) gh-no-github-remote-in-eval-clone: `gh` could not determine the repository in a clone whose remote is a local path (turn 2)
