@@ -43,7 +43,7 @@ prune: stale | redundant | low-value  # optional, set by /prune; the human delet
 ```
 
 - Filename is the kebab-case slug of `title`.
-- Write page text, `summary` included, in this subset of ASD-STE100: one word for one meaning, no synonyms; the imperative for rules and procedures; active voice; at most 20 words a sentence in procedures, 25 in descriptions; at most three nouns in a row; one topic a paragraph. Quotes stay verbatim.
+- Page text, `summary` included, follows an ASD-STE100 subset: one word, one meaning; imperative for rules and procedures; active voice; sentences up to 20 words in procedures, 25 elsewhere; up to three nouns in a row; one topic a paragraph. Quotes stay verbatim.
 - Link pages with `[[slug]]` wikilinks. A claim taken from a source cites it inline: `(source: [[slug]])`.
 - One entity or concept per page. A concept mentioned on three pages gets its own page.
 - A contradiction lives where its two sides meet: on the source page when a source contradicts itself, on the entity or concept page when two sources disagree. Keep both claims under `## Contradictions`, add an entry to `omoikane/_review.md`, and do not pick a winner.
@@ -68,8 +68,6 @@ python omoikane/bin/wiki-lint.py
 ```
 
 `wiki-lint.py` exits non-zero on broken wikilinks, missing frontmatter, undated source pages, orphan pages, two pages sharing a slug or `code:` paths that no longer exist or are absolute. Fix every finding before you report done. Its `warning:` lines (code committed after a page's `updated` date) do not fail; `/lint` checks them.
-
-A scheduled run (`wiki-ingest.ps1`) has no shell: skip these commands; lint runs after you and sends findings back. A run that left its scope writes `omoikane/.wiki-ingest.blocked`; later runs refuse until the human deletes it.
 
 ## Coding sessions (build mode)
 
