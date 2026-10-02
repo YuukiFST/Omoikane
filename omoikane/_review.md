@@ -27,3 +27,8 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
 ## [2026-10-02] synthesize
 
 - [ ] rule stop-and-ask-at-every-decidir-in-a-handoff-prompt: Mark each user choice DECIDIR in a handoff prompt; at a DECIDIR you receive, stop and ask (synthesize)
+
+## [2026-10-02] distill | session 04edad59
+
+- todo cut-continuation-prompt: the user's turn-2 continuation prompt is cut by the capture inside the PR #84 item (`[... 5710 chars cut]`), including the reason the bootstrap template base was chosen; any rule stated in the cut part has no page (session 04edad59, turn 2)
+- todo close-cut-realignment-prompt: issues #79 and #87 are closed and PRs #84 and #88 merged; check whether the todo `cut-realignment-prompt` above still matters, else delete it (session 04edad59, turn 4)

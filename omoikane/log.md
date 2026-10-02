@@ -168,3 +168,12 @@ Updated: [[review-gate]], [[session-capture]], [[session-context]], [[wiki-rules
 
 Created: [[2026-10-02-ste-and-oversight-posts]], [[asd-ste100]], [[domain-glossary]].
 Updated: [[omoikane-objective]].
+
+## [2026-10-02] distill | session 04edad59
+
+Created: [[session-2026-10-02-04edad59]].
+Updated: [[bootstrap]].
+
+- routed (todo) cut-continuation-prompt: the user's turn-2 continuation prompt is cut by the capture inside the PR #84 item (turn 2)
+- routed (todo) close-cut-realignment-prompt: the realignment gaps are closed; the older cut-prompt todo may be obsolete (turn 4)
+- skipped (self-resolved) sed-i-blocked-by-escape-edit-guard: `escape-edit-guard.py` blocked a `sed -i`, as designed; the agent rewrote the step (turn 3)

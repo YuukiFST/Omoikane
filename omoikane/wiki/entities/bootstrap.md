@@ -5,7 +5,7 @@ summary: omoikane/bin/bootstrap.py seeds the inbox from a project's README, docs
 tags: [bootstrap, module, ingest, redaction]
 created: 2026-10-02
 updated: 2026-10-02
-sources: [wiki/sources/session-2026-10-02-a8b45323.md]
+sources: [wiki/sources/session-2026-10-02-a8b45323.md, wiki/sources/session-2026-10-02-04edad59.md]
 code: [omoikane/bin/bootstrap.py, tests/test_bootstrap.py]
 ---
 
@@ -19,3 +19,8 @@ Reviews (turn 2):
 
 - The tests were rewritten to cover the first review's findings, and the agent asked for a second pass because the rewrite was large.
 - The second review found that template detection still depended on the remote's name, file names leaked listed terms, and a clipped body leaked part of a token; the agent was adding tests for them (the "Use this template" flow with the real `new-system.py`, a redacted name, a clipped body, an attached manual, `node_modules`) when the capture ended.
+- The fixes landed in `ec69f47` with three new tests (12 in `tests.test_bootstrap`); PR #84 merged as `7c3476f` and closed issue #79 (source: [[session-2026-10-02-04edad59]], turn 4).
+  The template's end in the history is now found by the reset marker commit, so neither a renamed remote nor a "Use this template" repository hides it (`omoikane/bin/bootstrap.py`).
+
+Known limit, left on purpose: a source's inbox file name changes when a new name collision appears, so that source is ingested again.
+The cost is a duplicate ingest in a rare case, and `/prune` merges duplicate pages (source: [[session-2026-10-02-04edad59]], turn 4).
