@@ -43,7 +43,7 @@ prune: stale | redundant | low-value  # optional, set by /prune; the human delet
 ```
 
 - Filename is the kebab-case slug of `title`.
-- Page text, `summary` included, follows an ASD-STE100 subset: one word, one meaning; imperative for rules and procedures; active voice; sentences up to 20 words in procedures, 25 elsewhere; up to three nouns in a row; one topic a paragraph. Quotes stay verbatim.
+- Page text and `summary` follow an ASD-STE100 subset in the page's language: one word, one meaning; imperative for rules and procedures; active voice; sentences up to 20 words in procedures, 25 elsewhere; up to three nouns in a row; one topic a paragraph. Quotes, code and errors stay verbatim.
 - Link pages with `[[slug]]` wikilinks. A claim taken from a source cites it inline: `(source: [[slug]])`.
 - One entity or concept per page. A concept mentioned on three pages gets its own page.
 - A contradiction lives where its two sides meet: on the source page when a source contradicts itself, on the entity or concept page when two sources disagree. Keep both claims under `## Contradictions`, add an entry to `omoikane/_review.md`, and do not pick a winner.
