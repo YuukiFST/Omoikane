@@ -349,8 +349,8 @@ def publish(worktree: Path, gh: Sequence[str] = ("gh",)) -> str:
     # GitHub already computes mergeable (no required check) it merges at once, before CI (gh merge.go,
     # isImmediatelyMergeable); the mutation is refused there instead.
     head = git(worktree, "rev-parse", "HEAD").strip()
+    node = run_gh("pr", "view", url, "--json", "id", "-q", ".id").strip()
     try:
-        node = run_gh("pr", "view", url, "--json", "id", "-q", ".id").strip()
         run_gh("api", "graphql", "-f", f"query={AUTO_MERGE}", "-f", f"id={node}", "-f", f"head={head}")
     except GateError as exc:
         raise GateError(f"opened {url}, but auto-merge was refused ({exc}); the repository needs 'Allow "
