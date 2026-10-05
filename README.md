@@ -65,7 +65,7 @@ python -m unittest discover -s tests       # sanity check
 python omoikane/bin/new-system.py          # empty the template's own memory; then commit
                                            # --from <another system>: keep its conventions and design-system rules
 git remote add origin <new-system-url>     # the script renamed the template's remote to `template`
-omoikane/bin/install-schedule.ps1          # optional: Task Scheduler job every 30 min
+omoikane/bin/install-schedule.ps1          # daily fallback; sessions start the ingest once quiet, no window
 ```
 
 `new-system.py` removes the wiki, log entries, review items and captures the template carries about its own development, which the brief would otherwise inject into every session of the new system. It refuses a tree with uncommitted changes and commits nothing, so `git restore .` undoes it. It also renames `origin` to `template`: the scheduled run publishes to `origin`, and the new system's pages must not reach the template. `docs/specs/` holds the template's own plans; delete it or keep it as history.

@@ -94,7 +94,8 @@ Outcome of each, recorded 2026-10-02 (#87).
   `review-gate.py publish` now asks GitHub to merge the PR by merge commit once the required checks pass (the `enablePullRequestAutoMerge` mutation; `gh pr merge --auto`, the proposal, merges at once a PR already mergeable), keeping the PR as the audit trail and reversing part of #45; the repository needs "Allow auto-merge" and a required status check on `main`.
   The agent's permission classifier had refused this edit once, so it waited for the user.
   Even merged, a session sees the pages after `git pull`: the brief reads the checkout.
-- **Discarded.** Latency (30-minute quiet period plus the schedule).
+- **Reopened and closed** by #96 once the merge became automatic: each capture arms a timer, and the run starts 31 minutes after a session's last turn, with no window; the scheduled task is a daily fallback.
+  Recorded on 2026-10-02 as discarded: latency (30-minute quiet period plus the schedule).
   The next session gets the newest undistilled capture in the brief's Pending section and can read it at once, until the scheduled run moves it into `wiki/auto`; the wiki reaches sessions only after the merge above, so distilling sooner reaches no session sooner, and takes the capture out of Pending sooner.
   A run started at `SessionEnd` would also race the scheduled run over the one `wiki/auto` worktree.
   Worth reopening once the merge is automatic.

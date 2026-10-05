@@ -18,6 +18,7 @@ Every reader ignores what it does not recognise, so a format change degrades to 
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import os
 import re
@@ -29,6 +30,8 @@ from pathlib import Path
 from typing import Callable
 
 from wikilib import OMOIKANE, parse_frontmatter
+
+ingest_timer = importlib.import_module("ingest-timer")
 
 INBOX = OMOIKANE / "raw" / "inbox" / "sessions"
 INGESTED = OMOIKANE / "raw" / "sources" / "sessions"
@@ -676,7 +679,13 @@ def main(argv: list[str] | None = None) -> int:
     if not transcript or not transcript.is_file():
         print(f"session-capture: no transcript at {transcript}")
         return 0
-    print(f"session-capture: {capture(transcript, session_id, args.harness)}")
+    result = capture(transcript, session_id, args.harness)
+    print(f"session-capture: {result}")
+    if result.startswith("captured"):
+        # Due once this session goes quiet (#96); a skipped capture and a headless run (returned above) arm nothing,
+        # so a distill cannot re-arm itself.
+        agent = "opencode" if args.harness == "opencode" else "claude"
+        ingest_timer.arm(ingest_timer.state_dir(), ingest_timer.QUIET_SECONDS, agent)
     return 0
 
 
