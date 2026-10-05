@@ -177,3 +177,11 @@ Updated: [[bootstrap]].
 - routed (todo) cut-continuation-prompt: the user's turn-2 continuation prompt is cut by the capture inside the PR #84 item (turn 2)
 - routed (todo) close-cut-realignment-prompt: the realignment gaps are closed; the older cut-prompt todo may be obsolete (turn 4)
 - skipped (self-resolved) sed-i-blocked-by-escape-edit-guard: `escape-edit-guard.py` blocked a `sed -i`, as designed; the agent rewrote the step (turn 3)
+
+## [2026-10-05] distill | session 680ff986
+
+Created: [[session-2026-10-02-680ff986]].
+Updated: [[omoikane-references]].
+
+- routed (todo) handoff-proposals-680ff986: the turn-5 handoff prompt's proposals are cut by the capture; check they were done or dropped (turn 5)
+- skipped (self-resolved) x-posts-read-through-fxtwitter: X blocked direct reading of two posts; the agent read them through `api.fxtwitter.com` after retries, cause of the first failures not shown (turn 4)
