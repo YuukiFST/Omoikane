@@ -76,9 +76,11 @@ SECRET_AFTER = [re.compile(p) for p in (
     # Greedy to the last @ before the path or query: a hand-typed password may hold one.
     r"(?<![\w+.-])([a-z][\w+.-]*+://[^\s:/@]*:)[^\s/?#]+(?=@)",
     # curl -u user:password, curl as the command (at a line start or after ; & | ( or a backtick), not in prose.
-    r"(?m)((?:^|[;&|(`])[ \t]*curl\b[^\n|;&]*?\s(?:-u[ \t]*|--user[ =])[^\s:'\"]*:)[^\s'\"]+",
+    # The scan to the flag is bounded: unbounded, a 20,000-character line of repeated commands took over a second
+    # on every turn (#109 review).
+    r"(?m)((?:^|[;&|(`])[ \t]*curl\b[^\n|;&]{0,500}?\s(?:-u[ \t]*|--user[ =])[^\s:'\"]*:)[^\s'\"]+",
     # mysql -p<password>, no space; not a path ending in mysql, not a port mapping (docker -p3306:3306).
-    r"((?<![/\w.-])mysql(?:dump|admin)?\b(?![/.:-])[^\n|;&]*?\s-p)(?!\d+(?::\d+)?(?:\s|$))[^\s'\"]+",
+    r"((?<![/\w.-])mysql(?:dump|admin)?\b(?![/.:-])[^\n|;&]{0,500}?\s-p)(?!\d+(?::\d+)?(?:\s|$))[^\s'\"]+",
 )]
 # Names that hold a secret. `pass` and `key` only with a prefix that says so: `bypass`, `first_pass`, `sort_key`
 # and `primary_key` hold none. Matched in the pattern, so a name that holds none consumes no value a later name
@@ -130,6 +132,8 @@ NOTE_CHARS = 1500
 # Long prompts are where the user states rules: at 2,000 four rules past the cut never became pages (#104). The
 # longest prompt in the captures up to 2026-10-06 had 10,306 characters; the limit only bounds a pasted log.
 PROMPT_CHARS = 20_000
+# OpenCode's read tool cuts each line at 2,000 characters; capture lines are wrapped below that (wrap_long_lines).
+LINE_CHARS = 1900
 ERROR_CHARS = 400
 COMMAND_CHARS = 200
 NOTES_BUDGET = 40_000
@@ -202,6 +206,22 @@ def command_of(prompt: str) -> str:
 def clip(text: str, limit: int) -> str:
     text = text.strip()
     return text if len(text) <= limit else text[:limit].rstrip() + f" [... {len(text) - limit} chars cut]"
+
+
+def wrap_long_lines(text: str, limit: int = LINE_CHARS) -> str:
+    """Break each line longer than `limit` at its last space before the limit. OpenCode's read tool cuts every line
+    at 2,000 characters, so a long one-paragraph prompt would lose its end in /distill (#109 review). Runs on the
+    redacted capture, and a run with no space stays whole, so no break can hide a secret from redaction.
+
+    Example: wrap_long_lines("aa bb cc", 5) returns "aa bb\\ncc".
+    """
+    out: list[str] = []
+    for line in text.split("\n"):
+        while len(line) > limit and (cut := line.rfind(" ", 1, limit + 1)) > 0:
+            out.append(line[:cut])
+            line = line[cut + 1:]
+        out.append(line)
+    return "\n".join(out)
 
 
 def relative_to(path: str, cwd: str) -> str:
@@ -657,7 +677,8 @@ def capture(transcript: Path, session_id: str = "", harness: str = "claude", inb
     target = inbox / f"{session.day}-{session.short_id}{suffix}.md"
     inbox.mkdir(parents=True, exist_ok=True)
     text = redact_capture(render(session, session.turns[covered:], part, worktree), redaction_terms(redact_file))
-    target.write_text(text, encoding="utf-8")
+    # After redaction: a break between a name and its value (`password:` / `hunter22`) would hide the value from it.
+    target.write_text(wrap_long_lines(text), encoding="utf-8")
     shown = target.relative_to(OMOIKANE.parent) if target.is_relative_to(OMOIKANE.parent) else target
     return f"captured {shown.as_posix()} ({len(session.turns) - covered} turns)"
 

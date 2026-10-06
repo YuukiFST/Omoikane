@@ -305,11 +305,15 @@ class Redaction(unittest.TestCase):
     def test_a_rule_at_the_end_of_a_long_prompt_reaches_the_capture(self) -> None:
         # Long prompts are where the user states rules: four times a rule past the 2,000th character never became a
         # page (#104). The prompt is kept whole, and redaction still applies to all of it.
-        prompt = "Context line for the task.\n" * 222 + "Rule: every Acme invoice total is in integer cents."
-        md = self.captured("Acme\n", [user(prompt), assistant(
-            {"type": "tool_use", "name": "Edit", "input": {"file_path": "C:/proj/a.py"}})])
-        self.assertGreater(len(prompt), 6000)
-        self.assertIn("Rule: every [redacted] invoice total is in integer cents.", md)
+        # OpenCode's read tool cuts every line at 2,000 characters, so one long paragraph is wrapped (#109 review).
+        for name, filler in (("lines", "Context line for the task.\n"), ("one paragraph", "Context for the task. ")):
+            with self.subTest(name):
+                prompt = filler * 222 + "Rule: every Acme invoice total is in integer cents."
+                md = self.captured("Acme\n", [user(prompt), assistant(
+                    {"type": "tool_use", "name": "Edit", "input": {"file_path": "C:/proj/a.py"}})])
+                self.assertGreater(len(prompt), 4800)
+                self.assertIn("Rule: every [redacted] invoice total is in integer cents.", md)
+                self.assertLessEqual(max(map(len, md.splitlines())), 2000)
         self.assertNotIn("acme", md.lower())
 
     def test_a_term_matches_either_path_separator_and_any_whitespace(self) -> None:
@@ -461,6 +465,12 @@ class Redaction(unittest.TestCase):
                      "password" + " " * 4000 + "|" + " " * 4000, "a-" * 4000 + "://"):
             capture.redact_secrets(text)
         self.assertLess(time.perf_counter() - start, 2.0)
+        # A prompt line may now hold 20,000 characters (#104): the curl and mysql scans each took over a second on
+        # one such line of repeated commands (#109 review).
+        start = time.perf_counter()
+        for text in ("mysql=" * 3400, "x mysql," * 2500, "(curl a " * 2500):
+            capture.redact_secrets(text)
+        self.assertLess(time.perf_counter() - start, 1.0)
 
     def test_no_redact_file_changes_nothing(self) -> None:
         for redact_list in (None, "", "\n\n"):
