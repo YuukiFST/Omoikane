@@ -16,7 +16,7 @@ Built on Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893
 ## How it works
 
 1. A source arrives in `omoikane/raw/inbox/`: a clipped article, a synced file, or a coding session written there by the `Stop` hook (`omoikane/bin/session-capture.py`, no LLM).
-2. At the end of the day the user runs `/wrap-up [days]`: the agent runs `/distill` on each captured session and `/ingest` on each other source, moves each file to `omoikane/raw/sources/`, and reads the commits of the period for what no session covered. Nothing runs in the background. Optionally, `omoikane/bin/wiki-ingest.ps1` does the inbox part headless on a schedule (`install-schedule.ps1`).
+2. At the end of the day the user runs `/wrap-up [days]` in a fresh session: the agent runs `/distill` on each captured session and `/ingest` on each other source, moves each file to `omoikane/raw/sources/`, and reads the commits of the period for what no session covered. Nothing runs in the background. Optionally, `omoikane/bin/wiki-ingest.ps1` does the inbox part headless on a schedule (`install-schedule.ps1`).
 3. The agent writes and updates pages under `omoikane/wiki/`, appends to `omoikane/log.md`, and leaves anything it could not decide in `omoikane/_review.md`.
 4. `wiki-index.py` regenerates `omoikane/index.md` from page frontmatter. `wiki-lint.py` checks links, orphans, frontmatter and `code:` paths without an LLM.
 5. The `SessionStart` hook (`omoikane/bin/session-context.py`) injects the index into every new session, domain rules, decisions and gotchas first, plus any captured session not yet distilled. You read the wiki in Obsidian (vault: `omoikane/`), answer `_review.md`, and ask questions with `/ask`.
