@@ -11,7 +11,7 @@ Everything Omoikane owns lives under `omoikane/`; the repository root belongs to
 - `omoikane/raw/sources/` — ingested sources. Immutable. Never edit, never delete. Distilled sessions sit in `sessions/`.
 - `omoikane/raw/assets/` — images downloaded by Obsidian. Read only.
 - `omoikane/wiki/sources/` — one page per ingested source or distilled session.
-- `omoikane/wiki/domain/` — a business rule, design-system rule or convention the human stated; `summary` is the rule.
+- `omoikane/wiki/domain/` — a business rule, design-system rule, convention or term the human stated; `summary` is the rule, or the term's definition. Tags: `business-rule`, `design-system`, `convention`, `term`.
 - `omoikane/wiki/decisions/` — a choice made, the alternatives rejected, the reason.
 - `omoikane/wiki/gotchas/` — behaviour learned by running something, and the workaround.
 - `omoikane/wiki/practices/` — a procedure or a user preference seen in two or more sessions.
@@ -47,7 +47,6 @@ prune: stale | redundant | low-value  # optional, set by /prune; the human delet
 - Link pages with `[[slug]]` wikilinks. A claim taken from a source cites it inline: `(source: [[slug]])`.
 - One entity or concept per page. A concept mentioned on three pages gets its own page.
 - A contradiction lives where its two sides meet: on the source page when a source contradicts itself, on the entity or concept page when two sources disagree. Keep both claims under `## Contradictions`, add an entry to `omoikane/_review.md`, and do not pick a winner.
-- A decision that reverses an older one links both ways under `## History`; the older page stays.
 
 ## Operations
 
@@ -59,6 +58,7 @@ Prompts live in `omoikane/prompts/`; each is reachable as a slash command in Cla
 - Semantic health check: `omoikane/prompts/lint.md`.
 - Mark stale, redundant and low-value pages and merge duplicates: `omoikane/prompts/prune.md`. It never deletes a page.
 - Find practices repeated across sessions: `omoikane/prompts/synthesize.md`. `wiki-ingest.ps1` runs it after every 5 distills.
+- End-of-day pass: `omoikane/prompts/wrap-up.md`.
 
 After any operation that touches `omoikane/wiki/`, finish with:
 
@@ -72,7 +72,7 @@ python omoikane/bin/wiki-lint.py
 ## Coding sessions (build mode)
 
 - The index is injected at session start, with any captured session not yet distilled; read the last one to pick up where the previous session stopped. Before editing an area, open the decision and gotcha pages whose `code:` lists it.
-- Do not write under `omoikane/wiki/` during coding work. The Stop hook captures the session into `omoikane/raw/inbox/sessions/`; the scheduled run distills it. Pages written mid-session duplicate that work and skip the contract checks.
+- Do not write under `omoikane/wiki/` during coding work. The Stop hook captures the session into `omoikane/raw/inbox/sessions/`; `/wrap-up` distills it. Pages written mid-session duplicate that work and skip the contract checks.
 - A proposal ticked `[x]` in `omoikane/_review.md` is approved; the brief counts them. Apply its diff when the human asks, run the tests, delete the bullet. A ticked `rule` has no diff: only `python omoikane/bin/wiki-rules.py`, run by the human, writes it into `AGENTS.md`. Never tick one yourself.
 - Something a later agent must know before the next distill runs: write it as a short Markdown file into `omoikane/raw/inbox/`; it is ingested like any source.
 - A `wiki-lint.py` finding about a `code:` path you moved or deleted is yours to fix: update the page's `code:` list, or say in its body that the code is gone.
