@@ -249,6 +249,52 @@ class RulePointers(unittest.TestCase):
         self.assertIn("which does not exist", warnings[2])
 
 
+class ReviewDiffs(unittest.TestCase):
+    # distill.md says a diff that does not apply is worse than none, but nothing checked it: one was never tried and
+    # another went stale once its target changed (43423c4).
+    GOOD = "--- a/a.txt\n+++ b/a.txt\n@@ -1,2 +1,2 @@\n one\n-two\n+2\n"
+    STALE = "--- a/a.txt\n+++ b/a.txt\n@@ -1,2 +1,2 @@\n uno\n-two\n+2\n"
+
+    def lint_run(self, diff: str, committed: bool) -> tuple[int, str]:
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            (repo / "omoikane" / "wiki").mkdir(parents=True)
+            (repo / "a.txt").write_text("one\ntwo\n", encoding="utf-8", newline="\n")
+            review = repo / "omoikane" / "_review.md"
+            review.write_text("# Review queue\n", encoding="utf-8", newline="\n")
+            commit(repo, "15", "init", "-q", "-b", "main")
+            commit(repo, "15", "add", "-A")
+            commit(repo, "15", "commit", "-q", "-m", "init")
+            review.write_text(f"# Review queue\n\n- [ ] guard (test) two-is-a-digit: write 2 (session aaaaaaaa, "
+                              f"turn 1)\n````diff\n{diff}````\n", encoding="utf-8", newline="\n")
+            if committed:
+                commit(repo, "16", "commit", "-q", "-am", "distill")
+                # The human ticks it later; the bullet is still the one HEAD holds.
+                review.write_text(review.read_text(encoding="utf-8").replace("- [ ]", "- [x]"), encoding="utf-8",
+                                  newline="\n")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                code = lint.main(repo / "omoikane" / "wiki", repo)
+        return code, out.getvalue()
+
+    def test_a_diff_that_does_not_apply_is_reported(self) -> None:
+        cases = {
+            "valid, new": (self.GOOD, False, 0, None),
+            "wrong context, new: the run that wrote it fixes it": (self.STALE, False, 1, "does not apply"),
+            "wrong context, committed: the target changed, the human decides": (self.STALE, True, 0,
+                                                                                "warning: omoikane/_review.md"),
+        }
+        for name, (diff, committed, exit_code, expected) in cases.items():
+            with self.subTest(name):
+                code, out = self.lint_run(diff, committed)
+                self.assertEqual(code, exit_code, out)
+                if expected is None:
+                    self.assertNotIn("_review.md", out)
+                else:
+                    self.assertIn(expected, out)
+                    self.assertIn("two-is-a-digit", out)
+
+
 class LastChanged(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
