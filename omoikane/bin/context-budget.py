@@ -84,11 +84,13 @@ def session_brief(*args: str) -> tuple[str, str]:
 def write_worst_case(omoikane: Path) -> None:
     """Fill an omoikane/ tree past every bound of the brief: more index entries per section than the index
     budget holds, each at its longest (120 characters is the lint limit for a summary), four-digit omitted
-    counts, 100 more pending captures than the brief lists, and every kind of `_review.md` line it counts.
+    counts, 100 more pending captures than the brief lists, every kind of `_review.md` line it counts, and
+    four-digit capture errors whose last line is past the length the brief shows.
     The index part stops within one entry (~250 characters) of its budget, since filling stops at the first
     entry that does not fit.
 
-    Example: write_worst_case(Path(tmp) / "omoikane") writes index.md, _review.md and raw/inbox/sessions/*.md.
+    Example: write_worst_case(Path(tmp) / "omoikane") writes index.md, _review.md, .capture-errors and
+    raw/inbox/sessions/*.md.
     """
     entry = "- [[{slug}]] — " + "s" * 120 + " `src/module/a.py, src/module/b.py` `2026-09-30` `prune: low-value`"
     lines = ["# Index", ""]
@@ -103,6 +105,8 @@ def write_worst_case(omoikane: Path) -> None:
     (omoikane / "_review.md").write_text(
         "- [ ] guard (test) a: open\n- [x] guard (test) b: approved\n- [x] prompt (distill.md) c: approved\n"
         "- [x] rule d: Do d. (synthesize)\n- [x] rule e: Do e. (synthesize)\n- todo f: open\n", encoding="utf-8")
+    (omoikane / session_context.CAPTURE_ERRORS).write_text(
+        "e\n" * 999 + "e" * (session_context.CAPTURE_ERROR_CHARS * 2) + "\n", encoding="utf-8")
 
 
 def worst_case_brief(*args: str) -> tuple[str, str]:

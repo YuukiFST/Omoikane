@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -15,6 +17,7 @@ import importlib
 
 capture = importlib.import_module("session-capture")
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
+BIN = Path(__file__).resolve().parent.parent / "omoikane" / "bin"
 
 
 def user(text: str, **extra: object) -> dict[str, object]:
@@ -503,6 +506,47 @@ class Continuation(unittest.TestCase):
             git("switch", "-q", "main")
             session = capture.Session(session_id="abcdef12-0000", harness="claude", started="2026-09-15T10:00:00Z")
             self.assertEqual(capture.ingested_parts(session, ingested=sessions, repo=repo), [2])
+
+
+class CaptureFailure(unittest.TestCase):
+    # The Stop hook's stdout reaches nobody, so a capture that crashed on every turn lost every session unseen (#103).
+    def test_a_failed_capture_is_named_in_the_next_brief(self) -> None:
+        cases = {
+            "listed term": ("Expecting\n".encode("utf-8"), " opencode 89abcdef JSONDecodeError: [redacted] value"),
+            # PowerShell 5.1 Set-Content writes the list in the ANSI code page: reading it failed again while
+            # recording, and the failure went unrecorded (#107 review). The message may hold a term, so it goes.
+            "unreadable list": ("São Benedito\n".encode("cp1252"), " opencode 89abcdef JSONDecodeError: [message "
+                                "withheld: omoikane/.capture-redact unreadable (UnicodeDecodeError)]"),
+        }
+        for name, (redact_list, expected) in cases.items():
+            with self.subTest(name), tempfile.TemporaryDirectory() as d:
+                omoikane = Path(d) / "omoikane"
+                shutil.copytree(BIN, omoikane / "bin", ignore=shutil.ignore_patterns("__pycache__"))
+                (omoikane / ".capture-redact").write_bytes(redact_list)
+                broken = Path(d) / "export.json"
+                broken.write_text("not json", encoding="utf-8")
+                hook = [sys.executable, str(omoikane / "bin" / "session-capture.py"), "--harness", "opencode",
+                        "--transcript", str(broken), "--session-id", "ses_0123456789abcdef"]
+                env = {k: v for k, v in os.environ.items() if k != capture.NO_CAPTURE_ENV}
+                # A scheduled run sets the variable; a file written during it would block the run.
+                subprocess.run(hook, env={**env, capture.NO_CAPTURE_ENV: "1"}, capture_output=True, check=True)
+                self.assertFalse((omoikane / ".capture-errors").exists())
+                stop = subprocess.run(hook, env=env, capture_output=True, text=True)
+                brief = subprocess.run([sys.executable, str(omoikane / "bin" / "session-context.py")], env=env,
+                                       capture_output=True, text=True, encoding="utf-8").stdout
+                self.assertEqual(stop.returncode, 0)
+                self.assertIn("Session capture failed 1 time", brief)
+                self.assertIn(expected, brief)
+                self.assertNotIn("Expecting", brief)
+
+    def test_a_secret_in_the_error_message_is_redacted_before_its_lines_are_joined(self) -> None:
+        # The key patterns read line breaks; joining the lines first leaked a clipped key body (#107 review).
+        key = "-----BEGIN RSA PRIVATE KEY-----\n" + "MIIEpAIBAAKCAQEAxxxxxxxxxxxxxxxxxxxxxxxxxx\n" * 10
+        with tempfile.TemporaryDirectory() as d:
+            line = capture.record_error(ValueError(f"bad value: {key}"), "claude", "abcdef12-0000",
+                                        errors=Path(d) / ".capture-errors", redact_file=Path(d) / "none")
+        self.assertNotIn("MIIE", line)
+        self.assertIn(" claude f12-0000 ValueError: bad value: [redacted]", line)
 
 
 if __name__ == "__main__":
