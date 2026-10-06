@@ -302,6 +302,16 @@ class Redaction(unittest.TestCase):
         self.assertNotIn("acme", md.lower())
         self.assertIn("[redacted] [... ", md)
 
+    def test_a_rule_at_the_end_of_a_long_prompt_reaches_the_capture(self) -> None:
+        # Long prompts are where the user states rules: four times a rule past the 2,000th character never became a
+        # page (#104). The prompt is kept whole, and redaction still applies to all of it.
+        prompt = "Context line for the task.\n" * 222 + "Rule: every Acme invoice total is in integer cents."
+        md = self.captured("Acme\n", [user(prompt), assistant(
+            {"type": "tool_use", "name": "Edit", "input": {"file_path": "C:/proj/a.py"}})])
+        self.assertGreater(len(prompt), 6000)
+        self.assertIn("Rule: every [redacted] invoice total is in integer cents.", md)
+        self.assertNotIn("acme", md.lower())
+
     def test_a_term_matches_either_path_separator_and_any_whitespace(self) -> None:
         session = [user("Fix"), assistant({"type": "text", "text": "Acme\n  Corp ships"},
                                           {"type": "tool_use", "name": "Bash",

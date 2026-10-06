@@ -127,7 +127,9 @@ SLASH_COMMAND = re.compile(r"(/[\w:-]+)(?:\s|\Z)")
 # A command stored as its expanded template (OpenCode does this); every .opencode/command/*.md starts this way.
 COMMAND_TEMPLATE = re.compile(r"\s*Read `omoikane/prompts/(\w+)\.md` and follow it")
 NOTE_CHARS = 1500
-PROMPT_CHARS = 2000
+# Long prompts are where the user states rules: at 2,000 four rules past the cut never became pages (#104). The
+# longest prompt in the captures up to 2026-10-06 had 10,306 characters; the limit only bounds a pasted log.
+PROMPT_CHARS = 20_000
 ERROR_CHARS = 400
 COMMAND_CHARS = 200
 NOTES_BUDGET = 40_000
