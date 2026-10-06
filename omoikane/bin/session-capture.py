@@ -672,9 +672,17 @@ def record_error(exc: Exception, harness: str, session_id: str, errors: Path = E
     "2026-10-06T12:00:00Z pi abcdef12 KeyError: 'x'".
     """
     stamp = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-    message = " ".join(str(exc).split())
-    line = f"{stamp} {harness} {session_id[-8:] or 'unknown'} {type(exc).__name__}: {clip(message, ERROR_CHARS)}"
-    line = redact(redact_secrets(line), redaction_terms(redact_file))
+    head = f"{stamp} {harness} {session_id[-8:] or 'unknown'} {type(exc).__name__}"
+    try:
+        terms = redaction_terms(redact_file)
+    except (OSError, UnicodeError) as unreadable:
+        # The list may be what broke the capture; recording must not fail on it too, and without the list the
+        # message may hold a term it names (#107 review).
+        line = f"{head}: [message withheld: omoikane/.capture-redact unreadable ({type(unreadable).__name__})]"
+    else:
+        # Secrets first, on the raw text: the key patterns read line breaks that joining the lines would remove.
+        message = " ".join(redact_secrets(str(exc)).split())
+        line = redact(redact_secrets(f"{head}: {clip(message, ERROR_CHARS)}"), terms)
     with errors.open("a", encoding="utf-8") as out:
         out.write(line + "\n")
     return line
