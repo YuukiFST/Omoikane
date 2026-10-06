@@ -242,6 +242,9 @@ class UpdateFromTemplate(unittest.TestCase):
 
     def start(self, system: Path) -> None:
         """Reset the template's memory, then state some of the system's own, as its first sessions would."""
+        # `git merge` wants an identity even with --no-commit; a user has one, the CI runner does not.
+        git(system, "config", "user.name", "t")
+        git(system, "config", "user.email", "t@example.invalid")
         self.assertEqual(run(system, "new-system.py").returncode, 0)
         (system / "omoikane/wiki/concepts/shop-concept.md").write_text("---\ntitle: Shop\n---\n", encoding="utf-8")
         append(system / "omoikane/log.md", "\n## [2026-10-06] ingest | shop notes\n")
