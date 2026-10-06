@@ -16,7 +16,7 @@ Built on Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893
 ## How it works
 
 1. A source arrives in `omoikane/raw/inbox/`: a clipped article, a synced file, or a coding session written there by the `Stop` hook (`omoikane/bin/session-capture.py`, no LLM).
-2. `omoikane/bin/wiki-ingest.ps1` runs on a schedule, calls the agent once per file (`/ingest` for sources, `/distill` for sessions), moves the file to `omoikane/raw/sources/`.
+2. At the end of the day the user runs `/wrap-up [days]` in a fresh session: the agent runs `/distill` on each captured session and `/ingest` on each other source, moves each file to `omoikane/raw/sources/`, and reads the commits of the period for what no session covered. Nothing runs in the background. Optionally, `omoikane/bin/wiki-ingest.ps1` does the inbox part headless on a schedule (`install-schedule.ps1`).
 3. The agent writes and updates pages under `omoikane/wiki/`, appends to `omoikane/log.md`, and leaves anything it could not decide in `omoikane/_review.md`.
 4. `wiki-index.py` regenerates `omoikane/index.md` from page frontmatter. `wiki-lint.py` checks links, orphans, frontmatter and `code:` paths without an LLM.
 5. The `SessionStart` hook (`omoikane/bin/session-context.py`) injects the index into every new session, domain rules, decisions and gotchas first, plus any captured session not yet distilled. You read the wiki in Obsidian (vault: `omoikane/`), answer `_review.md`, and ask questions with `/ask`.
@@ -31,6 +31,7 @@ Built on Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893
 | Semantic health check | `/lint` | same |
 | Mark stale, redundant, low-value pages; merge duplicates | `/prune` | same |
 | Practices across sessions (also every 5 distills, headless) | `/synthesize [n sessions]` | same |
+| End of day: inbox, recent commits, synthesize when due | `/wrap-up [days]` | same |
 | Process everything in inbox (headless) | `omoikane/bin/wiki-ingest.ps1` | `omoikane/bin/wiki-ingest.ps1 -Agent opencode` |
 | Structural checks (no LLM) | `python omoikane/bin/wiki-lint.py` | same |
 | Promote rules ticked in `_review.md` into `AGENTS.md` | `python omoikane/bin/wiki-rules.py` | same |
@@ -65,7 +66,7 @@ python -m unittest discover -s tests       # sanity check
 python omoikane/bin/new-system.py          # empty the template's own memory; then commit
                                            # --from <another system>: keep its conventions and design-system rules
 git remote add origin <new-system-url>     # the script renamed the template's remote to `template`
-omoikane/bin/install-schedule.ps1          # optional: Task Scheduler job every 30 min
+omoikane/bin/install-schedule.ps1          # optional, instead of /wrap-up: Task Scheduler job every 30 min
 ```
 
 `new-system.py` removes the wiki, log entries, review items and captures the template carries about its own development, which the brief would otherwise inject into every session of the new system. It refuses a tree with uncommitted changes and commits nothing, so `git restore .` undoes it. It also renames `origin` to `template`: the scheduled run publishes to `origin`, and the new system's pages must not reach the template. `docs/specs/` holds the template's own plans; delete it or keep it as history.

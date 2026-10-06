@@ -103,6 +103,8 @@ class NewSystem(unittest.TestCase):
             "domain/buttons-use-the-primary-token.md": page("domain", "Buttons use the primary token",
                                                             "design-system, ui", "Use `color.action.primary`."),
             "domain/salaries-are-integer-cents.md": page("domain", "Salaries are integer cents", "business-rule", "x"),
+            # A term usually belongs to one system's domain, so it stays behind too (#90).
+            "domain/holerite-is-the-monthly-payslip.md": page("domain", "Holerite is the monthly payslip", "term", "x"),
             "decisions/why-we-squash.md": page("decision", "Why we squash", "git", "x"),
             "sources/session-2026-09-01-aaaaaaaa.md": page("source", "Session", "session", "x", sources="[]",
                                                            extra="dated: 2026-09-01\n"),
