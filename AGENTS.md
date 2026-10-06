@@ -11,7 +11,7 @@ Everything Omoikane owns lives under `omoikane/`; the repository root belongs to
 - `omoikane/raw/sources/` — ingested sources. Immutable. Never edit, never delete. Distilled sessions sit in `sessions/`.
 - `omoikane/raw/assets/` — images downloaded by Obsidian. Read only.
 - `omoikane/wiki/sources/` — one page per ingested source or distilled session.
-- `omoikane/wiki/domain/` — a business rule, design-system rule or convention the human stated; `summary` is the rule.
+- `omoikane/wiki/domain/` — a business rule, design-system rule, convention or term the human stated; `summary` is the rule, or the term's definition. Tags: `business-rule`, `design-system`, `convention`, `term`.
 - `omoikane/wiki/decisions/` — a choice made, the alternatives rejected, the reason.
 - `omoikane/wiki/gotchas/` — behaviour learned by running something, and the workaround.
 - `omoikane/wiki/practices/` — a procedure or a user preference seen in two or more sessions.
@@ -46,7 +46,6 @@ prune: stale | redundant | low-value  # optional, set by /prune; the human delet
 - Link pages with `[[slug]]` wikilinks. A claim taken from a source cites it inline: `(source: [[slug]])`.
 - One entity or concept per page. A concept mentioned on three pages gets its own page.
 - A contradiction lives where its two sides meet: on the source page when a source contradicts itself, on the entity or concept page when two sources disagree. Keep both claims under `## Contradictions`, add an entry to `omoikane/_review.md`, and do not pick a winner.
-- A decision that reverses an older one links both ways under `## History`; the older page stays.
 
 ## Operations
 
