@@ -209,7 +209,7 @@ def append(path: Path, text: str) -> None:
 class UpdateFromTemplate(unittest.TestCase):
     # A plain `git merge template/main` brought the template's own capture and source page into a system's wiki and
     # conflicted on _review.md, index.md and a domain page (#105).
-    MEMORY = ("omoikane/wiki", "omoikane/raw", "omoikane/log.md", "omoikane/_review.md", "omoikane/index.md")
+    MEMORY = ("omoikane/wiki", "omoikane/raw", "omoikane/log.md", "omoikane/_review.md")
 
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -267,6 +267,11 @@ class UpdateFromTemplate(unittest.TestCase):
         agents = (self.template / "AGENTS.md").read_text(encoding="utf-8")
         agents = agents.replace(RULES_START, RULES_START + "\n- A template rule. (omoikane/wiki/practices/x.md)")
         (self.template / "AGENTS.md").write_text(agents + "\nUpstream manual line.\n", encoding="utf-8")
+        # A renderer change: an index built by the system's old wiki-index.py failed CI's freshness check (#108 review).
+        renderer = self.template / "omoikane/bin/wiki-index.py"
+        renderer.write_text(renderer.read_text(encoding="utf-8").replace("Edit page frontmatter, not this file.",
+                                                                        "Edit the pages, not this file."),
+                            encoding="utf-8", newline="\n")
         git(self.template, "add", "-A")
         git(self.template, "commit", "-q", "-m", "upstream")
 
@@ -298,6 +303,11 @@ class UpdateFromTemplate(unittest.TestCase):
                 self.assertEqual(git(system, "rev-parse", "HEAD"), head)
                 self.assertEqual(git(system, "diff", "--name-only", "--diff-filter=U"), "")
                 self.assertEqual(git(system, "replace", "-l"), "")
+                self.assertIn("Edit the pages, not this file.", (system / "omoikane/index.md").read_text(encoding="utf-8"))
+                # Run again before committing: the pending merge must not pass for a new one (#108 review).
+                again = run(system, "update-from-template.py")
+                self.assertEqual(again.returncode, 2, again.stdout + again.stderr)
+                self.assertIn("merge in progress", again.stdout)
                 # The human commits the merge; from then on the histories are related, whatever the start.
                 git(system, "commit", "-q", "--no-edit")
                 self.assertTrue(git(system, "merge-base", "HEAD", "template/main").strip())
