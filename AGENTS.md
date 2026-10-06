@@ -58,6 +58,7 @@ Prompts live in `omoikane/prompts/`; each is reachable as a slash command in Cla
 - Semantic health check: `omoikane/prompts/lint.md`.
 - Mark stale, redundant and low-value pages and merge duplicates: `omoikane/prompts/prune.md`. It never deletes a page.
 - Find practices repeated across sessions: `omoikane/prompts/synthesize.md`. `wiki-ingest.ps1` runs it after every 5 distills.
+- End-of-day pass over the inbox and the recent commits: `omoikane/prompts/wrap-up.md`. The human runs it; it does not commit.
 
 After any operation that touches `omoikane/wiki/`, finish with:
 
@@ -73,7 +74,7 @@ A scheduled run (`wiki-ingest.ps1`) has no shell: skip these commands; lint runs
 ## Coding sessions (build mode)
 
 - The index is injected at session start, with any captured session not yet distilled; read the last one to pick up where the previous session stopped. Before editing an area, open the decision and gotcha pages whose `code:` lists it.
-- Do not write under `omoikane/wiki/` during coding work. The Stop hook captures the session into `omoikane/raw/inbox/sessions/`; the scheduled run distills it. Pages written mid-session duplicate that work and skip the contract checks.
+- Do not write under `omoikane/wiki/` during coding work. The Stop hook captures the session into `omoikane/raw/inbox/sessions/`; `/wrap-up`, or the scheduled run when installed, distills it. Pages written mid-session duplicate that work and skip the contract checks.
 - A proposal ticked `[x]` in `omoikane/_review.md` is approved; the brief counts them. Apply its diff when the human asks, run the tests, delete the bullet. A ticked `rule` has no diff: only `python omoikane/bin/wiki-rules.py`, run by the human, writes it into `AGENTS.md`. Never tick one yourself.
 - Something a later agent must know before the next distill runs: write it as a short Markdown file into `omoikane/raw/inbox/`; it is ingested like any source.
 - A `wiki-lint.py` finding about a `code:` path you moved or deleted is yours to fix: update the page's `code:` list, or say in its body that the code is gone.
