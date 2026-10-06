@@ -43,6 +43,7 @@ prune: stale | redundant | low-value  # optional, set by /prune; the human delet
 ```
 
 - Filename is the kebab-case slug of `title`.
+- Page text and `summary` follow an ASD-STE100 subset in the page's language: one word, one meaning; imperative for rules and procedures; active voice; sentences up to 20 words in procedures, 25 elsewhere; up to three nouns in a row; one topic a paragraph. Quotes, code and errors stay verbatim.
 - Link pages with `[[slug]]` wikilinks. A claim taken from a source cites it inline: `(source: [[slug]])`.
 - One entity or concept per page. A concept mentioned on three pages gets its own page.
 - A contradiction lives where its two sides meet: on the source page when a source contradicts itself, on the entity or concept page when two sources disagree. Keep both claims under `## Contradictions`, add an entry to `omoikane/_review.md`, and do not pick a winner.
@@ -56,7 +57,7 @@ Prompts live in `omoikane/prompts/`; each is reachable as a slash command in Cla
 - Answer a question and file it: `omoikane/prompts/ask.md`.
 - Semantic health check: `omoikane/prompts/lint.md`.
 - Mark stale, redundant and low-value pages and merge duplicates: `omoikane/prompts/prune.md`. It never deletes a page.
-- Find practices repeated across sessions: `omoikane/prompts/synthesize.md`. `wiki-ingest.ps1` runs it after every 5 distills.
+- Find practices repeated across sessions: `omoikane/prompts/synthesize.md`.
 - End-of-day pass: `omoikane/prompts/wrap-up.md`.
 
 After any operation that touches `omoikane/wiki/`, finish with:
@@ -67,8 +68,6 @@ python omoikane/bin/wiki-lint.py
 ```
 
 `wiki-lint.py` exits non-zero on broken wikilinks, missing frontmatter, undated source pages, orphan pages, two pages sharing a slug or `code:` paths that no longer exist or are absolute. Fix every finding before you report done. Its `warning:` lines (code committed after a page's `updated` date) do not fail; `/lint` checks them.
-
-A scheduled run (`wiki-ingest.ps1`) has no shell: skip these commands; lint runs after you and sends findings back. A run that left its scope writes `omoikane/.wiki-ingest.blocked`; later runs refuse until the human deletes it.
 
 ## Coding sessions (build mode)
 
