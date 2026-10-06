@@ -96,7 +96,7 @@ def pending_notes(omoikane: Path) -> str:
     """Name what is known but not in the wiki yet: captured sessions waiting for /distill, open review items.
 
     The newest undistilled capture is where the previous session stopped; pointing at it lets the agent resume
-    without waiting for the scheduled distill.
+    without waiting for the next /wrap-up.
 
     Example: pending_notes(Path("omoikane")) returns
     "## Pending\\n\\nCaptured sessions not yet distilled, ...\\n- `omoikane/raw/inbox/sessions/2026-09-15-e04462b2.md`".
