@@ -271,27 +271,33 @@ def rule_pointers(agents: str, pages: list[Page]) -> list[str]:
     return warnings
 
 
-def review_diffs(review: str) -> list[tuple[str, str]]:
-    """Each diff fence of _review.md (info string `diff`), as (the bullet above it, the diff text). Fences follow
-    wikilib.review_lines, so a ``` context line inside a four-backtick diff does not close it.
+def review_diffs(review: str) -> list[tuple[str, str, bool]]:
+    """Each diff fence of _review.md (info string `diff`) under a bullet of its section, as (bullet, diff text,
+    whether the fence closes). Fences follow wikilib.review_lines, so a ``` context line inside a four-backtick diff
+    does not close it.
 
     Example: review_diffs("- [ ] guard (test) x: y\\n````diff\\n--- a/f\\n````\\n") returns
-    [("- [ ] guard (test) x: y", "--- a/f\\n")].
+    [("- [ ] guard (test) x: y", "--- a/f\\n", True)].
     """
-    diffs: list[tuple[str, str]] = []
+    diffs: list[tuple[str, str, bool]] = []
     bullet, fence, is_diff, body = "", "", False, []
-    for line in review.splitlines():
+    # split, not splitlines: a form feed or   in a context line would split the diff and corrupt it.
+    for line in review.split("\n"):
         m = FENCE.match(line)
         if not fence and m:
             fence, is_diff, body = m.group(1), m.group(2).strip() == "diff", []
         elif fence and m and m.group(1).startswith(fence) and not m.group(2).strip():
             if is_diff and bullet:
-                diffs.append((bullet, "".join(body)))
+                diffs.append((bullet, "".join(body), True))
             fence = ""
         elif fence:
             body.append(line + "\n")
         elif line.startswith("- "):
             bullet = line
+        elif line.startswith("#"):
+            bullet = ""  # a diff under a new heading belongs to no earlier bullet
+    if fence and is_diff and bullet:
+        diffs.append((bullet, "".join(body), False))  # a truncated last proposal (#110 review)
     return diffs
 
 
@@ -311,18 +317,28 @@ def review_patches(review: Path, repo: Path) -> tuple[list[str], list[str]]:
     if not review.is_file():
         return [], []
     rel = posixpath.relpath(review.resolve().as_posix(), repo.resolve().as_posix())
-    shown = subprocess.run(["git", "-C", str(repo), "show", f"HEAD:{rel}"], capture_output=True, text=True,
-                           encoding="utf-8", check=False)
+    try:
+        # `./`: relative to `repo`, not to the top of the repository it sits in.
+        shown = subprocess.run(["git", "-C", str(repo), "show", f"HEAD:./{rel}"], capture_output=True, text=True,
+                               encoding="utf-8", check=False)
+    except OSError:
+        return [], []  # no git: skipped, as the `code:` dates are
     committed = {unchecked(b) for b in review_bullets(shown.stdout)} if shown.returncode == 0 else set()
     findings: list[str] = []
     warnings: list[str] = []
-    for bullet, diff in review_diffs(review.read_text(encoding="utf-8")):
-        # Bytes, not text: on Windows a text pipe writes every \n as \r\n, and no diff would apply.
-        check = subprocess.run(["git", "-C", str(repo), "apply", "--check", "-"], input=diff.encode("utf-8"),
-                               capture_output=True, check=False)
-        if check.returncode == 0:
-            continue
-        error = (check.stderr.decode("utf-8", "replace").strip().splitlines() or ["git apply failed"])[0]
+    for bullet, diff, closed in review_diffs(review.read_text(encoding="utf-8")):
+        if closed:
+            # Bytes, not text: on Windows a text pipe writes every \n as \r\n, and no diff would apply.
+            check = subprocess.run(["git", "-C", str(repo), "apply", "--check", "-"], input=diff.encode("utf-8"),
+                                   capture_output=True, check=False)
+            if check.returncode == 0:
+                continue
+            lines = check.stderr.decode("utf-8", "replace").strip().splitlines()
+            # git warns about whitespace before it names the failure; the agent must see the failure.
+            error = next((line for line in lines if line.startswith("error:")), lines[0] if lines else "git apply "
+                         "failed")
+        else:
+            error = "its fence is never closed"
         if unchecked(bullet) in committed:
             warnings.append(f"{rel}: the diff under \"{bullet}\" no longer applies ({error}); its target changed "
                             "since it was proposed, so the human rewrites or deletes it")

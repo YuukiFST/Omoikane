@@ -255,7 +255,7 @@ class ReviewDiffs(unittest.TestCase):
     GOOD = "--- a/a.txt\n+++ b/a.txt\n@@ -1,2 +1,2 @@\n one\n-two\n+2\n"
     STALE = "--- a/a.txt\n+++ b/a.txt\n@@ -1,2 +1,2 @@\n uno\n-two\n+2\n"
 
-    def lint_run(self, diff: str, committed: bool) -> tuple[int, str]:
+    def lint_run(self, diff: str, committed: bool, close: str = "````\n") -> tuple[int, str]:
         with tempfile.TemporaryDirectory() as d:
             repo = Path(d)
             (repo / "omoikane" / "wiki").mkdir(parents=True)
@@ -266,7 +266,7 @@ class ReviewDiffs(unittest.TestCase):
             commit(repo, "15", "add", "-A")
             commit(repo, "15", "commit", "-q", "-m", "init")
             review.write_text(f"# Review queue\n\n- [ ] guard (test) two-is-a-digit: write 2 (session aaaaaaaa, "
-                              f"turn 1)\n````diff\n{diff}````\n", encoding="utf-8", newline="\n")
+                              f"turn 1)\n````diff\n{diff}{close}", encoding="utf-8", newline="\n")
             if committed:
                 commit(repo, "16", "commit", "-q", "-am", "distill")
                 # The human ticks it later; the bullet is still the one HEAD holds.
@@ -279,14 +279,19 @@ class ReviewDiffs(unittest.TestCase):
 
     def test_a_diff_that_does_not_apply_is_reported(self) -> None:
         cases = {
-            "valid, new": (self.GOOD, False, 0, None),
-            "wrong context, new: the run that wrote it fixes it": (self.STALE, False, 1, "does not apply"),
-            "wrong context, committed: the target changed, the human decides": (self.STALE, True, 0,
+            "valid, new": (self.GOOD, False, "````\n", 0, None),
+            "wrong context, new: the run that wrote it fixes it": (self.STALE, False, "````\n", 1, "does not apply"),
+            "wrong context, committed: the target changed, the human decides": (self.STALE, True, "````\n", 0,
                                                                                 "warning: omoikane/_review.md"),
+            # A truncated last proposal was skipped, not checked (#110 review).
+            "fence never closed": (self.STALE, False, "", 1, "never closed"),
+            # git's whitespace warning came first and hid the real error (#110 review).
+            "whitespace warning before the error": (self.STALE.replace("+2\n", "+2   \n"), False, "````\n", 1,
+                                                    "error: patch failed"),
         }
-        for name, (diff, committed, exit_code, expected) in cases.items():
+        for name, (diff, committed, close, exit_code, expected) in cases.items():
             with self.subTest(name):
-                code, out = self.lint_run(diff, committed)
+                code, out = self.lint_run(diff, committed, close)
                 self.assertEqual(code, exit_code, out)
                 if expected is None:
                     self.assertNotIn("_review.md", out)
