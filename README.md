@@ -38,6 +38,7 @@ Built on Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893
 | Measure what every session loads | `python omoikane/bin/context-budget.py` | same |
 | Rebuild index | `python omoikane/bin/wiki-index.py` | same |
 | Start a new system from a fresh clone | `python omoikane/bin/new-system.py` | same |
+| Take the template's later fixes, keeping the system's memory | `python omoikane/bin/update-from-template.py` | same |
 | Seed the inbox from an existing project's docs, rule files and history | `python omoikane/bin/bootstrap.py [--from <path>]` | same |
 | Tests | `python -m unittest discover -s tests` | same |
 
@@ -70,6 +71,8 @@ omoikane/bin/install-schedule.ps1          # optional, instead of /wrap-up: Task
 ```
 
 `new-system.py` removes the wiki, log entries, review items and captures the template carries about its own development, which the brief would otherwise inject into every session of the new system. It refuses a tree with uncommitted changes and commits nothing, so `git restore .` undoes it. It also renames `origin` to `template`: the scheduled run publishes to `origin`, and the new system's pages must not reach the template. `docs/specs/` holds the template's own plans; delete it or keep it as history.
+
+`update-from-template.py` merges `template/main` into the system without committing and keeps the wiki, captures, log, review queue and rules block as the system has them; read `git diff --cached`, then commit. A system made before the script existed first takes it with `git fetch template`, `git checkout template/main -- omoikane/bin/update-from-template.py omoikane/bin/wikilib.py omoikane/bin/wiki-index.py` and a commit.
 
 Requirements: Python 3.11+, `claude` or `opencode` on PATH (they run the wiki operations; `pi` sessions are captured but Pi has no `/ingest`, `/distill`, `/ask`, `/lint` yet), git.
 
