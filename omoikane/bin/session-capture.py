@@ -2,8 +2,8 @@
 
 Runs from the harness stop hooks: Claude Code Stop/SessionEnd (.claude/settings.json), Pi agent_end/session_shutdown
 (.pi/extensions/omoikane.ts), OpenCode session idle (.opencode/plugins/omoikane.ts). Idempotent: every run rewrites
-the file for the session, so firing on every turn is safe. Never blocks the harness: any failure prints one line
-and exits 0.
+the file for the session, so firing on every turn is safe. Never blocks the harness: any failure prints one line,
+appends it to omoikane/.capture-errors for the next session's brief, and exits 0.
 
 Usage:
     python omoikane/bin/session-capture.py                                    # Claude hook: JSON payload on stdin
@@ -38,6 +38,9 @@ NO_CAPTURE_ENV = "OMOIKANE_NO_CAPTURE"
 # Terms the user never wants in a capture, one per line (#62). The scheduled run commits and pushes every capture,
 # and under raw/sources/ it is immutable, so redaction happens here. Gitignored: the list itself names them.
 REDACT_FILE = OMOIKANE / ".capture-redact"
+# One line per failed capture; session-context.py names them in the brief (#103). The Stop hook's stdout reaches
+# nobody, so a capture that crashed on every turn lost every session unseen. Gitignored, like the redact list.
+ERRORS_FILE = OMOIKANE / ".capture-errors"
 REDACTED = "[redacted]"
 UNREDACTED_KEYS = ("harness", "session", "part", "turns", "started", "ended")
 # Secrets go whether or not a list exists (#77): a key pasted into a prompt was pushed with the capture.
@@ -660,6 +663,23 @@ def capture(transcript: Path, session_id: str = "", harness: str = "claude", inb
     return f"captured {shown.as_posix()} ({len(session.turns) - covered} turns)"
 
 
+def record_error(exc: Exception, harness: str, session_id: str, errors: Path = ERRORS_FILE,
+                 redact_file: Path = REDACT_FILE) -> str:
+    """Append one line naming a failed capture to the errors file and return it, redacted as a capture is: the
+    brief puts it in a session's context, and that session's own capture would carry it on.
+
+    Example: record_error(KeyError("x"), "pi", "0193-abcdef12") appends and returns
+    "2026-10-06T12:00:00Z pi abcdef12 KeyError: 'x'".
+    """
+    stamp = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    message = " ".join(str(exc).split())
+    line = f"{stamp} {harness} {session_id[-8:] or 'unknown'} {type(exc).__name__}: {clip(message, ERROR_CHARS)}"
+    line = redact(redact_secrets(line), redaction_terms(redact_file))
+    with errors.open("a", encoding="utf-8") as out:
+        out.write(line + "\n")
+    return line
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--harness", choices=sorted(READERS), default="claude")
@@ -669,20 +689,23 @@ def main(argv: list[str] | None = None) -> int:
     if os.environ.get(NO_CAPTURE_ENV):
         return 0
     transcript, session_id = args.transcript, args.session_id
-    if transcript is None:
-        payload = json.loads(sys.stdin.read() or "{}")
-        transcript = Path(str(payload.get("transcript_path", "")))
-        session_id = session_id or str(payload.get("session_id", ""))
-    if not transcript or not transcript.is_file():
-        print(f"session-capture: no transcript at {transcript}")
-        return 0
-    print(f"session-capture: {capture(transcript, session_id, args.harness)}")
+    try:
+        if transcript is None:
+            payload = json.loads(sys.stdin.read() or "{}")
+            transcript = Path(str(payload.get("transcript_path", "")))
+            session_id = session_id or str(payload.get("session_id", ""))
+        if not transcript or not transcript.is_file():
+            print(f"session-capture: no transcript at {transcript}")
+            return 0
+        print(f"session-capture: {capture(transcript, session_id, args.harness)}")
+    except Exception as exc:  # noqa: BLE001 - a capture failure must never block the harness from stopping
+        print(f"session-capture: error {record_error(exc, args.harness, session_id)}")
     return 0
 
 
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception as exc:  # noqa: BLE001 - a capture failure must never block the harness from stopping
+    except Exception as exc:  # noqa: BLE001 - recording the failure failed too; still never block the harness
         print(f"session-capture: error {type(exc).__name__}: {exc}")
         sys.exit(0)
