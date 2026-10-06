@@ -57,7 +57,7 @@ Prompts live in `omoikane/prompts/`; each is reachable as a slash command in Cla
 - Answer a question and file it: `omoikane/prompts/ask.md`.
 - Semantic health check: `omoikane/prompts/lint.md`.
 - Mark stale, redundant and low-value pages and merge duplicates: `omoikane/prompts/prune.md`. It never deletes a page.
-- Find practices repeated across sessions: `omoikane/prompts/synthesize.md`. `wiki-ingest.ps1` runs it after every 5 distills.
+- Find practices repeated across sessions: `omoikane/prompts/synthesize.md`.
 - End-of-day pass: `omoikane/prompts/wrap-up.md`.
 
 After any operation that touches `omoikane/wiki/`, finish with:
