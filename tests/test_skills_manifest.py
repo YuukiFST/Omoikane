@@ -1,7 +1,8 @@
 """Skill folders under .claude/skills against omoikane/skills.md, and the limits every harness puts on a skill (#111).
 
-Pi caps a description at 1,024 characters and loads every SKILL.md it finds below a skills folder as a skill
-(docs/skills.md of pi-coding-agent 1.0.4); a vendored skill must ship its upstream licence.
+Every skill except the memory skills and a system's own `verify-<app>` has a manifest row, and a third-party one
+ships its upstream licence. Pi caps a description at 1,024 characters and loads any Markdown file placed directly
+in a skills folder as a skill (docs/skills.md and dist/core/package-manager.js of pi-coding-agent 1.0.4).
 """
 from __future__ import annotations
 
@@ -16,6 +17,10 @@ from wikilib import OMOIKANE, REPO  # noqa: E402
 
 SKILLS = REPO / ".claude" / "skills"
 MANIFEST = OMOIKANE / "skills.md"
+# Each memory skill wraps one prompt file of the same name.
+MEMORY = frozenset(p.stem for p in (OMOIKANE / "prompts").glob("*.md"))
+# Written by create-verification-skill for the system itself; never vendored.
+SYSTEM_OWN = re.compile(r"verify-[a-z0-9-]+")
 MAX_DESCRIPTION = 1024
 OWN = "Omoikane"
 ROW = re.compile(r"^\|\s*([a-z][a-z0-9-]*)\s*\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|\s*$")
@@ -36,8 +41,8 @@ def frontmatter(skill_md: Path) -> str:
     return text.split("---", 2)[1] if text.startswith("---") else ""
 
 
-def findings(skills: Path, manifest: str) -> list[str]:
-    """One line per skill folder or manifest row that breaks the rules in the module docstring.
+def findings(skills: Path, manifest: str, memory: frozenset[str] = MEMORY) -> list[str]:
+    """One line per skill folder, stray file or manifest row that breaks the rules in the module docstring.
 
     Example: findings(Path(".claude/skills"), "| gone | u | c | MIT | none |") returns
     ["gone: manifest row names no folder with a SKILL.md"].
@@ -50,10 +55,12 @@ def findings(skills: Path, manifest: str) -> list[str]:
             out.append(f"{name}: manifest row names no folder with a SKILL.md")
         elif licence != OWN and not (folder / "LICENSE").is_file():
             out.append(f"{name}: licence {licence} but no LICENSE file in the folder")
+    out += [f"{f.name}: Markdown directly in the skills folder loads as a skill in Pi; move it into a skill folder"
+            for f in sorted(skills.glob("*.md"))]
     for skill_md in sorted(skills.glob("*/SKILL.md")):
         folder = skill_md.parent
-        if (folder / "LICENSE").is_file() and folder.name not in rows:
-            out.append(f"{folder.name}: ships a LICENSE but has no row in omoikane/skills.md")
+        if folder.name not in rows and folder.name not in memory and not SYSTEM_OWN.fullmatch(folder.name):
+            out.append(f"{folder.name}: no row in omoikane/skills.md; add one, licence {OWN} for a skill written here")
         head = frontmatter(skill_md)
         name = NAME.search(head)
         if not name or name.group(1).strip("\"'") != folder.name:
@@ -64,9 +71,6 @@ def findings(skills: Path, manifest: str) -> list[str]:
             out.append(f"{folder.name}: description missing or not on one line")
         elif len(text) > MAX_DESCRIPTION:
             out.append(f"{folder.name}: description is {len(text)} characters, Pi's limit is {MAX_DESCRIPTION}")
-        for nested in sorted(folder.rglob("SKILL.md")):
-            if nested != skill_md:
-                out.append(f"{folder.name}: nested {nested.relative_to(folder).as_posix()} loads as a skill in Pi")
     return out
 
 
@@ -88,26 +92,28 @@ class SkillsManifest(unittest.TestCase):
         cases = (
             ("row without folder", lambda r: None, row.format("gone", "MIT"),
              ["gone: manifest row names no folder with a SKILL.md"]),
-            ("third-party licence without file", lambda r: skill(r, "a"), row.format("a", "MIT"),
+            ("third-party licence without file", lambda r: skill(r, "a", licence=False), row.format("a", "MIT"),
              ["a: licence MIT but no LICENSE file in the folder"]),
             ("own skill needs no file", lambda r: skill(r, "a"), row.format("a", OWN), []),
-            ("licence file without row", lambda r: skill(r, "a", licence=True), "",
-             ["a: ships a LICENSE but has no row in omoikane/skills.md"]),
             ("vendored and listed", lambda r: skill(r, "a", licence=True), row.format("a", "Apache-2.0"), []),
+            ("copied without licence or row", lambda r: skill(r, "a"), "",
+             ["a: no row in omoikane/skills.md; add one, licence Omoikane for a skill written here"]),
+            ("memory skill needs no row", lambda r: skill(r, "ask"), "", []),
+            ("system's own verify skill needs no row", lambda r: skill(r, "verify-shop"), "", []),
             ("name differs from folder", lambda r: (r / "b").mkdir() or (r / "b" / "SKILL.md").write_text(
-                "---\nname: a\ndescription: x\n---\n", encoding="utf-8"), "",
+                "---\nname: a\ndescription: x\n---\n", encoding="utf-8"), row.format("b", OWN),
              ["b: frontmatter name must equal the folder name"]),
-            ("folded description", lambda r: skill(r, "a", description=">"), "",
+            ("folded description", lambda r: skill(r, "a", description=">"), row.format("a", OWN),
              ["a: description missing or not on one line"]),
-            ("long description", lambda r: skill(r, "a", description="x" * 1025), "",
+            ("long description", lambda r: skill(r, "a", description="x" * 1025), row.format("a", OWN),
              ["a: description is 1025 characters, Pi's limit is 1024"]),
-            ("nested skill", lambda r: skill(skill(r, "a") / "examples", "b"), "",
-             ["a: nested examples/b/SKILL.md loads as a skill in Pi"]),
+            ("stray Markdown", lambda r: r.joinpath("README.md").write_text("x", encoding="utf-8"), "",
+             ["README.md: Markdown directly in the skills folder loads as a skill in Pi; move it into a skill folder"]),
         )
         for name, build, manifest, expected in cases:
             with self.subTest(name), tempfile.TemporaryDirectory() as d:
                 build(Path(d))
-                self.assertEqual(findings(Path(d), manifest), expected)
+                self.assertEqual(findings(Path(d), manifest, memory=frozenset({"ask"})), expected)
 
 
 if __name__ == "__main__":
