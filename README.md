@@ -26,6 +26,7 @@ Omoikane is for software development, not generic research (#111).
 
 | Task | Claude Code | OpenCode |
 |---|---|---|
+| Route a software task to a playbook, its skills and principles; holds for the session | `/omoikane-mode` | same |
 | Ingest one source | `/ingest omoikane/raw/inbox/<file>` | same |
 | Distill one captured session | `/distill omoikane/raw/inbox/sessions/<file>` | same |
 | Ask the wiki | `/ask <question>` | same |
