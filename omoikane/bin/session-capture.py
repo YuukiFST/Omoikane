@@ -126,6 +126,9 @@ COMMAND_TAG = re.compile(r"\s*(?:<command-message>[^<]*</command-message>\s*)?<c
 SLASH_COMMAND = re.compile(r"(/[\w:-]+)(?:\s|\Z)")
 # A command stored as its expanded template (OpenCode does this); every .opencode/command/*.md starts this way.
 COMMAND_TEMPLATE = re.compile(r"\s*Read `omoikane/prompts/(\w+)\.md` and follow it")
+# Pi's /skill:<name> (#111): the typed form, or the block Pi expands it into (_expandSkillCommand in
+# dist/core/agent-session.js of pi-coding-agent 1.0.4). Anchored at the start, as COMMAND_TAG is.
+PI_SKILL = re.compile(r'(?:/skill:([\w-]+)(?:\s|\Z)|<skill name="([\w-]+)" location=")')
 NOTE_CHARS = 1500
 PROMPT_CHARS = 2000
 ERROR_CHARS = 400
@@ -187,12 +190,15 @@ class Session:
 
 
 def command_of(prompt: str) -> str:
-    """The command a prompt runs, "" for prose: Claude Code stores the command name, OpenCode the expanded template.
+    """The command a prompt runs, "" for prose: Claude Code stores the command name, OpenCode the expanded template,
+    Pi `/skill:<name>` or the block it expands that into.
 
     Example: command_of("Read `omoikane/prompts/distill.md` and follow it.") returns "/distill".
     """
     if template := COMMAND_TEMPLATE.match(prompt):
         return f"/{template.group(1)}"
+    if skill := PI_SKILL.match(prompt.lstrip()):
+        return f"/{skill.group(1) or skill.group(2)}"
     slash = SLASH_COMMAND.match(prompt.lstrip())
     return slash.group(1) if slash else ""
 
