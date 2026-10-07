@@ -44,3 +44,6 @@ Columns:
 
 | Skill | Upstream | Commit | Licence | Changes |
 |---|---|---|---|---|
+| git-workflow | https://github.com/YuukiFST/agent-dotfiles `skills/git-workflow/` | `cc990612aae6408aa529da6c587b1f48c0b1ffad` | Omoikane | `gh-axi` becomes `gh`; references to the global rules, `CLAUDE.md`, `CODING_STANDARDS.md` and agent-dotfiles issues replaced by a generic commit-rules section; hook and `git-safe-commit.sh` enforcement section removed; review by a fresh subagent instead of `/code-review`; `git revert` line added; description shortened |
+| writing-for-agents | https://github.com/mattpocock/skills `skills/productivity/writing-for-agents/` (formerly `writing-great-skills`) | `2ffb184ffbb752faa664c0b204f3c9241b1428e9` (v1.2.0) | MIT | `agents/openai.yaml` not copied |
+| show-me | https://github.com/humanlayer/skills `plugins/show-me/skills/show-me/` | `6ab9013a10c28f5046f7f999549cd5328a0b30d7` | MIT | Description states the trigger; the open step names the opener per OS; the plugin wrapper (`.claude-plugin/plugin.json`) not copied |

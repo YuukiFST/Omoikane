@@ -1,0 +1,47 @@
+---
+name: git-workflow
+description: "Use before the first commit of a change shipped through GitHub: issue, branch name, commits, a PR that closes the issue, a recorded review, merge vs rebase vs squash, cleanup. Also for reverting a merged mistake, forks vs standalone repos, and contributing to someone else's repo."
+---
+
+# Git workflow — issue → branch → PR → review → merge
+
+## Commit rules
+
+- **Identity.** Before the first commit in a session, show the configured `git config user.name` / `user.email` and ask the user which identity to commit under. Set author and committer to the answer.
+- **Messages.** Conventional Commits: `<type>(<optional scope>): <subject>`, subject up to 72 characters, imperative, no period. Types: `feat`, `fix`, `chore`, `docs`, `style`, `refactor`, `perf`, `test`, `ci`. The body says what changed and why. On someone else's repo, follow its own message convention and language.
+
+**Never push straight to `main`/`master` on a repo you own.** Turn on branch protection requiring a PR. Every change, including one-liners, follows the flow below. A repo may override it in its own `AGENTS.md` or `CLAUDE.md`.
+
+## The flow
+
+1. **Issue first.** Before writing code, open an issue stating the problem and the acceptance criteria — not the solution. `gh issue create`. Label it with an existing label that fits the change type, read from `gh label list`; with GitHub's defaults that is `bug` for a fix and `enhancement` for a feat or chore. A label the repo lacks fails the create, and adding one to someone else's repo is their call. Skip only for pure formatting runs.
+2. **Branch per issue.** `<type>/<issue-number>-<slug>` — `feat/42-dashboard-consumo`, `fix/57-token-expiry`. Types match the Conventional Commits types above.
+3. **Atomic commits.** One logical change per commit. Resist the end-of-day blob: a commit touching three unrelated things cannot be reverted or bisected. Read the diff before committing it, not after.
+4. **PR closes the issue.** Body contains `Closes #42`, plus what changed, why, and how it was verified. Open it as a draft if the work spans sessions.
+   Then confirm GitHub linked it: `gh api graphql -f query='{repository(owner:"<owner>",name:"<repo>"){pullRequest(number:<pr>){closingIssuesReferences(first:5){nodes{number}}}}}'` lists the issue. Empty list: the merge will not close it, so step 8 closes it by hand. A `Closes #N` line in the body does not always link.
+5. **Review before merge — always.** Have a fresh subagent review the diff and post the findings **as a PR review on GitHub**, not as chat text. Without a subagent tool (Pi), review in a fresh session. A PR merged with no recorded review is a broken flow, even solo.
+6. **CI green before merge.** A red or skipped check blocks the merge. Fix the failure, never merge past it; a lint or test failure found along the way gets fixed too.
+7. **Merge with rebase or a merge commit — not squash by default.** Squash collapses the branch's atomic commits into one and destroys the history `git log`/`git blame` investigation depends on. Squash only when the branch is genuinely WIP noise (`wip`, `fix typo`, `oops`).
+8. **Delete the branch after merge, then confirm the issue is closed.** `gh issue view <n>` still `open` → `gh issue close <n>`.
+
+## Shape of the work
+
+- **Small PRs.** One issue, one concern. A 40-file PR gets rubber-stamped, which is the same as no review.
+- **Own work lives in standalone repos.** Fork only to contribute upstream.
+- **Upstream contributions are the highest-value work here** — PRs and reviews on other people's repos get real review from someone who is not you.
+- **Undo a merged mistake with `git revert`**, never by rewriting `main`.
+
+## Documented GitHub conditions the flow has to respect
+
+Verified against [Profile contributions reference](https://docs.github.com/en/account-and-profile/reference/profile-contributions-reference). These are constraints on the repo setup, not reasons to do extra work:
+
+- Issues, pull requests and discussions register only when opened **in a standalone repository, not a fork**.
+- Commits register only when **all** of: the author e-mail is associated with the GitHub account; the repo is standalone, not a fork; the commit is on the **default branch or `gh-pages`**; and you are a collaborator/org member, forked it, or opened a PR or issue in it.
+
+The e-mail condition binds directly to the identity rule above: committing under an identity that is not linked to the account silently detaches every commit from it. Verify the identity before the first commit in a repo.
+
+Not documented either way: whether a review you submit on **your own** PR registers. Do not build any assumption on it — step 5 stands on the review being recorded where a human can read it, not on what it registers as.
+
+## Why this shape
+
+Traceability from issue to commit, a reviewable unit before code reaches `main`, a bisectable history. A legible public record is a by-product, never a goal: it does not justify splitting one change across five PRs, opening issues nobody will act on, or padding commit counts. If a step stops serving the code, drop the step.
