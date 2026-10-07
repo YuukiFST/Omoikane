@@ -43,6 +43,12 @@ Omoikane is for software development, not generic research (#111).
 | Tests | `python -m unittest discover -s tests` | same |
 
 Both agents run the same prompt files in `omoikane/prompts/`; the skill and command folders are thin wrappers.
+Pi runs the same skills as `/skill:<name>`: `.pi/settings.json` points it at `.claude/skills/`.
+
+## Skills from other projects
+
+Every skill under `.claude/skills/` taken from another project is listed in `omoikane/skills.md`, with its upstream, commit, licence and what Omoikane changed; each keeps its upstream `LICENSE` in its own folder. Omoikane itself is MIT (`LICENSE`).
+A personal skill of the same name (`~/.claude/skills/<name>/`) wins over the project's copy in Claude Code, and OpenCode and Pi load only one of the two; remove the personal copy to run the template's.
 
 ## Session hooks
 
@@ -72,6 +78,6 @@ omoikane/bin/install-schedule.ps1          # optional, instead of /wrap-up: Task
 
 `new-system.py` removes the wiki, log entries, review items and captures the template carries about its own development, which the brief would otherwise inject into every session of the new system. It refuses a tree with uncommitted changes and commits nothing, so `git restore .` undoes it. It also renames `origin` to `template`: the scheduled run publishes to `origin`, and the new system's pages must not reach the template. `docs/specs/` holds the template's own plans; delete it or keep it as history.
 
-Requirements: Python 3.11+, `claude` or `opencode` on PATH (they run the wiki operations; `pi` sessions are captured but Pi has no `/ingest`, `/distill`, `/ask`, `/lint` yet), git.
+Requirements: Python 3.11+, `claude` or `opencode` on PATH for headless runs (`wiki-ingest.ps1`); interactive `pi` sessions run the skills as `/skill:<name>`, git.
 
 Architecture, conventions and the reasoning behind them: `docs/architecture.md`. The agent's own operating manual: `AGENTS.md`.

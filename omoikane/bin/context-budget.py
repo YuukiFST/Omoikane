@@ -30,7 +30,10 @@ CHARS_PER_TOKEN = 3.5
 # file. The brief is bounded by session-context.py's own 12,000-character index budget (~3,430 tokens) plus its
 # header and pending notes; the gate measures that bound on a generated tree (worst_case_brief), since this
 # repository's wiki may be small or empty (#37).
-LIMITS = {"AGENTS.md": 2_800, "skill frontmatter": 600, "session brief": 4_000, "total": 7_000}
+# Skill frontmatter was 600 for the seven memory skills (~295 used); every system now also ships the development
+# skills and omoikane-mode, all model-invocable (#111, docs/specs/2026-10-07-software-toolkit.md), estimated at
+# ~2,000 more. The total rises by the same 2,000. Lower both to the measured use once the skills have landed.
+LIMITS = {"AGENTS.md": 2_800, "skill frontmatter": 2_600, "session brief": 4_000, "total": 9_000}
 
 
 def tokens(text: str) -> int:
