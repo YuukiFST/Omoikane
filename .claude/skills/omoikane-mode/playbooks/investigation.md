@@ -4,7 +4,7 @@
 
 Investigation requests are read-only. They produce a cited explanation or a recommendation, not a code change.
 
-1. Route through the **how** skill. For motivation questions ("why was this built so"), also run `/ask`, which answers from the wiki and `origin/main` history, and read `git log` / `git blame` on the code in question.
+1. Route through the **how** skill. For motivation questions ("why was this built so"), also read `omoikane/index.md` and the pages it lists, then `git log origin/main`, `git blame` and `gh pr view` on the code in question. Do not run `/ask`: it writes under `omoikane/wiki/`, so only the user starts it.
 2. Throughput checkpoint stays one line: `throughput checkpoint: n/a, read-only investigation`.
 3. Produce the `how`-shaped output (Overview / Key Concepts / How It Works / Where Things Live / Gotchas), or a recommendation with a tradeoffs table if the request is a decision between alternatives.
 4. Write the reply per **Writing the reply** in `../SKILL.md`.

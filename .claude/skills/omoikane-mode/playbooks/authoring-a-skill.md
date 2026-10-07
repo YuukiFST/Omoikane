@@ -3,7 +3,7 @@
 **You own the skill's voice.**
 
 1. Use the **writing-for-agents** skill.
-2. Validate the skill: frontmatter has `name` and `description`, the description is under 1,024 characters (Pi's cap), referenced files exist, cross-skill links resolve, and no file below the skill folder is named `SKILL.md` (Pi discovers nested ones as skills).
+2. Validate the skill: frontmatter has `name` and `description`, the description is under 1,024 characters (Pi's cap), referenced files exist, cross-skill links resolve, no file below the skill folder is named `SKILL.md`, and no Markdown file sits directly in `.claude/skills/`. Pi 1.0.4 loads each Markdown file placed directly in a skills folder as a skill, and stops descending at a folder that holds `SKILL.md`, so a nested `SKILL.md` never loads there.
 3. Test cases if structural. Skip if subjective.
 4. Run **Opening a PR**.
 

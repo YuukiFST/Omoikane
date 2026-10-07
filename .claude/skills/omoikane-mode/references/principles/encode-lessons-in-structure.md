@@ -21,7 +21,7 @@ When you catch yourself writing the same instruction a second time:
 
 **Feedback loop:**
 - **Capture every correction.** When the human intervenes or tests fail, decide if it's a one-off or a pattern.
-- **Route to the right layer.** One-off -> a note in `omoikane/raw/inbox/`. Recurring fix -> skill or lint rule. Systemic issue -> principle.
+- **Route to the right layer.** One-off -> a note in `omoikane/raw/inbox/`. Recurring fix -> a lint or test inside the current change when the user asked for that work; otherwise a guard proposal in `omoikane/_review.md` per the **correct** skill (`.claude/skills/correct/SKILL.md`), which the human ticks. Systemic issue -> principle.
 - **Close the loop.** Don't just record. Apply now or create a concrete todo.
 
 **Anti-patterns:**

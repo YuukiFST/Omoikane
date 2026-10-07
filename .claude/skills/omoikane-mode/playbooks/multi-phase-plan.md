@@ -5,10 +5,10 @@
 1. When the change is one or two files with an obvious approach, skip the plan. Say so and stop.
 2. Settle open questions by prototype before you write. Run `prototype.md` for each. Keep the branch, the SHA, and the screenshots for Appendix A. Ask the user only about a product or preference call that no run can settle. Give options (principle `never-block-on-the-human`).
 3. Explore in fresh subagents (principle `guard-the-context-window`). Each returns file pointers, conventions, test commands, and entry points. No inlined dumps. Open the decision and gotcha pages whose `code:` lists the areas the plan touches.
-4. Copy the skeleton below into the plan file and fill every placeholder. Unless the user names a path, write the file under `docs/plans/`. Keep every heading and every sub-block in the order shown. One section per PR. One PR is one change with its own evidence (principle `sequence-verifiable-units`). Name the execution playbook in **How to read this**: `autonomous-run.md` for an unattended run, or the **executing-plans** skill for a run with review checkpoints.
+4. Copy the skeleton below into the plan file and fill every placeholder. Unless the user names a path, write the file under `docs/plans/`. Keep every heading and every sub-block in the order shown. One section per PR. One PR is one change with its own evidence (principle `sequence-verifiable-units`). Name the execution path in **How to read this**: `autonomous-run.md` for an unattended run, or the **executing-plans** skill for a run with review checkpoints. The per-PR lifecycle and the merge rule live in the skeleton itself, so either path runs them.
 5. Write the body as one Diátaxis mode, how-to. Appendices hold explanation and reference. Each heading states the task or the finding. Short sentences.
-6. Check the plan against the skeleton: every heading present in order, every box names its evidence, and no placeholder left. `grep -nE '<[A-Za-z][^>]*>' <plan.md>` lists the leftover placeholders. Fix every hit (principle `encode-lessons-in-structure`).
-7. Hand back. Post the plan path and the check's output, then stop. Execution starts on the user's explicit go, under the execution playbook the plan names.
+6. Check the plan against the skeleton: every heading present in order, every box names its evidence, and no placeholder left. `grep -nE '<[A-Za-z][^>]*>' <plan.md>` lists the leftover placeholders. Fix every hit (principle `encode-lessons-in-structure`). Skip a hit inside a code span that is real code, such as a generic (`Result<T>`) or an HTML tag. The skeleton's fixed per-lane variables carry no angle brackets (`SCRATCH/PR_ID/lane-N/SLUG.png`, `HEAD_BRANCH`, `BASE_BRANCH`), so they never match.
+7. Hand back. Post the plan path and the check's output, then stop. Execution starts on the user's explicit go, under the execution path the plan names.
 
 **Verification.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked (principle `prove-it-works`). That sentence is the verification rule. Every verification block opens with it. The live block is mandatory. Ten lanes at the PR head drive the real surface through the project's verification skill, each lane a fresh subagent; without a subagent tool the lanes run one after another. Each lane is one box with a concrete scenario, the screenshot or output it saves, and its pass predicate. One lane is the **Regression lane against trunk.** It runs the same load-bearing scenario on trunk and head. If trunk does not have the feature, the lane records that fact and gates the behavior the diff adds plus the end state the user waits for instead of inventing a trunk result. The perf gate is dual-sided. Trunk and head must both produce the named metric. If trunk lacks the feature, also isolate the work the diff adds and set an absolute budget for that work plus the end-to-end state the user waits for. Do not claim a ratio between unlike scenarios. The perf block names the metric, the interleaved probe, the trunk baseline measured first, and the rule with the number that fails. A PR that changes an interaction is review-gated. The user reviews it in chat with screenshots and a video before merge. A PR that changes no interaction writes `**Review gate.** None. <PR id> is not review-gated.` and no boxes under it.
 
@@ -23,7 +23,7 @@
 
 One box is one unit of work. Every box names the evidence that checks it. A nested box is a sub-step of the box above it. Check a box only when its evidence exists, a file, a log line, a screenshot, a test run, or a SHA. The body is a how-to. The appendices explain and record.
 
-The program runs <`.claude/skills/omoikane-mode/playbooks/autonomous-run.md` or the executing-plans skill>. <Who merges, and which PR ids stop at merge-ready for the user.>
+The program runs <`.claude/skills/omoikane-mode/playbooks/autonomous-run.md` or `.claude/skills/executing-plans/SKILL.md`>. Every PR stops at merge-ready. A PR merges only when the user authorized that merge. <The PR ids the user already authorized, or None.>
 
 Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -33,18 +33,24 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 
 - [ ] State the protocol and this plan to the user, then stop. Start execution only on the user's explicit go.
 - [ ] Read these from trunk at program start. Re-read them at every tick.
-  - [ ] `git show origin/main:.claude/skills/omoikane-mode/playbooks/<execution playbook>.md`
+  - [ ] `git show origin/main:<the execution path: .claude/skills/omoikane-mode/playbooks/autonomous-run.md or .claude/skills/executing-plans/SKILL.md>`
   - [ ] `git show origin/main:<verification skill path>`
   - [ ] `git show origin/main:.claude/skills/omoikane-mode/playbooks/opening-a-pr.md`
   - [ ] `git show origin/main:.claude/skills/<each other skill the program uses>/SKILL.md`
 - [ ] On the user's go, arm the audit tick with the harness's scheduler (Claude Code `/loop 1h`), or run it at every phase boundary when the harness has none. Never leave the cadence to memory.
-- [ ] Use this tick prompt, verbatim. "Re-read the execution playbook from trunk. Audit the operation against it and fix drift in this tick. Probe every active lane and judge progress by side effects only. Stand down a stuck lane and dispatch its replacement now. Then post a short status message to the user in chat only when the audit found a tracked change that no earlier status message reported, such as a PR opened, a code-ready head, a round launched or closed, a verdict, a merge, a stuck agent and the action taken, a blocker added or cleared, or a decision only the user can make. Name every such change and nothing else. Do not repeat a table, the merged list, or an unchanged blocker. If the audit found none, end the turn with no reply text. Either way, log this tick's row in your decision log. The row names the items reported, or none."
+- [ ] Use this tick prompt, verbatim. "Re-read this plan and its execution path from trunk. Audit the operation against it and fix drift in this tick. Probe every active lane and judge progress by side effects only. Stand down a stuck lane and dispatch its replacement now. Then post a short status message to the user in chat only when the audit found a tracked change that no earlier status message reported, such as a PR opened, a code-ready head, a round launched or closed, a verdict, a merge, a stuck agent and the action taken, a blocker added or cleared, or a decision only the user can make. Name every such change and nothing else. Do not repeat a table, the merged list, or an unchanged blocker. If the audit found none, end the turn with no reply text. Either way, log this tick's row in your decision log. The row names the items reported, or none."
 - [ ] On the user's hold or stand-down, send every owner a zero-writes order at once.
 
 ### Spawn owners
 
-- [ ] Spawn one owner per PR, a fresh subagent with the full lifecycle the execution playbook names.
-- [ ] Follow this dependency graph. Start dependent work only after its parent merges, or base it on the parent branch when the execution playbook stacks.
+- [ ] Spawn one owner per PR, a fresh subagent. Without a subagent tool, run the owners one after another. Each owner runs this lifecycle and stops at its last box.
+  - [ ] Build the PR's **Build** boxes.
+  - [ ] Verify through its unit, live and perf blocks.
+  - [ ] Open the PR per **Opening a PR**.
+  - [ ] Have a fresh subagent review the diff and post the findings as a PR review on GitHub.
+  - [ ] Fix the real findings and push. A new head gets a fresh review and fresh verdict lanes.
+  - [ ] Drive the PR to merge-ready per `babysit.md` mode `drive`. Report merge-ready and stop. Merging follows the merge rule below.
+- [ ] Follow this dependency graph. Start dependent work only after its parent merges, or base it on the parent branch when the PRs stack.
   - [ ] <PR id> and <PR id> are independent and first. Both branch from `main`.
   - [ ] <PR id> after <PR id>.
 - [ ] Hold the file boundaries. <PR id or class> touches only `<glob>`.
@@ -53,7 +59,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 ### PR mechanics, for every PR
 
 - [ ] Use `gh` for every PR operation. Never require `gt`.
-- [ ] Open the PR ready, never draft, per **Opening a PR**. Use the harness's built-in PR tool when it has one, else `gh pr create --base <base-branch>`. A stack child targets its parent branch.
+- [ ] Open the PR ready, never draft, per **Opening a PR**. Use the harness's built-in PR tool when it has one, else `gh pr create --base BASE_BRANCH`. A stack child targets its parent branch.
 - [ ] Run the repo's lint and typecheck once before the PR-facing push. Push with hooks on.
 - [ ] Run the code-simplifier skill before each commit.
 - [ ] Triage every automated reviewer and security-reviewer comment per `.claude/skills/omoikane-mode/references/automated-review-triage.md`.
@@ -63,16 +69,16 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 
 - [ ] At the code-ready head SHA and at each later push that changes the patch, run the verification lanes, each a fresh subagent. One gates lane. The ten live lanes from the PR's **Verify, live** block. The perf lane from its **Verify, perf** block. Two or more audit lanes, each with its own lens, that read the diff and the receipts and distrust the PR body. The root audits the receipts in the merge-ready report before the verdict.
 - [ ] Clean only when every lane is `PASS`. Findings go back to the owner, including a defect that a lane filed as a note. A new head gets fresh lanes and a fresh verdict, except for results that stay valid under the patch-id rule in `.claude/skills/omoikane-mode/playbooks/shipping.md`.
-- [ ] <The merge rule from the execution playbook, with the patch-id rule from `shipping.md`. Merging needs the user's authorization.>
+- [ ] Merge rule. A PR merges only when the user authorized that merge, a subagent review is posted on it, its verdict is clean, and its patch-id still matches the verdict (`shipping.md` step 3). Land it through `shipping.md`, bottom-up, with the merge method from the git-workflow skill.
 
 ### Boot recipe, for every live lane
 
 Each live lane runs in its own worktree or sandbox at the PR head. Drive through the project's verification skill.
 
-- [ ] `git fetch origin <head-branch> && git checkout <head SHA>`.
+- [ ] `git fetch origin HEAD_BRANCH && git checkout HEAD_SHA`, with the PR's head branch and head SHA.
 - [ ] <Start the backend and the surface. Wait for ready.>
 - [ ] <Deliver input only through the verification skill's commands. Name the read-only diagnostics.>
-- [ ] Save every screenshot or output to a lane-owned scratch folder (`<scratch>/<pr-id>/lane-<n>/<slug>.png`) and return the paths with the report.
+- [ ] Save every screenshot or output to a lane-owned scratch folder (`SCRATCH/PR_ID/lane-N/SLUG.png`) and return the paths with the report.
 
 ## <Task as a verb phrase> (<PR id>)
 
@@ -125,14 +131,15 @@ Each live lane runs in its own worktree or sandbox at the PR head. Drive through
 **Merge.**
 
 - [ ] Root's clean verdict at the exact head SHA.
+- [ ] Subagent review posted on the PR, real findings fixed.
 - [ ] Automated review triage done.
 - [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
-- [ ] <Who merges, once the user authorized it, and in which order.>
+- [ ] The user authorized this merge. Land it per the merge rule, after <the PR ids it depends on, or None>.
 
 ## Close the program
 
 - [ ] Every box above is checked with its evidence.
-- [ ] Reply to the user with the report the execution playbook names.
+- [ ] Reply to the user: each PR's state (merged, merge-ready, blocked), its verdict and review links, and what still needs the user.
 
 ## Appendix A. Prototype evidence
 

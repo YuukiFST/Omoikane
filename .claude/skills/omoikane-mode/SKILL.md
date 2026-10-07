@@ -21,23 +21,24 @@ Triggers:
 - Any code → name the data shape first, and choose its organizing structure per principle **model-the-domain**.
 - Code crossing a module boundary → the **codebase-design** skill before implementing. Design the interface twice and compare.
 - Vague idea, new feature, or changed behavior whose intent is not yet clear → the **brainstorming** skill before any code.
-- A spec or requirements for a multi-step task → the **writing-plans** skill. A written plan to run with review checkpoints → the **executing-plans** skill.
+- A spec or requirements for a multi-step task → the **writing-plans** skill. A written plan to run with review checkpoints → the **executing-plans** skill. Work that spans phases or stacked PRs → the Multi-phase plan playbook wins over writing-plans.
 - The user wants a plan, decision or idea stress-tested → the **grilling** skill.
 - A design question a throwaway can answer → the **prototype** skill, inside the Prototype playbook.
 - Large or cross-cutting effort, or no playbook below fits → the **figure-it-out** skill.
 - Contested design → the **interrogate** skill before shipping. Its reviewers differ by lens, not by model.
 - Before shipping a change, or a small diff you don't trust → the **blast-radius** skill.
+- Review a PR or a diff → the **interrogate** skill plus the **blast-radius** skill. Post the findings as a PR review on GitHub (git-workflow step 5).
 - Survey a codebase for improvements or direction → the **improve** skill. It is read-only and writes plans for other agents.
 - After finishing a change, before commit → the **code-simplifier** skill over the diff.
 - Writing, changing, reviewing or sweeping tests → the **test-audit** skill.
-- The user corrects the same mistake a second time → the **correct** skill.
+- The user corrects the same mistake a second time → the **correct** skill. Land the check in the current change only when the user asked for that work. Otherwise file it as a guard proposal in `omoikane/_review.md` per that skill, for the human to tick.
 - No scripted way to drive the app and prove behavior → the **create-verification-skill** skill. It writes `.claude/skills/verify-<app>/`. A verification skill that drifted from the app → the **maintain-verification-skill** skill.
 - Anything touching auth, input handling, secrets or permissions → the **security-audit** skill, guidance mode. An explicit audit request → the Security audit playbook.
 - Before the first commit of a change → the **git-workflow** skill.
 - Writing or editing a skill, `AGENTS.md` or `CLAUDE.md` → the **writing-for-agents** skill.
 - The user needs to see a structure or flow → the **show-me** skill.
-- "Why was this built so" → `/ask`. It answers from the wiki and `origin/main` history.
-- End of the day → `/wrap-up`. It distills the captured sessions and ingests the inbox.
+- "Why was this built so" → read `omoikane/index.md` and the pages it lists, then `git log origin/main`, `git blame` and `gh pr view` on the code in question. Do not run `/ask` here: it writes under `omoikane/wiki/`. Only the user starts it.
+- End of the day → tell the user to run `/wrap-up` in a fresh session. Never run it inside the coding session.
 - Nontrivial multi-step → write the throughput checkpoint (Feature step 3).
 - Shipping UI, a CLI or a service → verify it through the project's verification skill (`verify-<app>`). For bug fixes, reproduce first on the same surface yourself. Hand to the user only under the narrow Bug fix step 1 exception.
 - Running a benchmark, measuring perf yourself, or reporting a speedup or regression you measured → principle **explain-the-number** before you report or act on the number.
@@ -90,13 +91,13 @@ Each entry names when it applies.
 
 **Meta**
 
-- **encode-lessons-in-structure**. You catch yourself writing the same instruction a second time. Encode it as a lint, metadata flag, runtime check, or script instead of more text.
+- **encode-lessons-in-structure**. You catch yourself writing the same instruction a second time. Encode it as a check inside the current change when the user asked for that work. Otherwise file a guard proposal in `omoikane/_review.md` per the **correct** skill; the human ticks it.
 
 ## Autonomy
 
 **Just do it.** Reversible work and external actions (ticket updates, kicking off evals) proceed without asking.
 
-**Always pause** before an irreversible or shared write: force-push to a shared branch, a deploy, data deletion, a message to a customer, or a merge to `main` the user did not authorize.
+**Always pause** before an irreversible or shared write: force-push to a shared branch, a deploy, data deletion, a message to a customer, or merging any PR the user did not authorize (and only after a subagent review is posted on it).
 
 **Session overrides.** "Don't stop" / "going to bed" / "run until done" / "be fully autonomous" → keep going. The Always-pause list still holds.
 
@@ -148,6 +149,7 @@ A step you choose not to do stays in the list with a one-line `skip: <reason>`.
 
 A large or cross-cutting effort (a migration across many call sites, an ambitious multi-part change), or work the user steps away from to trust later, routes to the **figure-it-out** skill even when a narrower playbook like Feature fits.
 Use **figure-it-out** whenever no playbook below fits.
+Work the user steps away from ("going to bed", "run until done") with one checkable done state → Autonomous run wins over figure-it-out, and its decision log stays out of the tree.
 
 - **Investigation.** Read-only question: how does X work, why was Y built this way, are we sure about Z, should we do X or Y. `playbooks/investigation.md`.
 - **Bug fix.** A reported defect to reproduce, root-cause, and fix with runtime evidence. `playbooks/bug-fix.md`.
