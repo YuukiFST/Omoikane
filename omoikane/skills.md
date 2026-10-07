@@ -32,7 +32,7 @@ Columns:
 
 | Skill | Upstream | Commit | Licence | Changes |
 |---|---|---|---|---|
-| security-audit | https://github.com/cloudflare/security-audit-skill `skills/security-audit/` | `c1c8a8c` | MIT | none |
+| security-audit | https://github.com/cloudflare/security-audit-skill `skills/security-audit/` | `c1c8a8c` | MIT | Windows fallback in both validators when `O_NOFOLLOW`/`O_NONBLOCK` are missing: `lstat` refuses links and junctions, `fstat` refuses a changed `dev`/`ino` or a non-file; the CLI tests run on `win32`, plus tests for a symbolic link, a junction, a named pipe and the identity check |
 
 ## Shipping and writing
 

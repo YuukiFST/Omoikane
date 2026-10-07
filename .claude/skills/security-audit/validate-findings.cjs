@@ -601,16 +601,43 @@ function loadSchema(schemaPath) {
   return schema;
 }
 
+function isSameFileIdentity(before, after) {
+  return before.dev === after.dev && before.ino === after.ino;
+}
+
+// Windows defines neither O_NOFOLLOW nor O_NONBLOCK. Node reports symbolic links and junctions as links to
+// lstat; the fstat identity check refuses a path swapped between lstat and open. A named pipe path
+// (\\.\pipe\...) passes lstat as a file, but its descriptor is not one, so fstat refuses it before any read.
+function openWindowsInput(file) {
+  const checked = fs.lstatSync(file, { bigint: true });
+  if (checked.isSymbolicLink()) throw new SafeInputError("input must not be a symlink");
+  if (!checked.isFile()) throw new SafeInputError("input must be a regular file");
+
+  const descriptor = fs.openSync(file, fs.constants.O_RDONLY);
+  try {
+    const opened = fs.fstatSync(descriptor, { bigint: true });
+    if (!opened.isFile()) throw new SafeInputError("input must be a regular file");
+    if (!isSameFileIdentity(checked, opened)) throw new SafeInputError("input changed between check and open");
+  } catch (error) {
+    fs.closeSync(descriptor);
+    throw error;
+  }
+  return descriptor;
+}
+
 function readFileWithinLimit(file) {
   const noFollow = fs.constants.O_NOFOLLOW;
   const nonBlock = fs.constants.O_NONBLOCK;
-  if (!Number.isInteger(noFollow) || noFollow === 0 || !Number.isInteger(nonBlock) || nonBlock === 0) {
+  const hasNoFollowOpen = Number.isInteger(noFollow) && noFollow !== 0 && Number.isInteger(nonBlock) && nonBlock !== 0;
+  if (!hasNoFollowOpen && process.platform !== "win32") {
     throw new SafeInputError("OS no-follow and nonblocking input protection is unavailable");
   }
 
   let descriptor;
   try {
-    descriptor = fs.openSync(file, fs.constants.O_RDONLY | noFollow | nonBlock);
+    descriptor = hasNoFollowOpen
+      ? fs.openSync(file, fs.constants.O_RDONLY | noFollow | nonBlock)
+      : openWindowsInput(file);
   } catch (error) {
     if (error && (error.code === "ELOOP" || error.code === "EMLINK")) {
       throw new SafeInputError("input must not be a symlink");
@@ -767,6 +794,7 @@ module.exports = {
   collectSchemaErrors,
   hasVisibleProse,
   isSafeRelativeSourcePath,
+  isSameFileIdentity,
   validateDocument,
 };
 

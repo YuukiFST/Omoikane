@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const net = require("node:net");
 const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
@@ -9,16 +10,18 @@ const {
   LIMITS,
   collect,
   collectSchemaErrors,
+  isSameFileIdentity,
   validateDocument,
 } = require("./validate-findings.cjs");
 
 const validatorPath = path.join(__dirname, "validate-findings.cjs");
 const CLI_TIMEOUT_MS = 5000;
 const HOSTILE_CLI_TIMEOUT_MS = 15000;
-const HAS_SAFE_INPUT_OPEN = Number.isInteger(fs.constants.O_NOFOLLOW) &&
+// Windows defines neither constant; the validator falls back to lstat, open and an fstat identity check there.
+const HAS_SAFE_INPUT_OPEN = process.platform === "win32" || (Number.isInteger(fs.constants.O_NOFOLLOW) &&
   fs.constants.O_NOFOLLOW !== 0 &&
   Number.isInteger(fs.constants.O_NONBLOCK) &&
-  fs.constants.O_NONBLOCK !== 0;
+  fs.constants.O_NONBLOCK !== 0);
 const TERMINAL_CONTROL_PAYLOAD = "\u001b\u0007\u0085\u202e\u034f\ufe0f";
 const TERMINAL_CONTROL_BYTES = [
   Buffer.from([0x1b]),
@@ -502,6 +505,60 @@ test("CLI rejects a symlink without following it", { skip: process.platform === 
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
+});
+
+for (const { kind, label, makeTarget } of [
+  { kind: "file", label: "symbolic link", makeTarget: (target) => fs.writeFileSync(target, JSON.stringify(producerShapedFindings())) },
+  { kind: "junction", label: "junction", makeTarget: (target) => fs.mkdirSync(target) },
+]) {
+  test(`CLI rejects a Windows ${label} without following it`, { skip: process.platform !== "win32" }, (t) => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "validate-findings-winlink-"));
+    const targetPath = path.join(directory, "target");
+    const linkPath = path.join(directory, "findings.json");
+    try {
+      makeTarget(targetPath);
+      try {
+        fs.symlinkSync(targetPath, linkPath, kind);
+      } catch (error) {
+        if (error.code !== "EPERM") throw error;
+        t.skip("creating a symbolic link needs Developer Mode or SeCreateSymbolicLinkPrivilege");
+        return;
+      }
+      const result = spawnSync(process.execPath, [validatorPath, linkPath], {
+        encoding: "utf8",
+        timeout: CLI_TIMEOUT_MS,
+      });
+      const output = cliOutput(result);
+      assert.equal(result.status, 1, output);
+      assert.match(output, /input must not be a symlink/);
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+}
+
+test("CLI rejects a Windows named pipe without blocking", { skip: process.platform !== "win32" }, async () => {
+  const pipePath = `\\\\.\\pipe\\validate-findings-${process.pid}-${Date.now()}`;
+  const server = net.createServer((socket) => socket.end());
+  await new Promise((resolve) => server.listen(pipePath, resolve));
+  try {
+    const result = spawnSync(process.execPath, [validatorPath, pipePath], {
+      encoding: "utf8",
+      timeout: CLI_TIMEOUT_MS,
+    });
+    const output = cliOutput(result);
+    assert.notEqual(result.error && result.error.code, "ETIMEDOUT", output);
+    assert.equal(result.status, 1, output);
+    assert.match(output, /input must be a regular file/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("refuses a descriptor whose file identity differs from the checked path", () => {
+  assert.equal(isSameFileIdentity({ dev: 1n, ino: 2n }, { dev: 1n, ino: 2n }), true);
+  assert.equal(isSameFileIdentity({ dev: 1n, ino: 2n }, { dev: 1n, ino: 3n }), false);
+  assert.equal(isSameFileIdentity({ dev: 1n, ino: 2n }, { dev: 4n, ino: 2n }), false);
 });
 
 test("CLI rejects input above the nesting-depth limit without an exception trace", () => {
