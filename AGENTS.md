@@ -1,6 +1,6 @@
 # Omoikane — agent operating manual
 
-Every new software system starts from this template, and `omoikane/` is its memory: it must hold what the human states while building, business rules, design system and organisation conventions included, unprompted. A hook captures each coding session and `/distill` turns it into pages under `omoikane/wiki/`; sources dropped into the inbox go through `/ingest`. You write every page.
+Every agent session starts from nothing: what the human explained and what the previous session learned are lost unless something writes them down. Every new software system starts from this template, and `omoikane/` is its memory: it must hold what the human states while building, business rules, design system and organisation conventions included, unprompted. A hook captures each coding session and `/distill` turns it into pages under `omoikane/wiki/`; sources dropped into the inbox go through `/ingest`. You write every page.
 
 ## Layout
 
@@ -67,7 +67,7 @@ python omoikane/bin/wiki-index.py
 python omoikane/bin/wiki-lint.py
 ```
 
-`wiki-lint.py` exits non-zero on broken wikilinks, missing frontmatter, undated source pages, orphan pages, two pages sharing a slug or `code:` paths that no longer exist or are absolute. Fix every finding before you report done. Its `warning:` lines (code committed after a page's `updated` date) do not fail; `/lint` checks them.
+Fix every `wiki-lint.py` finding before you report done. Its `warning:` lines do not fail; `/lint` checks them.
 
 ## Coding sessions (build mode)
 

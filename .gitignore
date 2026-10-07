@@ -6,3 +6,4 @@ __pycache__/
 omoikane/.wiki-ingest.log
 omoikane/.wiki-ingest.blocked
 omoikane/.capture-redact
+omoikane/.capture-errors

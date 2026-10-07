@@ -201,6 +201,6 @@ One pull request each, in this order:
 - `python -m unittest discover -s tests` passes after each pull request.
 - `python omoikane/bin/context-budget.py` passes.
 - Every manifest row names an existing folder under `.claude/skills/`, and every vendored folder has a row and a `LICENSE`.
-- No pack skill holds a nested `SKILL.md` (Pi discovers them recursively).
+- No Markdown file sits directly in `.claude/skills/`: Pi loads one there as a skill. (A nested `SKILL.md` inside a skill folder is not loaded: Pi 1.0.4 stops at a folder that holds one.)
 - Under a clean `HOME`: Claude Code and OpenCode list each skill once; Pi with the new `.pi/settings.json` lists them at startup; a Pi `/skill:wrap-up` session is not captured.
 - `node --test` on both Cloudflare suites passes on the Windows and Ubuntu CI jobs, with the `win32` tests running, not skipped.
