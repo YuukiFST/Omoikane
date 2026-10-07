@@ -94,6 +94,9 @@ class NewSystem(unittest.TestCase):
         self.assertEqual(run(self.repo, "context-budget.py").returncode, 0)
         # The new system's pages must never be published to the template (review-gate.py publishes to origin).
         self.assertEqual(git(self.repo, "remote").split(), ["template"])
+        # The root licence is the new system's to choose; Omoikane's MIT notice stays with the files it covers (#111).
+        self.assertFalse((self.repo / "LICENSE").exists())
+        self.assertIn("Copyright (c) 2026 YuukiFST", (omoikane / "LICENSE").read_text(encoding="utf-8"))
 
     def test_conventions_of_another_system_come_along(self) -> None:
         # The organisation's conventions and design-system rules had to be restated in every new system (#80).

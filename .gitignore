@@ -7,3 +7,5 @@ omoikane/.wiki-ingest.log
 omoikane/.wiki-ingest.blocked
 omoikane/.capture-redact
 omoikane/.capture-errors
+# Worktrees Claude Code creates for isolated subagents (Agent isolation: worktree).
+.claude/worktrees/

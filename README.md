@@ -44,6 +44,12 @@ Omoikane is for software development, not generic research (#111).
 | Tests | `python -m unittest discover -s tests` | same |
 
 Both agents run the same prompt files in `omoikane/prompts/`; the skill and command folders are thin wrappers.
+Pi runs the same skills as `/skill:<name>`: `.pi/settings.json` points it at `.claude/skills/`.
+
+## Skills from other projects
+
+Every skill under `.claude/skills/` taken from another project is listed in `omoikane/skills.md`, with its upstream, commit, licence and what Omoikane changed; each keeps its upstream `LICENSE` in its own folder. Omoikane itself is MIT (`LICENSE`).
+A personal skill of the same name in `~/.claude/skills/<name>/` wins over the project's copy in Claude Code, and OpenCode reads both folders; remove the personal copy to run the template's there. Pi does not read `~/.claude/skills/` and keeps the project's copy.
 
 ## Session hooks
 
@@ -71,10 +77,10 @@ git remote add origin <new-system-url>     # the script renamed the template's r
 omoikane/bin/install-schedule.ps1          # optional, instead of /wrap-up: Task Scheduler job every 30 min
 ```
 
-`new-system.py` removes the wiki, log entries, review items and captures the template carries about its own development, which the brief would otherwise inject into every session of the new system. It refuses a tree with uncommitted changes and commits nothing, so `git restore .` undoes it. It also renames `origin` to `template`: the scheduled run publishes to `origin`, and the new system's pages must not reach the template. `docs/specs/` holds the template's own plans; delete it or keep it as history.
+`new-system.py` removes the wiki, log entries, review items and captures the template carries about its own development, which the brief would otherwise inject into every session of the new system. It refuses a tree with uncommitted changes and commits nothing, so `git restore .` undoes it. It also renames `origin` to `template`: the scheduled run publishes to `origin`, and the new system's pages must not reach the template. It moves the template's MIT `LICENSE` to `omoikane/LICENSE`, where it covers Omoikane's files; the root licence is the new system's to choose. `docs/specs/` holds the template's own plans; delete it or keep it as history.
 
 `update-from-template.py` merges `template/main` into the system without committing and keeps the wiki, captures, log, review queue and rules block as the system has them; read `git diff --cached`, then commit. A system made before the script existed first takes it with `git fetch template`, `git checkout template/main -- omoikane/bin/update-from-template.py omoikane/bin/wikilib.py omoikane/bin/wiki-index.py` and a commit.
 
-Requirements: Python 3.11+, `claude` or `opencode` on PATH (they run the wiki operations; `pi` sessions are captured but Pi has no `/ingest`, `/distill`, `/ask`, `/lint` yet), git.
+Requirements: Python 3.11+, `claude` or `opencode` on PATH for headless runs (`wiki-ingest.ps1`); interactive `pi` sessions run the skills as `/skill:<name>`, git.
 
 Architecture, conventions and the reasoning behind them: `docs/architecture.md`. The agent's own operating manual: `AGENTS.md`.

@@ -245,6 +245,21 @@ class OperationOnlyFromTheFirstPrompt(unittest.TestCase):
             s = pi_session(Path(d), [{"type": "text", "text": "/distill x.md"}], "Now add a test")
             self.assertEqual(capture.skip_reason(s, [" M a.py"]), "omoikane operation /distill")
 
+    def test_pi_skill_command(self) -> None:
+        # Pi runs .claude/skills through .pi/settings.json (#111). `/skill:distill x.md` reaches the session as the
+        # typed text or as the block _expandSkillCommand builds (dist/core/agent-session.js, pi-coding-agent 1.0.4).
+        block = ('<skill name="distill" location="/p/.claude/skills/distill/SKILL.md">\nReferences are relative to '
+                 "/p/.claude/skills/distill.\n\nRead `omoikane/prompts/distill.md` and follow it. Argument: $ARGUMENTS\n"
+                 "</skill>\n\nx.md")
+        pasted = 'Why does this fail?\n<skill name="distill" location="/p/SKILL.md">\nx\n</skill>'
+        for name, first, reason in (("typed", "/skill:distill x.md", "omoikane operation /distill"),
+                                    ("expanded", block, "omoikane operation /distill"),
+                                    ("other skill", "/skill:how the parser", None),
+                                    ("block pasted into prose", pasted, None)):
+            with self.subTest(name), tempfile.TemporaryDirectory() as d:
+                s = pi_session(Path(d), [{"type": "text", "text": first}], "Now add a test")
+                self.assertEqual(capture.skip_reason(s, [" M a.py"]), reason)
+
 
 class Render(unittest.TestCase):
     def test_markdown_has_frontmatter_and_sections(self) -> None:
