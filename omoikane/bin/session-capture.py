@@ -2,8 +2,8 @@
 
 Runs from the harness stop hooks: Claude Code Stop/SessionEnd (.claude/settings.json), Pi agent_end/session_shutdown
 (.pi/extensions/omoikane.ts), OpenCode session idle (.opencode/plugins/omoikane.ts). Idempotent: every run rewrites
-the file for the session, so firing on every turn is safe. Never blocks the harness: any failure prints one line
-and exits 0.
+the file for the session, so firing on every turn is safe. Never blocks the harness: any failure prints one line,
+appends it to omoikane/.capture-errors for the next session's brief, and exits 0.
 
 Usage:
     python omoikane/bin/session-capture.py                                    # Claude hook: JSON payload on stdin
@@ -38,6 +38,9 @@ NO_CAPTURE_ENV = "OMOIKANE_NO_CAPTURE"
 # Terms the user never wants in a capture, one per line (#62). The scheduled run commits and pushes every capture,
 # and under raw/sources/ it is immutable, so redaction happens here. Gitignored: the list itself names them.
 REDACT_FILE = OMOIKANE / ".capture-redact"
+# One line per failed capture; session-context.py names them in the brief (#103). The Stop hook's stdout reaches
+# nobody, so a capture that crashed on every turn lost every session unseen. Gitignored, like the redact list.
+ERRORS_FILE = OMOIKANE / ".capture-errors"
 REDACTED = "[redacted]"
 UNREDACTED_KEYS = ("harness", "session", "part", "turns", "started", "ended")
 # Secrets go whether or not a list exists (#77): a key pasted into a prompt was pushed with the capture.
@@ -76,9 +79,11 @@ SECRET_AFTER = [re.compile(p) for p in (
     # Greedy to the last @ before the path or query: a hand-typed password may hold one.
     r"(?<![\w+.-])([a-z][\w+.-]*+://[^\s:/@]*:)[^\s/?#]+(?=@)",
     # curl -u user:password, curl as the command (at a line start or after ; & | ( or a backtick), not in prose.
-    r"(?m)((?:^|[;&|(`])[ \t]*curl\b[^\n|;&]*?\s(?:-u[ \t]*|--user[ =])[^\s:'\"]*:)[^\s'\"]+",
+    # The scan to the flag is bounded: unbounded, a 20,000-character line of repeated commands took over a second
+    # on every turn (#109 review).
+    r"(?m)((?:^|[;&|(`])[ \t]*curl\b[^\n|;&]{0,500}?\s(?:-u[ \t]*|--user[ =])[^\s:'\"]*:)[^\s'\"]+",
     # mysql -p<password>, no space; not a path ending in mysql, not a port mapping (docker -p3306:3306).
-    r"((?<![/\w.-])mysql(?:dump|admin)?\b(?![/.:-])[^\n|;&]*?\s-p)(?!\d+(?::\d+)?(?:\s|$))[^\s'\"]+",
+    r"((?<![/\w.-])mysql(?:dump|admin)?\b(?![/.:-])[^\n|;&]{0,500}?\s-p)(?!\d+(?::\d+)?(?:\s|$))[^\s'\"]+",
 )]
 # Names that hold a secret. `pass` and `key` only with a prefix that says so: `bypass`, `first_pass`, `sort_key`
 # and `primary_key` hold none. Matched in the pattern, so a name that holds none consumes no value a later name
@@ -130,7 +135,11 @@ COMMAND_TEMPLATE = re.compile(r"\s*Read `omoikane/prompts/(\w+)\.md` and follow 
 # dist/core/agent-session.js of pi-coding-agent 1.0.4). Anchored at the start, as COMMAND_TAG is.
 PI_SKILL = re.compile(r'(?:/skill:([\w-]+)(?:\s|\Z)|<skill name="([\w-]+)" location=")')
 NOTE_CHARS = 1500
-PROMPT_CHARS = 2000
+# Long prompts are where the user states rules: at 2,000 four rules past the cut never became pages (#104). The
+# longest prompt in the captures up to 2026-10-06 had 10,306 characters; the limit only bounds a pasted log.
+PROMPT_CHARS = 20_000
+# OpenCode's read tool cuts each line at 2,000 characters; capture lines are wrapped below that (wrap_long_lines).
+LINE_CHARS = 1900
 ERROR_CHARS = 400
 COMMAND_CHARS = 200
 NOTES_BUDGET = 40_000
@@ -206,6 +215,22 @@ def command_of(prompt: str) -> str:
 def clip(text: str, limit: int) -> str:
     text = text.strip()
     return text if len(text) <= limit else text[:limit].rstrip() + f" [... {len(text) - limit} chars cut]"
+
+
+def wrap_long_lines(text: str, limit: int = LINE_CHARS) -> str:
+    """Break each line longer than `limit` at its last space before the limit. OpenCode's read tool cuts every line
+    at 2,000 characters, so a long one-paragraph prompt would lose its end in /distill (#109 review). Runs on the
+    redacted capture, and a run with no space stays whole, so no break can hide a secret from redaction.
+
+    Example: wrap_long_lines("aa bb cc", 5) returns "aa bb\\ncc".
+    """
+    out: list[str] = []
+    for line in text.split("\n"):
+        while len(line) > limit and (cut := line.rfind(" ", 1, limit + 1)) > 0:
+            out.append(line[:cut])
+            line = line[cut + 1:]
+        out.append(line)
+    return "\n".join(out)
 
 
 def relative_to(path: str, cwd: str) -> str:
@@ -661,9 +686,35 @@ def capture(transcript: Path, session_id: str = "", harness: str = "claude", inb
     target = inbox / f"{session.day}-{session.short_id}{suffix}.md"
     inbox.mkdir(parents=True, exist_ok=True)
     text = redact_capture(render(session, session.turns[covered:], part, worktree), redaction_terms(redact_file))
-    target.write_text(text, encoding="utf-8")
+    # After redaction: a break between a name and its value (`password:` / `hunter22`) would hide the value from it.
+    target.write_text(wrap_long_lines(text), encoding="utf-8")
     shown = target.relative_to(OMOIKANE.parent) if target.is_relative_to(OMOIKANE.parent) else target
     return f"captured {shown.as_posix()} ({len(session.turns) - covered} turns)"
+
+
+def record_error(exc: Exception, harness: str, session_id: str, errors: Path = ERRORS_FILE,
+                 redact_file: Path = REDACT_FILE) -> str:
+    """Append one line naming a failed capture to the errors file and return it, redacted as a capture is: the
+    brief puts it in a session's context, and that session's own capture would carry it on.
+
+    Example: record_error(KeyError("x"), "pi", "0193-abcdef12") appends and returns
+    "2026-10-06T12:00:00Z pi abcdef12 KeyError: 'x'".
+    """
+    stamp = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    head = f"{stamp} {harness} {session_id[-8:] or 'unknown'} {type(exc).__name__}"
+    try:
+        terms = redaction_terms(redact_file)
+    except (OSError, UnicodeError) as unreadable:
+        # The list may be what broke the capture; recording must not fail on it too, and without the list the
+        # message may hold a term it names (#107 review).
+        line = f"{head}: [message withheld: omoikane/.capture-redact unreadable ({type(unreadable).__name__})]"
+    else:
+        # Secrets first, on the raw text: the key patterns read line breaks that joining the lines would remove.
+        message = " ".join(redact_secrets(str(exc)).split())
+        line = redact(redact_secrets(f"{head}: {clip(message, ERROR_CHARS)}"), terms)
+    with errors.open("a", encoding="utf-8") as out:
+        out.write(line + "\n")
+    return line
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -675,20 +726,23 @@ def main(argv: list[str] | None = None) -> int:
     if os.environ.get(NO_CAPTURE_ENV):
         return 0
     transcript, session_id = args.transcript, args.session_id
-    if transcript is None:
-        payload = json.loads(sys.stdin.read() or "{}")
-        transcript = Path(str(payload.get("transcript_path", "")))
-        session_id = session_id or str(payload.get("session_id", ""))
-    if not transcript or not transcript.is_file():
-        print(f"session-capture: no transcript at {transcript}")
-        return 0
-    print(f"session-capture: {capture(transcript, session_id, args.harness)}")
+    try:
+        if transcript is None:
+            payload = json.loads(sys.stdin.read() or "{}")
+            transcript = Path(str(payload.get("transcript_path", "")))
+            session_id = session_id or str(payload.get("session_id", ""))
+        if not transcript or not transcript.is_file():
+            print(f"session-capture: no transcript at {transcript}")
+            return 0
+        print(f"session-capture: {capture(transcript, session_id, args.harness)}")
+    except Exception as exc:  # noqa: BLE001 - a capture failure must never block the harness from stopping
+        print(f"session-capture: error {record_error(exc, args.harness, session_id)}")
     return 0
 
 
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception as exc:  # noqa: BLE001 - a capture failure must never block the harness from stopping
+    except Exception as exc:  # noqa: BLE001 - recording the failure failed too; still never block the harness
         print(f"session-capture: error {type(exc).__name__}: {exc}")
         sys.exit(0)
