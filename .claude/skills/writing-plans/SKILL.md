@@ -13,7 +13,7 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
 
-**Context:** If working in an isolated worktree, create or verify it before planning (git worktree or project convention).
+**Context:** Plan in the current checkout. An isolated worktree (git worktree or project convention), if the work needs one, is created at execution time by `executing-plans`.
 
 **Save plans to:** `docs/plans/YYYY-MM-DD-<feature-name>.md`
 - (User preferences for plan location override this default)
@@ -149,6 +149,8 @@ After writing the complete plan, look at the spec with fresh eyes and check the 
 **3. Type consistency:** Do the types, method signatures, and property names you used in later tasks match what you defined in earlier tasks? A function called `clearLayers()` in Task 3 but `clearFullLayers()` in Task 7 is a bug.
 
 If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
+
+Optional: for a fresh look after this checklist, dispatch a subagent with [plan-document-reviewer-prompt.md](plan-document-reviewer-prompt.md). Without a subagent tool (Pi), run the review yourself in a fresh pass.
 
 ## Execution Handoff
 

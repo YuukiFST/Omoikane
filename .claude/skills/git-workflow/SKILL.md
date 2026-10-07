@@ -9,6 +9,7 @@ description: "Use before the first commit of a change shipped through GitHub: is
 
 - **Identity.** Before the first commit in a session, show the configured `git config user.name` / `user.email` and ask the user which identity to commit under. Set author and committer to the answer.
 - **Messages.** Conventional Commits: `<type>(<optional scope>): <subject>`, subject up to 72 characters, imperative, no period. Types: `feat`, `fix`, `chore`, `docs`, `style`, `refactor`, `perf`, `test`, `ci`. The body says what changed and why. On someone else's repo, follow its own message convention and language.
+- **Push.** Push your own feature branch freely. Ask the user first before a push lands on `main`/`master` or any shared branch. Never force-push a shared branch; use `--force-with-lease` only on your own unmerged branch.
 
 **Never push straight to `main`/`master` on a repo you own.** Turn on branch protection requiring a PR. Every change, including one-liners, follows the flow below. A repo may override it in its own `AGENTS.md` or `CLAUDE.md`.
 
@@ -18,10 +19,10 @@ description: "Use before the first commit of a change shipped through GitHub: is
 2. **Branch per issue.** `<type>/<issue-number>-<slug>` — `feat/42-dashboard-consumo`, `fix/57-token-expiry`. Types match the Conventional Commits types above.
 3. **Atomic commits.** One logical change per commit. Resist the end-of-day blob: a commit touching three unrelated things cannot be reverted or bisected. Read the diff before committing it, not after.
 4. **PR closes the issue.** Body contains `Closes #42`, plus what changed, why, and how it was verified. Open it as a draft if the work spans sessions.
-   Then confirm GitHub linked it: `gh api graphql -f query='{repository(owner:"<owner>",name:"<repo>"){pullRequest(number:<pr>){closingIssuesReferences(first:5){nodes{number}}}}}'` lists the issue. Empty list: the merge will not close it, so step 8 closes it by hand. A `Closes #N` line in the body does not always link.
-5. **Review before merge — always.** Have a fresh subagent review the diff and post the findings **as a PR review on GitHub**, not as chat text. Without a subagent tool (Pi), review in a fresh session. A PR merged with no recorded review is a broken flow, even solo.
+   Then confirm GitHub linked it: `gh api graphql -f query='{repository(owner:"<owner>",name:"<repo>"){pullRequest(number:<pr>){closingIssuesReferences(first:5){nodes{number}}}}}'` lists the issue. Empty list: the merge will not close it, so step 8 closes it by hand. A `Closes #N` line in the body does not always link: GitHub links it only when the PR's base is the default branch. After you retarget a stacked PR to `main`, run the check again.
+5. **Review before merge — always.** Have a fresh subagent review the diff and post the findings **as a PR review on GitHub**, not as chat text. Without a subagent tool (Pi), review in a fresh session. Fix the real findings before merge. A PR merged with no recorded review is a broken flow, even solo.
 6. **CI green before merge.** A red or skipped check blocks the merge. Fix the failure, never merge past it; a lint or test failure found along the way gets fixed too.
-7. **Merge with rebase or a merge commit — not squash by default.** Squash collapses the branch's atomic commits into one and destroys the history `git log`/`git blame` investigation depends on. Squash only when the branch is genuinely WIP noise (`wip`, `fix typo`, `oops`).
+7. **Merge only when the user authorized it, with rebase or a merge commit — not squash by default.** Squash collapses the branch's atomic commits into one and destroys the history `git log`/`git blame` investigation depends on. Squash only when the branch is genuinely WIP noise (`wip`, `fix typo`, `oops`).
 8. **Delete the branch after merge, then confirm the issue is closed.** `gh issue view <n>` still `open` → `gh issue close <n>`.
 
 ## Shape of the work

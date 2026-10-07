@@ -26,7 +26,7 @@ Present the framing and tradeoffs before committing to a long run. Reversible wo
 Decompose into atomic, independently-landable units. Sequence riskiest-unknown-first. Scaffold and verification come before features (the **foundational-thinking** principle).
 
 - Build the verification harness before the work, with the baseline captured from the pre-change state, so the check reads as "old value vs new value".
-- For one-way-door design decisions, write two structurally different sketches from one model and compare them before choosing (the **codebase-design** skill's design-it-twice method). Skip it for mechanical work whose shape is already concrete. A second round of sketches over a settled design is over-engineering (the **laziness-protocol** principle).
+- For one-way-door design decisions, write at least two structurally different sketches from one model and compare them before choosing (the **codebase-design** skill's design-it-twice method). Skip it for mechanical work whose shape is already concrete. A second round of sketches over a settled design is over-engineering (the **laziness-protocol** principle).
 - Decide what fans out. Parallelize only across seams, and give each worker its own worktree or branch (the **separate-before-serializing-shared-state** principle). Don't over-fan. Without a subagent tool (Pi), run the steps in sequence in the main thread.
 - Write the designed phase list down. That list is what the human reviews.
 

@@ -34,7 +34,7 @@ For each task:
 
 After all tasks complete and verified:
 - Run full verification (tests, lint, typecheck as the plan specifies)
-- Present merge/PR options to your human partner and execute their choice
+- Ship through the `git-workflow` skill: open a PR, get it reviewed, merge only when your human partner authorizes it. Do not merge locally past the review.
 
 ## When to Stop and Ask for Help
 

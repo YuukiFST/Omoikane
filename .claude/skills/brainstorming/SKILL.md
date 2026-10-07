@@ -1,6 +1,6 @@
 ---
 name: brainstorming
-description: "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation."
+description: "Use when designing a new feature or behaviour whose intent is not yet clear. Explores user intent, requirements and design, and gets the user's approval before any code. Skip for bug fixes, refactors and changes whose intent is already clear."
 ---
 
 # Brainstorming Ideas Into Designs
@@ -10,6 +10,10 @@ Help turn ideas into fully formed designs and specs through natural collaborativ
 Start by classifying how much process the request needs, then work
 through your path: understand the context, refine the idea, present a
 design, and get your human partner's approval.
+
+Scope: a new feature or behaviour whose intent is not yet clear. Bug
+fixes, refactors and changes whose intent is already clear skip this
+skill, and its gate.
 
 <HARD-GATE>
 Do NOT invoke any implementation skill, write any code, scaffold any
@@ -215,6 +219,8 @@ After writing the spec document, look at it with fresh eyes:
 4. **Ambiguity check:** Could any requirement be interpreted two different ways? If so, pick one and make it explicit.
 
 Fix any issues inline. No need to re-review — just fix and move on.
+
+Optional: for a fresh look, dispatch a subagent with [spec-document-reviewer-prompt.md](spec-document-reviewer-prompt.md). Without a subagent tool (Pi), run the review yourself in a fresh pass.
 
 **User Review Gate:**
 After the spec review loop passes, ask the user to review the written spec before proceeding:
