@@ -14,8 +14,9 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path, PureWindowsPath
 
-from wikilib import (CODE_KEY, DATE, GUARD_KEY, GUARDS, PAGE_TYPES, PRACTICE_MIN_SESSIONS, PRUNE_KEY, PRUNE_MARKS,
-                     REPO, REQUIRED_KEYS, SESSION_PAGE, SOURCE_KEYS, UNDATED, WIKI, Page, load_pages, managed_rules)
+from wikilib import (CODE_KEY, DATE, FENCE, GUARD_KEY, GUARDS, PAGE_TYPES, PRACTICE_MIN_SESSIONS, PRUNE_KEY,
+                     PRUNE_MARKS, REPO, REQUIRED_KEYS, SESSION_PAGE, SOURCE_KEYS, UNDATED, WIKI, Page, load_pages,
+                     managed_rules, review_bullets)
 
 GUARD_CHOICES = f"{', '.join(GUARDS[:-1])} or {GUARDS[-1]}"
 # The pointer wiki-rules.py ends each promoted rule with: (omoikane/wiki/<folder>/<slug>.md).
@@ -270,6 +271,83 @@ def rule_pointers(agents: str, pages: list[Page]) -> list[str]:
     return warnings
 
 
+def review_diffs(review: str) -> list[tuple[str, str, bool]]:
+    """Each diff fence of _review.md (info string `diff`) under a bullet of its section, as (bullet, diff text,
+    whether the fence closes). Fences follow wikilib.review_lines, so a ``` context line inside a four-backtick diff
+    does not close it.
+
+    Example: review_diffs("- [ ] guard (test) x: y\\n````diff\\n--- a/f\\n````\\n") returns
+    [("- [ ] guard (test) x: y", "--- a/f\\n", True)].
+    """
+    diffs: list[tuple[str, str, bool]] = []
+    bullet, fence, is_diff, body = "", "", False, []
+    # split, not splitlines: a form feed or   in a context line would split the diff and corrupt it.
+    for line in review.split("\n"):
+        m = FENCE.match(line)
+        if not fence and m:
+            fence, is_diff, body = m.group(1), m.group(2).strip() == "diff", []
+        elif fence and m and m.group(1).startswith(fence) and not m.group(2).strip():
+            if is_diff and bullet:
+                diffs.append((bullet, "".join(body), True))
+            fence = ""
+        elif fence:
+            body.append(line + "\n")
+        elif line.startswith("- "):
+            bullet = line
+        elif line.startswith("#"):
+            bullet = ""  # a diff under a new heading belongs to no earlier bullet
+    if fence and is_diff and bullet:
+        diffs.append((bullet, "".join(body), False))  # a truncated last proposal (#110 review)
+    return diffs
+
+
+def unchecked(bullet: str) -> str:
+    """The bullet with its checkbox cleared: ticking a proposal does not make it a new one."""
+    return re.sub(r"^- \[[xX]\]", "- [ ]", bullet)
+
+
+def review_patches(review: Path, repo: Path) -> tuple[list[str], list[str]]:
+    """(findings, warnings) for the diffs in _review.md that `git apply --check` rejects (#106).
+
+    A bullet HEAD's _review.md lacks was written by this run, which can fix its own diff, so it is a finding. An
+    older one went stale when its target changed; only the human rewrites or deletes it, and a finding would go
+    back to a scheduled run that may not (gotcha lint-findings-the-scheduled-agent-cannot-fix-are-warnings).
+    Example: a new guard whose diff has wrong context lines gives (["omoikane/_review.md: the diff under ..."], []).
+    """
+    if not review.is_file():
+        return [], []
+    rel = posixpath.relpath(review.resolve().as_posix(), repo.resolve().as_posix())
+    try:
+        # `./`: relative to `repo`, not to the top of the repository it sits in.
+        shown = subprocess.run(["git", "-C", str(repo), "show", f"HEAD:./{rel}"], capture_output=True, text=True,
+                               encoding="utf-8", check=False)
+    except OSError:
+        return [], []  # no git: skipped, as the `code:` dates are
+    committed = {unchecked(b) for b in review_bullets(shown.stdout)} if shown.returncode == 0 else set()
+    findings: list[str] = []
+    warnings: list[str] = []
+    for bullet, diff, closed in review_diffs(review.read_text(encoding="utf-8")):
+        if closed:
+            # Bytes, not text: on Windows a text pipe writes every \n as \r\n, and no diff would apply.
+            check = subprocess.run(["git", "-C", str(repo), "apply", "--check", "-"], input=diff.encode("utf-8"),
+                                   capture_output=True, check=False)
+            if check.returncode == 0:
+                continue
+            lines = check.stderr.decode("utf-8", "replace").strip().splitlines()
+            # git warns about whitespace before it names the failure; the agent must see the failure.
+            error = next((line for line in lines if line.startswith("error:")), lines[0] if lines else "git apply "
+                         "failed")
+        else:
+            error = "its fence is never closed"
+        if unchecked(bullet) in committed:
+            warnings.append(f"{rel}: the diff under \"{bullet}\" no longer applies ({error}); its target changed "
+                            "since it was proposed, so the human rewrites or deletes it")
+        else:
+            findings.append(f"{rel}: the diff under \"{bullet}\" does not apply ({error}); read the target file "
+                            "again and rewrite the diff against it, 3 lines of context, paths as a/<path> b/<path>")
+    return findings, warnings
+
+
 def main(wiki: Path = WIKI, repo: Path = REPO) -> int:
     pages = load_pages(wiki)
     findings = lint_pages(pages, repo)
@@ -277,6 +355,9 @@ def main(wiki: Path = WIKI, repo: Path = REPO) -> int:
     agents = repo / "AGENTS.md"
     if agents.is_file():
         warnings += rule_pointers(agents.read_text(encoding="utf-8"), pages)
+    patch_findings, patch_warnings = review_patches(wiki.parent / "_review.md", repo)
+    findings += patch_findings
+    warnings += patch_warnings
     for f in findings:
         print(f)
     for w in warnings:

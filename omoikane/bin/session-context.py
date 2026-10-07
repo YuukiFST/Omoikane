@@ -17,6 +17,11 @@ from wikilib import OMOIKANE, review_bullets
 NO_CAPTURE_ENV = "OMOIKANE_NO_CAPTURE"
 # Undistilled captures listed by path; older ones are only counted. A stalled scheduler must not flood the brief.
 PENDING_SESSIONS_SHOWN = 5
+# Failed captures, one line each, written by session-capture.py (#103); the brief shows the count and the last one.
+CAPTURE_ERRORS = ".capture-errors"
+# The last error is cut here: its time, harness, session and type plus the start of the message name the failure,
+# and a full 400-character message would take half the brief's remaining room (context-budget.py).
+CAPTURE_ERROR_CHARS = 240
 HEADER = (
     "Omoikane wiki brief follows: pending work, then the index. Open a page before touching the area it covers; "
     "domain pages hold the rules the human stated, decisions and gotchas "
@@ -104,6 +109,14 @@ def pending_notes(omoikane: Path) -> str:
     "## Pending\\n\\nCaptured sessions not yet distilled, ...\\n- `omoikane/raw/inbox/sessions/2026-09-15-e04462b2.md`".
     """
     lines: list[str] = []
+    errors = omoikane / CAPTURE_ERRORS
+    failed = errors.read_text(encoding="utf-8", errors="replace").splitlines() if errors.is_file() else []
+    failed = [line.strip() for line in failed if line.strip()]
+    if failed:
+        last = failed[-1] if len(failed[-1]) <= CAPTURE_ERROR_CHARS else failed[-1][:CAPTURE_ERROR_CHARS] + " [...]"
+        lines.append(f"Session capture failed {len(failed)} time{'s' if len(failed) > 1 else ''}, so sessions are "
+                     f"missing; last: {last}. Fix omoikane/bin/session-capture.py, then delete "
+                     f"omoikane/{CAPTURE_ERRORS}.")
     # Not name order: names carry the start day and a random id tail. The Stop hook rewrites a capture on
     # every turn, so modification time is the last activity.
     sessions = sorted((omoikane / "raw" / "inbox" / "sessions").glob("*.md"), key=lambda p: p.stat().st_mtime)
