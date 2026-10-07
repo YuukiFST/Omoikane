@@ -17,6 +17,7 @@ Columns:
 
 | Skill | Upstream | Commit | Licence | Changes |
 |---|---|---|---|---|
+| omoikane-mode | https://github.com/cursor/plugins/tree/main/pstack/skills/poteto-mode (+ principle-* skills; 9 principles from YuukiFST/agent-dotfiles) | df58112 | MIT | Renamed; triggers route to Omoikane's skills and memory commands; 24 principles moved to `references/principles/` without `disable-model-invocation`, the user's 9 versions (agent-dotfiles cc99061) replacing pstack's; one model, no per-role model lines, Pi runs fan-out in sequence; memory section from `AGENTS.md`; reply rules keep only those that stand alone; session-pickup and pause-safely rewritten on captured sessions and inbox notes; new security-audit playbook; orchestrate, autopilot-full, autopilot-stack, worktree-cleanup and the scripts dropped; babysit and shipping use plain `gh`; Bugbot triage generalized to any automated reviewer; Cursor, Origin and unshipped-skill references removed |
 
 ## Design and planning
 
