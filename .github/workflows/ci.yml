@@ -26,6 +26,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      # Vendored from Cloudflare with a Windows fallback in the validators (#111); security-audit-windows runs the
+      # same suites where that fallback is taken.
+      - name: Security-audit validators
+        run: node --test .claude/skills/security-audit/validate-findings.test.cjs .claude/skills/security-audit/validate-coverage-ledger.test.cjs
       # The harness loads these files at runtime and nothing else checks them (#46). Versions pinned: OpenCode's
       # plugin as .opencode/package.json pins it locally, Pi's the one the extension was written against. Their own
       # dependencies float within the ranges they declare, so an upstream release can turn this red unchanged.
@@ -36,3 +40,15 @@ jobs:
             @opencode-ai/plugin@1.18.30 @earendil-works/pi-coding-agent@0.85.1
           npx tsc --noEmit --strict --target es2022 --module nodenext --moduleResolution nodenext --skipLibCheck \
             --types node .pi/extensions/omoikane.ts .opencode/plugins/omoikane.ts
+
+  # Node on Windows defines neither O_NOFOLLOW nor O_NONBLOCK, so only this job takes the validators' lstat/fstat
+  # fallback and runs the win32 link, junction and named-pipe tests (#111).
+  security-audit-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Security-audit validators
+        run: node --test .claude/skills/security-audit/validate-findings.test.cjs .claude/skills/security-audit/validate-coverage-ledger.test.cjs

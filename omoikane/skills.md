@@ -49,6 +49,7 @@ Columns:
 
 | Skill | Upstream | Commit | Licence | Changes |
 |---|---|---|---|---|
+| security-audit | https://github.com/cloudflare/security-audit-skill `skills/security-audit/` | `c1c8a8c` | MIT | Windows fallback in both validators when `O_NOFOLLOW`/`O_NONBLOCK` are missing: a device or UNC path (`\\.\`, `\\?\`, `\\server`) is refused before any open, `lstat` refuses links, junctions and an `ino` of 0, `fstat` refuses a changed `dev`/`ino`/birth time or a non-file; `readFileWithinLimit` is exported, the CLI tests run on `win32`, plus tests for a symbolic link, a junction, a named pipe, a relative path and a file replaced between check and open |
 
 ## Shipping and writing
 
