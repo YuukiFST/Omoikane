@@ -26,6 +26,15 @@ def run(repo: Path, script: str, *args: str) -> subprocess.CompletedProcess[str]
                           capture_output=True, text=True, encoding="utf-8")
 
 
+def copy_tracked(source: Path, target: Path) -> None:
+    """Copy the files git tracks or would track in `source` to `target`, as a clone's checkout holds them."""
+    tracked = git(source, "ls-files", "-z", "--cached", "--others", "--exclude-standard").split("\0")
+    for name in filter(None, tracked):
+        if (source / name).is_file():
+            (target / name).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source / name, target / name)
+
+
 def page(kind: str, title: str, tags: str, body: str, sources: str = "[wiki/sources/session-2026-09-01-aaaaaaaa.md]",
          extra: str = "") -> str:
     return (f"---\ntitle: {title}\ntype: {kind}\nsummary: {title}\ntags: [{tags}]\ncreated: 2026-09-01\n"
@@ -38,12 +47,7 @@ class NewSystem(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.repo = Path(self.tmp.name) / "shop"
-        tracked = git(REPO, "ls-files", "-z", "--cached", "--others", "--exclude-standard").split("\0")
-        for name in filter(None, tracked):
-            source = REPO / name
-            if source.is_file():
-                (self.repo / name).parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(source, self.repo / name)
+        copy_tracked(REPO, self.repo)
         # A capture and a page the template's own history left behind, of the kinds a clone carries.
         (self.repo / "omoikane/raw/inbox/sessions/2026-10-01-abcdef12.md").write_text("capture", encoding="utf-8")
         (self.repo / "omoikane/wiki/concepts/template-concept.md").write_text("---\ntitle: x\n---\n", encoding="utf-8")
@@ -90,6 +94,9 @@ class NewSystem(unittest.TestCase):
         self.assertEqual(run(self.repo, "context-budget.py").returncode, 0)
         # The new system's pages must never be published to the template (review-gate.py publishes to origin).
         self.assertEqual(git(self.repo, "remote").split(), ["template"])
+        # The root licence is the new system's to choose; Omoikane's MIT notice stays with the files it covers (#111).
+        self.assertFalse((self.repo / "LICENSE").exists())
+        self.assertIn("Copyright (c) 2026 YuukiFST", (omoikane / "LICENSE").read_text(encoding="utf-8"))
 
     def test_conventions_of_another_system_come_along(self) -> None:
         # The organisation's conventions and design-system rules had to be restated in every new system (#80).
@@ -195,6 +202,126 @@ class NewSystem(unittest.TestCase):
         self.assertIn("git clone", result.stdout)
         self.assertNotIn("Traceback", result.stderr)
         self.assertTrue((self.repo / "omoikane/wiki/concepts/template-concept.md").is_file())
+
+
+def append(path: Path, text: str) -> None:
+    with path.open("a", encoding="utf-8", newline="\n") as out:
+        out.write(text)
+
+
+class UpdateFromTemplate(unittest.TestCase):
+    # A plain `git merge template/main` brought the template's own capture and source page into a system's wiki and
+    # conflicted on _review.md, index.md and a domain page (#105).
+    MEMORY = ("omoikane/wiki", "omoikane/raw", "omoikane/log.md", "omoikane/_review.md")
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.template = self.root / "template"
+        copy_tracked(REPO, self.template)
+        git(self.template, "init", "-q", "-b", "main")
+        git(self.template, "add", "-A")
+        git(self.template, "commit", "-q", "-m", "template")
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def cloned_system(self) -> Path:
+        system = self.root / "cloned"
+        git(self.root, "clone", "-q", str(self.template), str(system))
+        return system
+
+    def system_from_use_this_template(self, extra: str = "") -> Path:
+        # "Use this template" starts a repository with one commit holding the template's files and no history.
+        system = self.root / "copied"
+        copy_tracked(self.template, system)
+        if extra:
+            (system / extra).write_text("x\n", encoding="utf-8")
+        git(system, "init", "-q", "-b", "main")
+        git(system, "add", "-A")
+        git(system, "commit", "-q", "-m", "Initial commit")
+        git(system, "remote", "add", "template", str(self.template))
+        return system
+
+    def start(self, system: Path) -> None:
+        """Reset the template's memory, then state some of the system's own, as its first sessions would."""
+        # `git merge` wants an identity even with --no-commit; a user has one, the CI runner does not.
+        git(system, "config", "user.name", "t")
+        git(system, "config", "user.email", "t@example.invalid")
+        self.assertEqual(run(system, "new-system.py").returncode, 0)
+        (system / "omoikane/wiki/concepts/shop-concept.md").write_text("---\ntitle: Shop\n---\n", encoding="utf-8")
+        append(system / "omoikane/log.md", "\n## [2026-10-06] ingest | shop notes\n")
+        append(system / "omoikane/_review.md", "\n## [2026-10-06] distill | session aaaaaaaa\n\n- todo shop: x\n")
+        agents = (system / "AGENTS.md").read_text(encoding="utf-8")
+        (system / "AGENTS.md").write_text(agents.replace(RULES_START, RULES_START + "\n- Prices are integer cents. "
+                                                         "(omoikane/wiki/domain/prices.md)"), encoding="utf-8")
+        run(system, "wiki-index.py")
+        git(system, "add", "-A")
+        git(system, "commit", "-q", "-m", "shop memory")
+
+    def upstream(self) -> None:
+        """The template learns more about itself and fixes a prompt and its manual."""
+        (self.template / "omoikane/wiki/concepts/upstream-concept.md").write_text("---\ntitle: Up\n---\n",
+                                                                                 encoding="utf-8")
+        append(self.template / "omoikane/raw/inbox/sessions/2026-10-07-bbbbbbbb.md", "capture\n")
+        append(self.template / "omoikane/log.md", "\n## [2026-10-07] distill | session bbbbbbbb\n")
+        append(self.template / "omoikane/_review.md", "\n- todo upstream: y\n")
+        append(self.template / "omoikane/prompts/ask.md", "\nUpstream prompt fix.\n")
+        agents = (self.template / "AGENTS.md").read_text(encoding="utf-8")
+        agents = agents.replace(RULES_START, RULES_START + "\n- A template rule. (omoikane/wiki/practices/x.md)")
+        (self.template / "AGENTS.md").write_text(agents + "\nUpstream manual line.\n", encoding="utf-8")
+        # A renderer change: an index built by the system's old wiki-index.py failed CI's freshness check (#108 review).
+        renderer = self.template / "omoikane/bin/wiki-index.py"
+        renderer.write_text(renderer.read_text(encoding="utf-8").replace("Edit page frontmatter, not this file.",
+                                                                        "Edit the pages, not this file."),
+                            encoding="utf-8", newline="\n")
+        git(self.template, "add", "-A")
+        git(self.template, "commit", "-q", "-m", "upstream")
+
+    def memory(self, system: Path) -> dict[str, bytes]:
+        return {p.relative_to(system).as_posix(): p.read_bytes() for name in self.MEMORY
+                for p in ([system / name] if (system / name).is_file() else (system / name).rglob("*"))
+                if p.is_file()}
+
+    def test_the_template_fixes_arrive_and_the_memory_stays(self) -> None:
+        systems = [self.cloned_system(), self.system_from_use_this_template()]
+        before = {}
+        for system in systems:
+            self.start(system)
+            before[system] = (self.memory(system), git(system, "rev-parse", "HEAD"),
+                              managed_rules((system / "AGENTS.md").read_text(encoding="utf-8")))
+        self.upstream()
+        for system in systems:
+            with self.subTest(system=system.name):
+                memory, head, rules = before[system]
+
+                result = run(system, "update-from-template.py")
+
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("Upstream prompt fix.", (system / "omoikane/prompts/ask.md").read_text(encoding="utf-8"))
+                self.assertEqual(self.memory(system), memory)
+                agents = (system / "AGENTS.md").read_text(encoding="utf-8")
+                self.assertIn("Upstream manual line.", agents)
+                self.assertEqual(managed_rules(agents), rules)
+                self.assertEqual(git(system, "rev-parse", "HEAD"), head)
+                self.assertEqual(git(system, "diff", "--name-only", "--diff-filter=U"), "")
+                self.assertEqual(git(system, "replace", "-l"), "")
+                self.assertIn("Edit the pages, not this file.", (system / "omoikane/index.md").read_text(encoding="utf-8"))
+                # Run again before committing: the pending merge must not pass for a new one (#108 review).
+                again = run(system, "update-from-template.py")
+                self.assertEqual(again.returncode, 2, again.stdout + again.stderr)
+                self.assertIn("merge in progress", again.stdout)
+                # The human commits the merge; from then on the histories are related, whatever the start.
+                git(system, "commit", "-q", "--no-edit")
+                self.assertTrue(git(system, "merge-base", "HEAD", "template/main").strip())
+
+    def test_an_unrelated_history_with_no_template_tree_is_refused(self) -> None:
+        system = self.system_from_use_this_template(extra="not-from-the-template.txt")
+        head = git(system, "rev-parse", "HEAD")
+        result = run(system, "update-from-template.py")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("no commit of template/main", result.stdout)
+        self.assertEqual((git(system, "rev-parse", "HEAD"), git(system, "status", "--porcelain")), (head, ""))
 
 
 if __name__ == "__main__":

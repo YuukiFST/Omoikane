@@ -158,6 +158,20 @@ def inheritance(origin: Path, day: str) -> tuple[dict[str, str], list[str], int]
     return texts, sorted(copied), len(candidates) - len(pages)
 
 
+def move_template_licence(repo: Path, omoikane: Path) -> str:
+    """Move the template's root LICENSE to omoikane/LICENSE. The root belongs to the system being built, which
+    chooses its own licence, while MIT requires Omoikane's notice to stay with the files it covers (#111). Returns a
+    line for the user, "" when there is nothing to move.
+
+    Example: move_template_licence(Path("."), Path("omoikane")) returns "LICENSE moved to omoikane/LICENSE ...".
+    """
+    root, kept = repo / "LICENSE", omoikane / "LICENSE"
+    if not root.is_file() or kept.exists():
+        return ""
+    root.replace(kept)
+    return "LICENSE moved to omoikane/LICENSE (Omoikane's MIT notice); add the new system's own licence at the root"
+
+
 def main(omoikane: Path = OMOIKANE, repo: Path = REPO, today: date | None = None, origin: Path | None = None) -> int:
     day = (today or date.today()).isoformat()
     texts: dict[str, str] = {}
@@ -195,6 +209,7 @@ def main(omoikane: Path = OMOIKANE, repo: Path = REPO, today: date | None = None
     write(omoikane / "index.md", wiki_index.render(load_pages(omoikane / "wiki")))
     agents = repo / "AGENTS.md"
     write(agents, empty_rules(agents.read_text(encoding="utf-8")))
+    licence = move_template_licence(repo, omoikane)
     # Before any line that names the other system: a print that fails must not leave origin pointing at the template.
     detached = detach_template(repo)
     print(f"new-system: removed {removed} files from omoikane/; read `git status`, then commit")
@@ -202,6 +217,8 @@ def main(omoikane: Path = OMOIKANE, repo: Path = REPO, today: date | None = None
         print(f"new-system: inherited {len(inherited)} convention and design-system pages from {system_slug(origin)}; "
               f"{left_out} other domain pages stayed there")
     print(f"new-system: {detached}")
+    if licence:
+        print(f"new-system: {licence}")
     return 0
 
 
