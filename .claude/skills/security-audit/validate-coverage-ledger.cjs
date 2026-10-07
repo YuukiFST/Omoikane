@@ -719,18 +719,22 @@ function collectUnitErrors(unit, index) {
 }
 
 function isSameFileIdentity(before, after) {
-  return before.dev === after.dev && before.ino === after.ino;
+  return before.dev === after.dev && before.ino === after.ino && before.birthtimeNs === after.birthtimeNs;
 }
 
-// Windows defines neither O_NOFOLLOW nor O_NONBLOCK. Node reports symbolic links and junctions as links to
-// lstat; the fstat identity check refuses a path swapped between lstat and open. A named pipe path
-// (\\.\pipe\...) passes lstat as a file, but its descriptor is not one, so fstat refuses it before any read.
+// Windows defines neither O_NOFOLLOW nor O_NONBLOCK. A device or UNC path (\\.\pipe\..., \\?\..., \\server\share)
+// is refused before lstat, because opening one can connect to a pipe server or start SMB authentication.
+// Node reports symbolic links and junctions as links to lstat. The fstat check refuses a path swapped between
+// lstat and open by dev, ino and birth time; ReFS IDs are not guaranteed unique, and an ino of 0 means no identity.
 function openWindowsInput(file) {
-  const checked = fs.lstatSync(file, { bigint: true });
+  const resolved = path.resolve(file);
+  if (resolved.startsWith("\\\\") || resolved.startsWith("//")) throw new SafeInputError("input must be a local file path");
+  const checked = fs.lstatSync(resolved, { bigint: true });
   if (checked.isSymbolicLink()) throw new SafeInputError("input must not be a symlink");
   if (!checked.isFile()) throw new SafeInputError("input must be a regular file");
+  if (checked.ino === 0n) throw new SafeInputError("input file identity is unavailable");
 
-  const descriptor = fs.openSync(file, fs.constants.O_RDONLY);
+  const descriptor = fs.openSync(resolved, fs.constants.O_RDONLY);
   try {
     const opened = fs.fstatSync(descriptor, { bigint: true });
     if (!opened.isFile()) throw new SafeInputError("input must be a regular file");
@@ -890,7 +894,6 @@ module.exports = {
   hasVisibleProse,
   isSafeAgentId,
   isSafeRelativePath,
-  isSameFileIdentity,
   preflightJsonText,
   readFileWithinLimit,
   safeQuote,

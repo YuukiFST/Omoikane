@@ -11,8 +11,8 @@ const {
   encodeCanonicalRef,
   isSafeAgentId,
   isSafeRelativePath,
-  isSameFileIdentity,
   preflightJsonText,
+  readFileWithinLimit,
   validateDocument,
 } = require("./validate-coverage-ledger.cjs");
 
@@ -710,16 +710,43 @@ test("rejects a Windows named pipe through the CLI without blocking", { skip: pr
     const output = cliOutput(result);
     assert.notEqual(result.error && result.error.code, "ETIMEDOUT", output);
     assert.equal(result.status, 1, output);
-    assert.match(output, /input must be a regular file/);
+    assert.match(output, /input must be a local file path/);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
 });
 
-test("refuses a descriptor whose file identity differs from the checked path", () => {
-  assert.equal(isSameFileIdentity({ dev: 1n, ino: 2n }, { dev: 1n, ino: 2n }), true);
-  assert.equal(isSameFileIdentity({ dev: 1n, ino: 2n }, { dev: 1n, ino: 3n }), false);
-  assert.equal(isSameFileIdentity({ dev: 1n, ino: 2n }, { dev: 4n, ino: 2n }), false);
+test("refuses a Windows input replaced between check and open", { skip: process.platform !== "win32" }, () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "validate-coverage-ledger-swap-"));
+  const inputPath = path.join(directory, "coverage-ledger.json");
+  const originalOpenSync = fs.openSync;
+  try {
+    fs.writeFileSync(inputPath, JSON.stringify([unit()]));
+    // Deleting and recreating the file gives it a new file ID, so the descriptor no longer matches lstat.
+    fs.openSync = (...args) => {
+      fs.openSync = originalOpenSync;
+      fs.unlinkSync(inputPath);
+      fs.writeFileSync(inputPath, "[]");
+      return originalOpenSync(...args);
+    };
+    assert.throws(() => readFileWithinLimit(inputPath), /input changed between check and open/);
+  } finally {
+    fs.openSync = originalOpenSync;
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("reads a Windows input given as a relative path", { skip: process.platform !== "win32" }, () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "validate-coverage-ledger-relative-"));
+  const originalDirectory = process.cwd();
+  try {
+    fs.writeFileSync(path.join(directory, "coverage-ledger.json"), "[]");
+    process.chdir(directory);
+    assert.equal(readFileWithinLimit("coverage-ledger.json"), "[]");
+  } finally {
+    process.chdir(originalDirectory);
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("rejects deeply nested input without recursion failure", () => {

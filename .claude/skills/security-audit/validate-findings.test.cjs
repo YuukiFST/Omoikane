@@ -10,7 +10,7 @@ const {
   LIMITS,
   collect,
   collectSchemaErrors,
-  isSameFileIdentity,
+  readFileWithinLimit,
   validateDocument,
 } = require("./validate-findings.cjs");
 
@@ -549,16 +549,43 @@ test("CLI rejects a Windows named pipe without blocking", { skip: process.platfo
     const output = cliOutput(result);
     assert.notEqual(result.error && result.error.code, "ETIMEDOUT", output);
     assert.equal(result.status, 1, output);
-    assert.match(output, /input must be a regular file/);
+    assert.match(output, /input must be a local file path/);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
 });
 
-test("refuses a descriptor whose file identity differs from the checked path", () => {
-  assert.equal(isSameFileIdentity({ dev: 1n, ino: 2n }, { dev: 1n, ino: 2n }), true);
-  assert.equal(isSameFileIdentity({ dev: 1n, ino: 2n }, { dev: 1n, ino: 3n }), false);
-  assert.equal(isSameFileIdentity({ dev: 1n, ino: 2n }, { dev: 4n, ino: 2n }), false);
+test("refuses a Windows input replaced between check and open", { skip: process.platform !== "win32" }, () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "validate-findings-swap-"));
+  const inputPath = path.join(directory, "findings.json");
+  const originalOpenSync = fs.openSync;
+  try {
+    fs.writeFileSync(inputPath, JSON.stringify(producerShapedFindings()));
+    // Deleting and recreating the file gives it a new file ID, so the descriptor no longer matches lstat.
+    fs.openSync = (...args) => {
+      fs.openSync = originalOpenSync;
+      fs.unlinkSync(inputPath);
+      fs.writeFileSync(inputPath, "[]");
+      return originalOpenSync(...args);
+    };
+    assert.throws(() => readFileWithinLimit(inputPath), /input changed between check and open/);
+  } finally {
+    fs.openSync = originalOpenSync;
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("reads a Windows input given as a relative path", { skip: process.platform !== "win32" }, () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "validate-findings-relative-"));
+  const originalDirectory = process.cwd();
+  try {
+    fs.writeFileSync(path.join(directory, "findings.json"), "[]");
+    process.chdir(directory);
+    assert.equal(readFileWithinLimit("findings.json"), "[]");
+  } finally {
+    process.chdir(originalDirectory);
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("CLI rejects input above the nesting-depth limit without an exception trace", () => {
