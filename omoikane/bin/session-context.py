@@ -26,7 +26,9 @@ HEADER = (
     "Omoikane wiki brief follows: pending work, then the index. Open a page before touching the area it covers; "
     "domain pages hold the rules the human stated, decisions and gotchas "
     "record what earlier sessions learned the hard way. Do not write under omoikane/wiki/ during coding "
-    "work: the session is captured on stop and distilled later. Rules: AGENTS.md."
+    "work: the session is captured on stop and distilled later. Rules: AGENTS.md. "
+    # Stands in for poteto-mode's Cursor `reminder:` field, which no harness here has (#111).
+    "Nontrivial software task: load the omoikane-mode skill first."
 )
 # The index sections that hold rules and lessons (wiki-index.py HEADINGS). Each gets a floor of the brief, so many
 # pages of one cannot push the others out (#75); sources, entities, concepts and queries get none, since the

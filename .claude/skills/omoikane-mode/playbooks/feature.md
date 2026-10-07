@@ -1,0 +1,23 @@
+### Feature
+
+**You own the design. Plan, review, verify.** Delegate implementation. Stay in the lead.
+
+1. `how` over the affected subsystem. Open the decision and gotcha pages whose `code:` lists it. When the intent is still vague, run the **brainstorming** skill first.
+2. The **codebase-design** skill for the interface and the seams. Design it twice and compare before you pick.
+3. Write the throughput checkpoint as four todo items. A dimension that genuinely does not apply (single file, no fan-out) keeps its item with `n/a: <reason>` rather than being dropped:
+   - **Blocking first steps.** Gates run before fan-out.
+   - **Independent workstreams.** Disjoint files, services, or layers parallelize. Shared writes serialize.
+   - **Shared mutable state.** Default to splitting the target (principle `separate-before-serializing-shared-state`). Serialize only for real invariants.
+   - **Smallest safe decomposition.** If one worker is best, name why.
+4. Delegate code-writing to a fresh subagent with a specific scope: file paths, the named data shape and its organizing structure per principle `model-the-domain` (a state machine over scattered booleans, a table or registry over branching, a typed model over repeated shape assumptions, chosen before the delegate writes logic), and success criteria. When the implementation admits multiple valid shapes (error handling, abstraction layer, test structure), brief one fresh subagent per shape and compare the diffs yourself before you pick. Mandatory: no skip-with-reason escape, and principle `laziness-protocol` does not override it (the gain is review separation, not lines saved). A subagent forbidden to spawn, or a harness without subagents, satisfies this by owning the diff directly with the same review separation. No "standing by" reply that waits on a nested agent. Comments per **Comments** in `../SKILL.md`. Surgical edits, re-ground against the source for upstream-derived files. Port shared-primitive improvements to all consumers and verify each. Commit liberally.
+5. Verify on the matching surface through the project's verification skill. "Inconclusive" or wrong-surface is not a pass. Flag it.
+6. Rebase into small, ordered commits. Stack follow-ups.
+   Use principle `sequence-verifiable-units`, building, verifying, and committing each small unit before the next.
+7. If the design is contested, `interrogate` before shipping.
+8. Run **Opening a PR**.
+
+Code-coupled work (one feature, one migration) goes to a single owner with the checkpoint inline. That owner fans out internally after the blocking phase. Parent-level fan-out is for slices that produce independent artifacts (audits, cross-subsystem investigations, competing experiments). Rewrite the checkpoint at phase boundaries. Spawn a fresh owner rather than chaining interrupts.
+
+**Reply:** what you built, what you chose and why, the throughput checkpoint, open decisions. Tables for design alternatives.
+
+Adapted from pstack `skills/poteto-mode/playbooks/feature.md` at df58112. MIT, see `../LICENSE`.

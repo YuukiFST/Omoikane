@@ -129,7 +129,8 @@ PATH_KEYS = ("file_path", "notebook_path", "filePath", "path")
 COMMAND_TAG = re.compile(r"\s*(?:<command-message>[^<]*</command-message>\s*)?<command-name>(/[\w:-]+)</command-name>")
 # A prompt that starts with /name. Claude Code and OpenCode run such a prompt as the command, whatever follows it.
 SLASH_COMMAND = re.compile(r"(/[\w:-]+)(?:\s|\Z)")
-# A command stored as its expanded template (OpenCode does this); every .opencode/command/*.md starts this way.
+# A command stored as its expanded template (OpenCode does this); every memory command's .opencode/command/*.md
+# starts this way. omoikane-mode.md does not, so a coding session started with it is still captured.
 COMMAND_TEMPLATE = re.compile(r"\s*Read `omoikane/prompts/(\w+)\.md` and follow it")
 # Pi's /skill:<name> (#111): the typed form, or the block Pi expands it into (_expandSkillCommand in
 # dist/core/agent-session.js of pi-coding-agent 1.0.4). Anchored at the start, as COMMAND_TAG is.
