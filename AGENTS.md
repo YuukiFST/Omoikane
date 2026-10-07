@@ -1,6 +1,6 @@
 # Omoikane — agent operating manual
 
-Every agent session starts from nothing: what the human explained and what the previous session learned are lost unless something writes them down. Every new system starts from this template, and `omoikane/` is its memory: it must hold what the human states while building, business rules, design system and organisation conventions included, without the human's involvement. A hook captures each coding session and `/distill` turns it into pages under `omoikane/wiki/`; sources dropped into the inbox go through `/ingest`. You write every page.
+Every agent session starts from nothing: what the human explained and what the previous session learned are lost unless something writes them down. Every new software system starts from this template, and `omoikane/` is its memory: it must hold what the human states while building, business rules, design system and organisation conventions included, unprompted. A hook captures each coding session and `/distill` turns it into pages under `omoikane/wiki/`; sources dropped into the inbox go through `/ingest`. You write every page.
 
 ## Layout
 
