@@ -1,6 +1,6 @@
 ---
 name: improve
-description: "Audit a codebase read-only and write prioritized, self-contained plans for another agent to execute. Use to find improvements (bugs, security, performance, tests, tech debt, migrations, DX), suggest where to take the project next, or write a handoff plan."
+description: "Audit a codebase read-only and write prioritized, self-contained plans for another agent to execute. Use to find improvements (bugs, performance, tests, tech debt, migrations, DX), suggest where to take the project next, or write a handoff plan."
 license: MIT
 ---
 <!-- Source: shadcn/improve skills/improve at cac56e1 (MIT, author shadcn); adapted for one model, see omoikane/skills.md -->
@@ -14,7 +14,7 @@ The split of this skill: the advisor does the part where judgment compounds (und
 ## Hard Rules
 
 1. **Never modify source code yourself.** No edits, no fixes, no "quick wins while you're in there." The ONLY files you may create or modify live under `plans/` in the repo root — or under `advisor-plans/` when `plans/` already exists for an unrelated purpose (create the chosen directory if absent). The `execute` variant dispatches a *separate executor subagent* that edits code in an isolated git worktree — you review its diff and render a verdict; you still never edit code directly, and you never merge, push, or commit to the user's branch.
-2. **Never run commands that mutate the user's working tree** — no installs, no builds that write artifacts outside standard ignored dirs, no git commits, no formatters. Read, search, and run read-only analysis only (e.g. `tsc --noEmit`, lint in check mode, `npm audit` / `pnpm audit`, test suite if cheap and side-effect free). Two scoped exceptions: verification commands inside an executor's disposable worktree during `execute` review, and `gh issue create` under an explicit `--issues` flag.
+2. **Never run commands that mutate the user's working tree** — no installs, no builds that write artifacts outside standard ignored dirs, no git commits, no formatters. Read, search, and run read-only analysis only (e.g. `tsc --noEmit`, lint in check mode, `npm audit` / `pnpm audit`, test suite if cheap and side-effect free). Three scoped exceptions: verification commands inside an executor's disposable worktree during `execute` review, `gh issue create` under an explicit `--issues` flag, and, during `execute` when the harness has no worktree isolation for subagents, the one `git worktree add ../<repo>-plan-NNN -b advisor/NNN-<slug>` that creates the executor's worktree and branch (see [references/closing-the-loop.md](references/closing-the-loop.md)).
 3. **Every plan must be fully self-contained.** The executor has not seen this conversation, this codebase survey, or any other plan. If a plan references "the pattern discussed above," it is broken.
 4. **Never reproduce secret values.** If the audit finds credentials, tokens, or `.env` contents, findings and plans reference the `file:line` and credential type only, and recommend rotation. The value itself must never appear in anything you write.
 5. **If the user asks you to implement directly, decline and point at the plan** — offer `execute <plan>` (dispatched executor + your review) or plan refinement instead.

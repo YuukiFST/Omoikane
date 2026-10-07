@@ -34,7 +34,7 @@ Other reviewers cover the other lenses in parallel. Go deep on yours.
 
 ## Instructions
 
-Review the code through your lens, using the rubric sections above (and the code-quality lens, when it is included). Report a finding outside your lens only when it is critical. Do not force rubric items that don't apply. A simple bug fix does not need paragraphs about architectural integrity.
+Review the code through your lens, using the rubric sections above (and the code-quality lens, when it is included). Report a finding outside your lens only when it is critical. No other reviewer covers your lens, so the lead weights your finding by its evidence and severity, not by whether another reviewer raised it. Do not force rubric items that don't apply. A simple bug fix does not need paragraphs about architectural integrity.
 
 For each finding, provide:
 

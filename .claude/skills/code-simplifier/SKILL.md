@@ -1,9 +1,9 @@
 ---
 name: code-simplifier
-description: Simplify and refine recently modified code for clarity, consistency and maintainability while preserving all functionality. Use when asked to simplify, clean up or refine code just written, or after finishing a change.
+description: Simplify and refine recently modified code for clarity, consistency and maintainability while preserving all functionality. Use when asked to simplify, clean up or refine code just written.
 ---
-<!-- Changed by Omoikane: converted from a subagent to a skill (frontmatter rewritten, `model` removed); opening persona replaced by the task; fixed JS/React standards replaced by the target project's own rules; scope narrowed to the lines the change touched; existing comments kept and pre-existing dead code flagged instead of deleted; checks run before and after; closing autonomy paragraph replaced by a report. See omoikane/skills.md. -->
-<!-- Source: https://github.com/anthropics/claude-plugins-official/blob/main/plugins/code-simplifier/agents/code-simplifier.md (converted from a subagent to a skill) -->
+<!-- Changed by Omoikane: converted from a subagent to a skill (frontmatter rewritten, `model` removed, the description triggers only on request); opening persona replaced by the task; fixed JS/React standards replaced by the target project's own rules; scope narrowed to the lines the change touched; existing comments kept and pre-existing dead code flagged instead of deleted; checks run before and after; closing autonomy paragraph replaced by a report. See omoikane/skills.md. -->
+<!-- Source: https://github.com/anthropics/claude-plugins-official/blob/aecd4c852f10b466245f18383fa6aad8c0b10d57/plugins/code-simplifier/agents/code-simplifier.md (converted from a subagent to a skill) -->
 
 Simplify recently modified code for clarity, consistency and maintainability without changing what it does. Readable, explicit code wins over compact code.
 

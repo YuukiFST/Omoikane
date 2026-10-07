@@ -59,8 +59,8 @@ Read `references/reviewer-prompt.md` and fill in the template for each reviewer 
 As results come back, build a unified picture:
 
 1. **Parse all findings** from the reviewers
-2. **Identify consensus**. Findings raised independently by 2+ reviewers, from different lenses, are highest signal.
-3. **Identify lone-reviewer findings**. Still worth reading, but weight accordingly.
+2. **Weight by evidence and severity**. The lenses do not overlap, so a finding raised by one reviewer inside its own lens is the normal case. Judge it by its evidence and severity, not by how many reviewers raised it.
+3. **Note cross-lens agreement**. A finding raised independently from two or more lenses is a bonus signal, not a requirement.
 4. **Deduplicate**. Different reviewers may describe the same issue differently. Merge these and note which reviewers raised it.
 5. **Note disagreements**. If one reviewer flags something and another explicitly says the opposite, that's useful context for the verdict.
 

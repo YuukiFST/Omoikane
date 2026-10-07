@@ -1,6 +1,6 @@
 ---
 name: correct
-description: "Find the mistakes agents keep repeating in this repo and make each one impossible: architecture first, then types, a lint whose error names the fix, a test, docs last. Prove each check fails on a real past mistake. Use for /correct or when the operator corrects you."
+description: "Find the mistakes agents keep repeating in this repo and make each one impossible: architecture first, then types, a lint whose error names the fix, a test, docs last. Prove each check fails on a real past mistake. Use for /correct, or when the same correction repeats."
 ---
 <!-- Source: cursor/plugins pstack/skills/correct at df58112 (MIT, Lauren Tan); adapted, see omoikane/skills.md -->
 
@@ -14,7 +14,7 @@ Assume every contributor is an agent that sees only the files it opened, copies 
 
 First, read recent commits, reverts, review comments, agent instruction files, and comments that explain workarounds. Group the mistakes into classes. A class counts once it has happened twice.
 
-In an Omoikane system, also read the open `guard` bullets in `omoikane/_review.md` and the gotcha pages with `guard: none`: `/distill` files each repeated mistake there (`omoikane/prompts/distill.md`, step 6).
+In an Omoikane system, also read the gotcha pages with `guard: none` and the `guard` bullets in `omoikane/_review.md`. `/distill` files a guard there for a mistake one session made (`omoikane/prompts/distill.md`, step 6); `/lint` files one for a gotcha still at `guard: none`. An open `- [ ]` bullet is evidence only. Apply a bullet only when the human ticked it `[x]` or names it in this run; run the tests, then delete the bullet (`AGENTS.md`, "Coding sessions").
 
 ## Fix each class at the highest level that works
 
@@ -23,16 +23,16 @@ In an Omoikane system, also read the open `guard` bullets in `omoikane/_review.m
 3. **Test the behavior.** Fix or delete any test that would still pass if every function it calls returned nothing.
 4. **Write docs or agent rules last, only for judgment calls.** Nothing fails when an agent skips them.
 
-In an Omoikane system, a check found outside a `/correct` run fits a `guard (<lint|test|hook>)` proposal in `omoikane/_review.md`, with its diff, as `distill.md` step 6 writes one; the human ticks it before it is applied. The same ladder holds there: prefer a lint or test, which every harness and CI run, over a hook, which only one harness runs.
+In an Omoikane system, a check you do not land in this run, or one you find outside a `/correct` run, becomes a guard proposal for the human to tick. Write it in `omoikane/_review.md` under `## [YYYY-MM-DD] correct`, with its diff, in the format of `distill.md` step 6, ending in `(correct YYYY-MM-DD)` where distill writes the session: `- [ ] guard (test) <slug>: <the mistake it catches> (correct YYYY-MM-DD)`. Append `## [YYYY-MM-DD] correct | <title>` to `omoikane/log.md`, with one line `- routed (guard) <slug>: <the mistake in one line>` per proposal. `omoikane/bin/review-removals.py` reads that line to record the human's decision, so no later `/distill` or `/lint` files the same guard again. The same ladder holds there: prefer a lint or test, which every harness and CI run, over a hook, which only one harness runs.
 
 ## Fix and prove
 
-Then fix the most frequent classes now, one commit each. Prove each new check fails on a real past mistake. Run the same command locally and in CI. Exceptions go on the offending line with a reason, an expiry date, and a human's approval.
+Then fix the most frequent classes now, one commit each. In an Omoikane system, skip a class whose fix is an open `guard` bullet the human has not ticked or named; it stays a proposal. Prove each new check fails on a real past mistake. Run the same command locally and in CI. Exceptions go on the offending line with a reason, an expiry date, and a human's approval.
 
 ## Keep the rule table
 
 Last, keep a table in the agent instruction file that pairs each rule with what enforces it. When the operator corrects you, fix the mistake and add the rule. If the rule was already there and nothing enforces it, that's a repeat, so fix it at the highest level in the same change. Drop a rule once its mistake can't happen.
 
-In an Omoikane system, `AGENTS.md` has no budget room for the table, and only `omoikane/bin/wiki-rules.py` writes its rules block. The gotcha pages are the table there: each one's `guard:` names what enforces it. Write the class and its new check as a note into `omoikane/raw/inbox/`, so the next ingest updates the page.
+In an Omoikane system, `AGENTS.md` has no budget room for the table, and only `omoikane/bin/wiki-rules.py` writes its rules block. The gotcha pages are the table there: each one's `guard:` names what enforces it. Do not edit the page in this run: the Stop hook captures the session, and its `/distill` sets the gotcha's `guard:` to the check you landed (`distill.md` step 4).
 
 **Reply:** each class with its evidence, the level you picked, and why a higher level didn't work.
