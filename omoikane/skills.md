@@ -32,6 +32,7 @@ Columns:
 
 | Skill | Upstream | Commit | Licence | Changes |
 |---|---|---|---|---|
+| security-audit | https://github.com/cloudflare/security-audit-skill `skills/security-audit/` | `c1c8a8c` | MIT | none |
 
 ## Shipping and writing
 
