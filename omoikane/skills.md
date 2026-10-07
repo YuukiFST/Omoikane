@@ -1,7 +1,7 @@
 # Skills taken from other projects
 
-Every skill under `.claude/skills/` that Omoikane took from another project has one row here: where it came from, at which commit, under which licence, and what Omoikane changed.
-`tests/test_skills_manifest.py` checks that each row names a skill folder, that each folder with a third-party `LICENSE` has a row, and that a row whose licence is not `Omoikane` ships that `LICENSE`.
+Every skill under `.claude/skills/` has one row here: where it came from, at which commit, under which licence, and what Omoikane changed.
+`tests/test_skills_manifest.py` checks that each row names a skill folder, that each skill folder has a row, and that a row whose licence is not `Omoikane` ships the upstream `LICENSE`.
 The memory skills (`ask`, `distill`, `ingest`, `lint`, `prune`, `synthesize`, `wrap-up`) and the skills a system writes for itself (`verify-<app>`) have no row.
 Plan and the skills rejected, with the reason: `docs/specs/2026-10-07-software-toolkit.md`.
 
