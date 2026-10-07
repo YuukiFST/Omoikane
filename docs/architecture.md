@@ -1,6 +1,6 @@
 # Architecture
 
-Objective: every new system starts from this template, and its agents feed the wiki on their own with what the user states while building, domain knowledge included (business rules, design system, organisation conventions). A change to this repository is worth making only when it moves the tool towards that; the plan that set it down is [specs/2026-10-02-realign-to-objective.md](specs/2026-10-02-realign-to-objective.md).
+Objective: every new software system starts from this template, and its agents feed the wiki on their own with what the user states while building, domain knowledge included (business rules, design system, organisation conventions). A change to this repository is worth making only when it moves the tool towards that; the plan that set it down is [specs/2026-10-02-realign-to-objective.md](specs/2026-10-02-realign-to-objective.md).
 
 Three layers, as in Karpathy's LLM Wiki pattern, plus one rule that makes it run unattended: bookkeeping is code, only meaning goes through the LLM.
 
@@ -14,7 +14,7 @@ Three layers, as in Karpathy's LLM Wiki pattern, plus one rule that makes it run
 | System under construction | repository root | Whoever builds it. Omoikane only reads it. |
 
 `CLAUDE.md` contains only `@AGENTS.md`, so Claude Code and OpenCode read one manual.
-Everything Omoikane owns sits under `omoikane/` so the same clone serves as a research wiki or as the root of a software project.
+Everything Omoikane owns sits under `omoikane/`, so the clone is the root of the software system being built and its memory at once. Omoikane is for software development; generic research is not a use (#111).
 
 The template's repository is built with Omoikane too, so its `omoikane/` holds the memory of Omoikane's own development. `omoikane/bin/new-system.py` empties it in a fresh clone (#66): every page, capture and source, the log and review entries, the rules block of `AGENTS.md`. Why a script and not a separate empty template branch: the branch would drift from `main` on every change to the prompts and scripts. Why it refuses uncommitted changes and never commits: `git restore .` then undoes a run, including one started by mistake in the template itself.
 With `--from <checkout of another system>` the new wiki starts with that system's domain pages tagged `convention` or `design-system`, citing one `inherited-from-<system>` source page (#80). Why only those: an organisation's conventions and design system hold in each of its systems, while business rules, decisions and gotchas belong to one system and its code. Why a copy and not a link: the knowledge stays in each system's own wiki, never in a shared base (the reading reverted in #68), and no run in one system can rewrite another's rules. Design and alternatives: [specs/2026-10-02-cross-system-knowledge.md](specs/2026-10-02-cross-system-knowledge.md).

@@ -2,16 +2,17 @@
 
 Each coding agent session starts blank: the business rules, design system and conventions the user explained, and what the last session learned, are gone.
 
-Omoikane is a template every new system starts from.
+Omoikane is a template every new software system starts from.
 Its agents keep a wiki of that knowledge on their own, from what the user states while building, without asking the user to write anything down.
 
 Named after 思金神 (Omoikane), the kami who gathers the thoughts of the other gods and returns a synthesis.
-Built on Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) pattern, with [brainmaxxing](https://github.com/poteto/brainmaxxing) and [ai-memory](https://github.com/akitaonrails/ai-memory) as references. Omoikane's addition: coding sessions are a source too.
+Built on Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) pattern, with [brainmaxxing](https://github.com/poteto/brainmaxxing), [ai-memory](https://github.com/akitaonrails/ai-memory), [pstack](https://github.com/cursor/plugins/tree/main/pstack) and Cloudflare's [security-audit-skill](https://github.com/cloudflare/security-audit-skill) with its post [Build your own vulnerability harness](https://blog.cloudflare.com/build-your-own-vulnerability-harness/) as references. Omoikane's addition: coding sessions are a source too.
 
-## Two uses, one layout
+## Layout
 
-- **Research.** Drop sources into the inbox; the agent ingests them into entity, concept and source pages.
-- **Build.** Clone this repository as the root of a new system and run `python omoikane/bin/new-system.py` (Setup, below). Code lives at the root; `omoikane/` is its memory. Every coding session that edits files is captured on stop and distilled into decision and gotcha pages, and every new session starts with the wiki index in context.
+Clone this repository as the root of a new software system and run `python omoikane/bin/new-system.py` (Setup, below). Code lives at the root; `omoikane/` is its memory. Every coding session that edits files is captured on stop and distilled into decision and gotcha pages, and every new session starts with the wiki index in context. Documents the system's domain comes from (specs, business rules, design-system docs) go into the inbox and through `/ingest`.
+
+Omoikane is for software development, not generic research (#111).
 
 ## How it works
 
