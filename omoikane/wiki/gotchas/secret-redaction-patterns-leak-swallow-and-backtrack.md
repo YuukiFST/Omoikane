@@ -4,8 +4,8 @@ type: gotcha
 summary: Secret regexes in session-capture leaked quoted keys, erased turns after an unterminated PEM and took 85 s to backtrack
 tags: [redaction, session-capture, regex, secrets]
 created: 2026-10-02
-updated: 2026-10-02
-sources: [wiki/sources/session-2026-10-02-a8b45323.md]
+updated: 2026-10-07
+sources: [wiki/sources/session-2026-10-02-a8b45323.md, wiki/sources/session-2026-10-06-973284b2.md]
 code: [omoikane/bin/session-capture.py, tests/test_session_capture.py]
 guard: test
 ---
@@ -23,6 +23,10 @@ The agent rewrote the pattern block and `redact_secrets` with the failing tests 
 
 Round 3: PGP armor leaked (its `Version:` header and blank line), a name followed by a space swallowed the next assignment, and a literal `:=` was not handled; the callback moved to named groups (turn 2).
 After that round the real captures showed no change and no slowdown (turn 2).
+
+Issue #104 let a prompt line hold 20,000 characters. The subagent review of PR #109 found that the `curl -u` and `mysql -p` patterns scanned to the end of the line: on such a line of repeated commands they took over 1 s a turn (source: [[session-2026-10-06-973284b2]], turns 2, 3).
+Commit `b76c817` bounds both scans; `test_long_names_and_values_redact_in_linear_time` now also times them on 20,000-character lines (under 1 s).
+Redaction must also run before any step that joins or wraps lines: [[reshaping-capture-text-before-redaction-leaks-secrets]].
 
 Workaround, for any new secret shape: add it as a case to the tables in `Redaction`, prove it red, and keep the three guards green:
 

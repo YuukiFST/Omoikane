@@ -4,8 +4,8 @@ type: entity
 summary: omoikane/bin/review-gate.py keeps the scheduled run on a wiki/auto worktree and publishes it as a PR to main
 tags: [review-gate, module, autonomy-loop, git]
 created: 2026-10-02
-updated: 2026-10-02
-sources: [wiki/sources/session-2026-10-01-d4302021.md, wiki/sources/session-2026-10-02-a8b45323.md]
+updated: 2026-10-07
+sources: [wiki/sources/session-2026-10-01-d4302021.md, wiki/sources/session-2026-10-02-a8b45323.md, wiki/sources/session-2026-10-06-61eabe29.md]
 code: [omoikane/bin/review-gate.py, tests/test_review_gate.py, docs/architecture.md]
 ---
 
@@ -39,3 +39,5 @@ The review of #81 sent more findings back, reproduced by a red test and fixed in
 ## Auto-merge
 
 Gap 1 of the realignment plan, issue #74: `publish` would enable auto-merge on the `wiki/auto` PR with `gh pr merge --auto --merge --match-head-commit`. The permission classifier blocked the action, and the agent dropped its worktree and branch and left the choice to the user (source: [[session-2026-10-02-a8b45323]], turn 2).
+The user chose auto-merge in PR #92 ([[wiki-auto-pr-merges-itself-once-checks-pass]]), then approved closing #92 and #74 unmerged, superseded by #101: [[wiki-auto-auto-merge-dropped-with-pr-92]] (source: [[session-2026-10-06-61eabe29]], turns 6, 7).
+The `wiki/auto` PR #59 merged as `26f6e06`, and the branch `wiki/auto` and its worktree were removed (turn 7).

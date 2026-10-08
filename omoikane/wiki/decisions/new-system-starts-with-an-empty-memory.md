@@ -4,8 +4,8 @@ type: decision
 summary: new-system.py clears the template's wiki, captures and rules and renames origin to template; it does not refuse
 tags: [new-system, template, objective]
 created: 2026-10-02
-updated: 2026-10-02
-sources: [wiki/sources/session-2026-10-02-1b324082.md, wiki/sources/session-2026-10-02-a8b45323.md]
+updated: 2026-10-07
+sources: [wiki/sources/session-2026-10-02-1b324082.md, wiki/sources/session-2026-10-02-a8b45323.md, wiki/sources/session-2026-10-07-062e80af.md]
 code: [omoikane/bin/new-system.py, tests/test_new_system.py]
 ---
 
@@ -18,5 +18,9 @@ The remote rename came from the PR review, commit "fix(bin): keep a new system's
 Rejected: refusing a tree whose origin is the Omoikane repository, the issue's first acceptance criterion. A fresh clone always has that origin, so the check would refuse every legitimate run; the change was recorded on issue #66 (turn 3).
 
 The test clones the tree, runs the reset and checks the result is an empty memory; it was red for the right reason before the script existed (turn 3).
+
+Extended on 2026-10-07 (issue #111, PR #114): the template now has an MIT `LICENSE`, and `new-system.py` moves it to `omoikane/LICENSE` and tells the user to add the system's own licence (source: [[session-2026-10-07-062e80af]], turn 9; commit `fc49691`).
+Reason, from the commit: "The root belongs to the system being built, yet every system born from the template kept "MIT, Copyright (c) 2026 YuukiFST" as its root licence"; MIT requires the notice to stay with Omoikane's files.
+The PR #114 review asked for it (turn 9).
 
 Extended, not reversed: with `--from`, the reset keeps the organisation's conventions and design-system rules another system learned, [[new-system-inherits-conventions-with-from]] (issue #80, PR #85) (source: [[session-2026-10-02-a8b45323]], turn 2).
