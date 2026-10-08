@@ -23,9 +23,9 @@ PR #94 merged as `4626f21` (source: [[session-2026-10-06-61eabe29]], turns 6, 7)
 
 The glossary has no page of its own. A term is a `domain` page tagged `term` (`omoikane/prompts/distill.md`, step 4):
 
-- `summary` is the definition in one line, starting with the term.
+- `summary` is the definition in one line, starting with the term (after `Disputed:` when disputed).
 - The body lists the words the user rejected for the term, if the user rejected any.
-- Every page uses the term as defined, except in quotes, in that list and in code identifiers.
+- Every page uses the term as defined, never a rejected word, except in quotes, in that list and in code identifiers.
 
 A glossary that a source defines goes one `term` page per topic, so the brief keeps room for decisions and gotchas. A term the source pairs with a rejected word gets a page of its own (`omoikane/prompts/ingest.md`).
 

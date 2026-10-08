@@ -17,15 +17,14 @@ PR #56 merged as `f2ba8ff` (source: [[session-2026-10-01-d4302021]], turn 4).
 `wiki-ingest.ps1 -Commit` prepares the `wiki/auto` worktree and runs that worktree's own `wiki-ingest.ps1` with `-Commit -NoGate`.
 It publishes the branch as one PR only when the run exits 0, so the human's checkout never gets a commit (source: [[commits-2026-09-29-to-2026-10-06]], commit `ece1f62`).
 
-The first three review rounds on #56 each found faults; each fault now has a test (same source):
+The first three review rounds on #56 each found faults (same source). How `_review.md` conflicts resolve after them: [[review-conflicts-keep-mains-file-plus-whole-added-runs]].
 
-- Round 1 (commit `d263fcf`): a union merge of `_review.md` brought back bullets the human deleted and duplicated ticked ones. One failed agent call stopped every later `prepare`. `worktree add -B` dropped unpushed commits. The scheduler would run whatever code `wiki/auto` held. A squash merge or a rejected PR made every run open a new PR.
-- Round 2 (commit `f15e1d0`): a `_review.md` conflict resolved line by line dropped the fences and headers of a diff proposal. An index conflict ran the branch's own `wiki-index.py` before the code refusal. A PR rejected by closing came back once `main` moved.
+- Round 1 (commit `d263fcf`): one failed agent call stopped every later `prepare`. `worktree add -B` dropped unpushed commits. The scheduler would run whatever code `wiki/auto` held. A squash merge or a rejected PR made every run open a new PR. Each fault now has a test.
+- Round 2 (commit `f15e1d0`): an index conflict ran the branch's own `wiki-index.py` before the code refusal. A PR rejected by closing came back once `main` moved.
 - Round 3 (commit `91e82f4`): after a squash merge, a clean merge undid the human's later decision on a squashed bullet, because the merge base stayed before it.
 
-The fixes: the scheduled run refuses to run code the branch changed (`d263fcf`). That refusal runs before any merge and counts only what the branch changed (`f15e1d0`, `91e82f4`).
-A review run is kept or skipped whole, after up to three base lines of context: [[review-conflicts-keep-mains-file-plus-whole-added-runs]].
-`prepare` finds a squash by patch id and records it as merged (`91e82f4`).
+The fixes: the run refuses branch code first, before any merge (`f15e1d0`), and counts only what the branch changed (`91e82f4`).
+`prepare` finds a squash by patch id and records it as merged (`91e82f4`); `find_landed` later widened it: see Landing detection.
 A closed head that HEAD contains blocks the publish, unless its commits reached `main` (`f15e1d0`, `91e82f4`).
 
 ## Landing detection

@@ -13,12 +13,12 @@ code: [omoikane/bin/wiki-lint.py, omoikane/bin/wikilib.py, tests/test_wiki_lint.
 
 PR #15 added two checks (source: [[commits-2026-09-29-to-2026-10-06]], commit `40c7e37`):
 
-- A slug that two folders share is a finding: a wikilink names a slug, not a folder, so `decisions/x.md` and `gotchas/x.md` both answered the slug `x`.
-- A page whose `code:` paths have a commit dated after its `updated` date is a warning, with exit 0. Most code changes leave the page true, so the semantic `/lint` pass judges each page against the code.
+- A slug that two folders share is a finding. A wikilink names a slug, not a folder, so `decisions/x.md` and `gotchas/x.md` both answered the slug `x`.
+- A page whose `code:` paths have a commit dated after its `updated` date may describe behaviour the code no longer has. Most code changes leave the page true, so it is a warning that keeps exit 0. The semantic `/lint` pass reads the warnings and judges each page against the code.
 
 The review of #15 fixed four faults in the staleness check (commit `b63a6fb`):
 
-- A `code:` path outside the repository reached git as a pathspec, and the lint printed a traceback. Only paths inside the repository go to git now.
+- A `code:` path outside the repository reached git as a pathspec, and the lint printed a traceback. Only paths that exist inside the repository go to git now.
 - A change merged through a merge commit was dated at the side commit; `--first-parent` dates it at the merge.
 - A shallow clone dated every file at HEAD and would warn on every page, so the check skips a shallow clone.
 - `code:` entries written as `.`, `./src` or with backslashes never matched git's paths; both sides now use git's spelling.

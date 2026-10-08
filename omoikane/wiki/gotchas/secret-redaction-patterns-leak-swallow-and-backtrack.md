@@ -25,7 +25,7 @@ The round 1 commit names more shapes (source: [[commits-2026-09-29-to-2026-10-06
 
 - Leaked: `mysql -p`, Basic auth, `curl -u`, an empty URL user, PGP blocks and several token prefixes.
 - Redacted by mistake: quoted references and paths.
-- Fix: the name must end in what it holds, and the pattern matches it. Key headers take only key lines, every pattern is bounded, and references are whole-value shapes.
+- Fix: the name must end in what it holds, and the pattern matches the name as well as the value. Key headers take only key lines, every pattern is bounded, and references are whole-value shapes.
 
 Round 2 (commit `0888cb2`):
 

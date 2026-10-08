@@ -4,7 +4,7 @@ type: decision
 summary: Domain knowledge lives in the system's own Omoikane wiki; Omoikane feeds no external organisation base (#55 reverted)
 tags: [domain-knowledge, org-knowledge, objective]
 created: 2026-10-02
-updated: 2026-10-02
+updated: 2026-10-08
 sources: [wiki/sources/2026-10-02-omoikane-objective.md, wiki/sources/session-2026-10-01-b5b6fb27.md, wiki/sources/session-2026-10-01-d4302021.md, wiki/sources/session-2026-10-02-1b324082.md, wiki/sources/session-2026-10-02-a8b45323.md]
 code: [AGENTS.md, docs/specs/2026-10-02-realign-to-objective.md]
 ---
