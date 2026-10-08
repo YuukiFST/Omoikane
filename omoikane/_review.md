@@ -13,24 +13,9 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
 
 - todo review-gate-known-limits: four review gate limits left on PR #56: a slid hunk in a replay ends the rebase window early (medium, not verified), `settled` can stop advancing, two squashes between runs record only the first, the next PR body relists squashed commits; see [[review-gate]] (session d4302021, turn 4)
 
-## [2026-10-02] distill | session 1b324082
-
-- todo second-domain-distill-eval: rerun the headless distill eval over `tests/fixtures/distill-domain-session-2.md` (rule a guard would catch, rule given in an answer, code breaking the rule, replaced rule); the run was killed for low memory and never gave a result (session 1b324082, turn 5)
-
-## [2026-10-02] distill | session a8b45323
-
-- todo auto-merge-wiki-pr-74: gap 1, auto-merge of the `wiki/auto` PR from `review-gate.py publish` (issue #74), was blocked by the permission classifier and left for you to decide; see [[review-gate]] (session a8b45323, turn 2)
-- todo close-second-domain-distill-eval: the eval the todo `second-domain-distill-eval` above asks for ran and passed all five criteria, posted on PR #72; delete both bullets (session a8b45323, turn 2)
-- todo cut-realignment-prompt: the user's turn-2 prompt is cut by the capture after the list of open PRs (`[... 6697 chars cut]`); any rule stated in the cut part has no page (session a8b45323, turn 2)
-
 ## [2026-10-02] synthesize
 
 - [ ] rule stop-and-ask-at-every-decidir-in-a-handoff-prompt: Mark each user choice DECIDIR in a handoff prompt; at a DECIDIR you receive, stop and ask (synthesize)
-
-## [2026-10-02] distill | session 04edad59
-
-- todo cut-continuation-prompt: the user's turn-2 continuation prompt is cut by the capture inside the PR #84 item (`[... 5710 chars cut]`), including the reason the bootstrap template base was chosen; any rule stated in the cut part has no page (session 04edad59, turn 2)
-- todo close-cut-realignment-prompt: issues #79 and #87 are closed and PRs #84 and #88 merged; check whether the todo `cut-realignment-prompt` above still matters, else delete it (session 04edad59, turn 4)
 
 ## [2026-10-05] distill | session 680ff986
 
@@ -38,17 +23,8 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
 
 ## [2026-10-06] distill | session a9384e33
 
-- todo merge-prs-92-to-95: PRs #92 (auto-merge, #74), #93 (#89), #94 (#90) and #95 (#91) are reviewed and wait for the user's merge; #92 predates `/wrap-up` (#101), so decide whether it still applies (session a9384e33, turn 9)
-- todo capture-keeps-machine-local-path: the raw capture `omoikane/raw/sources/sessions/2026-10-02-a9384e33.md` keeps the local reference clones path the user said stays out of the public repo; add it to `omoikane/.capture-redact` and decide whether to redact this file before committing (session a9384e33, turn 2)
-- todo wiki-auto-pages-missing-on-main: PR #59 (`wiki/auto`) holds `omoikane-objective`, `objective-criterion-stays-out-of-agents-md` and `review-gate`, which this session restates and changes, but `main` lacks them; merge or close #59, then add this session to those pages or recreate them on `main` (session a9384e33, turn 2)
-- todo review-59-corrections-cut: the session proposed corrections to `wiki/auto` pages from its review of #59; the list is cut in the capture (session a9384e33, turn 9)
 - todo domain-glossary-stale-after-90: the `wiki/auto` concept `domain-glossary` says "not built yet" and goes stale when PR #94 (#90) merges (session a9384e33, turn 7)
 - todo persist-local-clones-memory-line: the line about local reference clones sits in `~/.claude/CLAUDE.md`, which `agent-dotfiles` `sync-config` overwrites; move it into `agent-dotfiles` (session a9384e33, turn 2)
-
-## [2026-10-06] distill | session 1de79b19
-
-- todo merge-prs-99-and-100: PRs #99 (#98, distill guards name the fix) and #100 (#97, `/ask` reads `origin/main` history) have green CI and a posted subagent review and wait for the user's merge (session 1de79b19, turn 3)
-- todo confirm-pr-99-review-is-final: the "no findings" review on #99 was posted while the task notification said the reviewer "has not reported yet"; check its final report and update the comment if it found something (session 1de79b19, turn 3)
 
 ## [2026-10-06] wrap-up | commits
 
@@ -70,10 +46,6 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
 
 ## [2026-10-07] distill | session 61eabe29
 
-- todo close-merge-prs-92-to-95: #94 (`4626f21`) and #95 (`96f1ded`) merged and #92 closed unmerged; the capture does not show #93, which `gh` reports MERGED on 2026-10-07; delete the bullet `merge-prs-92-to-95` (session 61eabe29, turn 7)
-- todo close-auto-merge-wiki-pr-74: issue #74 and PR #92 closed as superseded by #101 with the user's approval, see [[wiki-auto-auto-merge-dropped-with-pr-92]]; delete the bullet `auto-merge-wiki-pr-74` (session 61eabe29, turn 6)
-- todo close-wiki-auto-pages-missing-on-main: PR #59 merged as `26f6e06`, so its pages are on `main`; delete the bullet `wiki-auto-pages-missing-on-main`, and do now what `commits-pages-waiting-on-wiki-auto` and `domain-glossary-stale-after-90` wait for (session 61eabe29, turn 7)
-- todo close-merge-prs-99-and-100: #99 merged as `01f039b` in this session and #100 merged as `0118646` per [[ask-searches-origin-main-history-before-asking-for-a-source]]; delete the bullet `merge-prs-99-and-100` (session 61eabe29, turn 6)
 - todo local-clones-path-lost: the line about the local reference clones is no longer in `~/.claude/CLAUDE.md`, so the path is lost; write it into your own memory per [[machine-local-paths-stay-out-of-the-public-repo]], then delete `persist-local-clones-memory-line` (session 61eabe29, turn 8)
 - todo ste-posts-missing-from-references-list: the agent named the STE posts ([[2026-10-02-ste-and-oversight-posts]]) as a reference missing from [[omoikane-references]]; the user answered only for pstack, so decide whether they belong on the list (session 61eabe29, turn 8)
 
@@ -81,10 +53,6 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
 
 - contradiction pr-92-merge-expected-after-close: the pstack round-2 note expects "the `wiki/auto` PR merges itself (PR #92)", but #92 closed unmerged at 12:41 UTC that day; see [[wiki-auto-auto-merge-dropped-with-pr-92]] (source: [[2026-10-06-pstack-skills-review-round-2]], proposal 4)
 - todo quote-audit-proposal-not-opened: proposals 1 to 3 became #105, #103 and #106 and merged; proposal 4, a `wiki-lint.py` check that a quote cited to a session turn is in its capture, has no issue; decide whether to open one (source: [[2026-10-06-pstack-skills-review-round-2]], proposal 4)
-
-## [2026-10-07] distill | session fd3ff955
-
-- todo cut-pstack-review-prompt: the user's turn-2 prompt is cut by the capture inside the "agrega" criterion, after its first condition (`[... 1894 chars cut]`); any rule stated in the cut part has no page; the capture predates `1a946fe` (session fd3ff955, turn 2)
 
 ## [2026-10-07] distill | session 973284b2
 
@@ -107,7 +75,6 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
          session = [user("Fix"), assistant({"type": "text", "text": "Acme\n  Corp ships"},
                                            {"type": "tool_use", "name": "Bash",
 ````
-- todo cut-four-issues-handoff-prompt: the turn-2 prompt (issues #103 to #106) is cut inside item (A) (`[... 5028 chars cut]`); any rule stated in the cut part has no page; the capture predates `1a946fe` (session 973284b2, turn 2)
 
 ## [2026-10-07] distill | session 062e80af
 
@@ -122,7 +89,6 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
   No diff: the check is a new PreToolUse Bash hook beside `.claude/hooks/escape-edit-guard.py`, listed in `.claude/settings.json`. On `gh pr merge <n>` with `--delete-branch`, it reads the PR's head branch, runs `gh pr list --base <head> --state open`, and blocks when the list is not empty with "move these PRs to main first: gh pr edit <m> --base main". It calls the network on each such merge; decide whether that cost is worth it.
 - todo close-issue-111-after-wrap-up: after this `/wrap-up` applies the toolkit note to [[omoikane-objective]] and [[omoikane-references]], close issue #111 by hand when its acceptance criteria hold; no PR closes it, all use `Refs #111` (session 9e3fae7e, turn 2)
 - todo omoikane-mode-live-check: check live that `/skill:omoikane-mode` loads in Pi at the trusted repo root and that `/omoikane-mode` works in OpenCode, and write the result as a note in `omoikane/raw/inbox/`; do it with `pi-live-verification` and `pi-skill-capture-live-check` (session 9e3fae7e, turn 2)
-- todo remove-stale-worktrees-103-to-106: the worktrees `omoikane-103` to `omoikane-106` remain; the branches of the first three merged (#107, #108, #109), `-106` was not checked; the backup `../omoikane-backup-2026-10-07/` can go too (session 9e3fae7e, turns 2, 4)
 
 ## [2026-10-07] synthesize
 
@@ -157,8 +123,6 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
          folder = skill_md.parent
          if folder.name not in rows and folder.name not in memory and not SYSTEM_OWN.fullmatch(folder.name):
 ````
-- todo close-remove-stale-worktrees-103-to-106: the worktrees `omoikane-103` to `-106`, their branches and `../omoikane-backup-2026-10-07/` are gone; the older todo can go (session 0ac17a0f, turn 3)
-- todo close-capture-keeps-machine-local-path: the term is in `omoikane/.capture-redact` and `redact` was tested on both path forms; the user approved keeping the committed capture as it is, so the older todo can go (session 0ac17a0f, turn 10)
 - todo security-audit-pr-69-closed-unmerged: cloudflare/security-audit-skill#69 closed without a merge, so `security-audit-upstream-pr-69` never fires; read why it closed and choose between the local copy and a new upstream PR (session 0ac17a0f, turn 5)
 
 ## [2026-10-08] ingest | 2026-10-07 omoikane-mode live check

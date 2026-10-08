@@ -430,3 +430,27 @@ Filed: nothing.
 - ingest omoikane/raw/inbox/2026-10-07-omoikane-mode-live-check.md
 - ingest omoikane/raw/inbox/2026-10-08-agent-written-tests-are-e2e-only.md
 - commits: 25 read, 0 used. No page created or updated. 22 fall inside capture 062e80af and were judged by the 2026-10-07 wrap-up (15cbeb5 is on [[commits-2026-10-06-to-2026-10-07]]); f6e36e8, 821238e and e4ce3f7 fall inside 0ac17a0f, and [[template-skills-write-e2e-tests-only]] already holds their reasons
+
+## [2026-10-08] review | removed from _review.md
+
+- removed (todo) second-domain-distill-eval
+- removed (todo) auto-merge-wiki-pr-74
+- removed (todo) close-second-domain-distill-eval
+- removed (todo) cut-realignment-prompt
+- removed (todo) cut-continuation-prompt
+- removed (todo) close-cut-realignment-prompt
+- removed (todo) merge-prs-92-to-95
+- removed (todo) capture-keeps-machine-local-path
+- removed (todo) wiki-auto-pages-missing-on-main
+- removed (todo) review-59-corrections-cut
+- removed (todo) merge-prs-99-and-100
+- removed (todo) confirm-pr-99-review-is-final
+- removed (todo) close-merge-prs-92-to-95
+- removed (todo) close-auto-merge-wiki-pr-74
+- removed (todo) close-wiki-auto-pages-missing-on-main
+- removed (todo) close-merge-prs-99-and-100
+- removed (todo) cut-pstack-review-prompt
+- removed (todo) cut-four-issues-handoff-prompt
+- removed (todo) remove-stale-worktrees-103-to-106
+- removed (todo) close-remove-stale-worktrees-103-to-106
+- removed (todo) close-capture-keeps-machine-local-path
