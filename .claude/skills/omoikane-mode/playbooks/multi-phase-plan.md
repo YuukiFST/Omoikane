@@ -10,7 +10,7 @@
 6. Check the plan against the skeleton: every heading present in order, every box names its evidence, and no placeholder left. `grep -nE '<[A-Za-z][^>]*>' <plan.md>` lists the leftover placeholders. Fix every hit (principle `encode-lessons-in-structure`). Skip a hit inside a code span that is real code, such as a generic (`Result<T>`) or an HTML tag. The skeleton's fixed per-lane variables carry no angle brackets (`SCRATCH/PR_ID/lane-N/SLUG.png`, `HEAD_BRANCH`, `BASE_BRANCH`), so they never match.
 7. Hand back. Post the plan path and the check's output, then stop. Execution starts on the user's explicit go, under the execution path the plan names.
 
-**Verification.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked (principle `prove-it-works`). That sentence is the verification rule. Every verification block opens with it. The live block is mandatory. Ten lanes at the PR head drive the real surface through the project's verification skill, each lane a fresh subagent; without a subagent tool the lanes run one after another. Each lane is one box with a concrete scenario, the screenshot or output it saves, and its pass predicate. One lane is the **Regression lane against trunk.** It runs the same load-bearing scenario on trunk and head. If trunk does not have the feature, the lane records that fact and gates the behavior the diff adds plus the end state the user waits for instead of inventing a trunk result. The perf gate is dual-sided. Trunk and head must both produce the named metric. If trunk lacks the feature, also isolate the work the diff adds and set an absolute budget for that work plus the end-to-end state the user waits for. Do not claim a ratio between unlike scenarios. The perf block names the metric, the interleaved probe, the trunk baseline measured first, and the rule with the number that fails. A PR that changes an interaction is review-gated. The user reviews it in chat with screenshots and a video before merge. A PR that changes no interaction writes `**Review gate.** None. <PR id> is not review-gated.` and no boxes under it.
+**Verification.** Tests alone are not sufficient verification. A PR is verified only when its tests, live, and perf boxes are all checked (principle `prove-it-works`). That sentence is the verification rule. Every verification block opens with it. The live block is mandatory. Ten lanes at the PR head drive the real surface through the project's verification skill, each lane a fresh subagent; without a subagent tool the lanes run one after another. Each lane is one box with a concrete scenario, the screenshot or output it saves, and its pass predicate. One lane is the **Regression lane against trunk.** It runs the same load-bearing scenario on trunk and head. If trunk does not have the feature, the lane records that fact and gates the behavior the diff adds plus the end state the user waits for instead of inventing a trunk result. The perf gate is dual-sided. Trunk and head must both produce the named metric. If trunk lacks the feature, also isolate the work the diff adds and set an absolute budget for that work plus the end-to-end state the user waits for. Do not claim a ratio between unlike scenarios. The perf block names the metric, the interleaved probe, the trunk baseline measured first, and the rule with the number that fails. A PR that changes an interaction is review-gated. The user reviews it in chat with screenshots and a video before merge. A PR that changes no interaction writes `**Review gate.** None. <PR id> is not review-gated.` and no boxes under it.
 
 **Verification skill.** Pick it by surface: the project's `verify-<app>` skill under `.claude/skills/`. A surface with none gets one from the **create-verification-skill** skill before the live lanes run. A PR that touches two surfaces gets lanes on both. A surface with no verification skill is a risk in Appendix C, and its live block still names how each lane drives it.
 
@@ -25,7 +25,7 @@ One box is one unit of work. Every box names the evidence that checks it. A nest
 
 The program runs <`.claude/skills/omoikane-mode/playbooks/autonomous-run.md` or `.claude/skills/executing-plans/SKILL.md`>. Every PR stops at merge-ready. A PR merges only when the user authorized that merge. <The PR ids the user already authorized, or None.>
 
-Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+Tests alone are not sufficient verification. A PR is verified only when its tests, live, and perf boxes are all checked.
 
 ## Program checklist
 
@@ -45,7 +45,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 
 - [ ] Spawn one owner per PR, a fresh subagent. Without a subagent tool, run the owners one after another. Each owner runs this lifecycle and stops at its last box.
   - [ ] Build the PR's **Build** boxes.
-  - [ ] Verify through its unit, live and perf blocks.
+  - [ ] Verify through its tests, live and perf blocks.
   - [ ] Open the PR per **Opening a PR**.
   - [ ] Have a fresh subagent review the diff and post the findings as a PR review on GitHub.
   - [ ] Fix the real findings and push. A new head gets a fresh review and fresh verdict lanes.
@@ -98,11 +98,11 @@ Each live lane runs in its own worktree or sandbox at the PR head. Drive through
 
 - [ ] <One observable result, with the exact log line or screen state.>
 
-**Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+**Verify, tests.** Tests alone are not sufficient verification. A PR is verified only when its tests, live, and perf boxes are all checked.
 
-- [ ] <Test file and the case it gains.> Run `<command>`.
+- [ ] <E2E test file and the case it gains, or the existing suite when no caller-visible behavior changes.> Run `<command>`.
 
-**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes at the PR head, per the boot recipe.
+**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its tests, live, and perf boxes are all checked. Ten lanes at the PR head, per the boot recipe.
 
 - [ ] Lane 1. Regression lane against trunk. Run <the same load-bearing scenario> at trunk and head. If trunk lacks the feature, record that and gate <the behavior the diff adds plus the end state the user waits for>. Save `<slug>.png`. Pass when <predicate>.
 - [ ] Lane 2. <Scenario.> Save `<slug>.png`. Pass when <predicate>.
@@ -115,7 +115,7 @@ Each live lane runs in its own worktree or sandbox at the PR head. Drive through
 - [ ] Lane 9. <Scenario.> Save `<slug>.png`. Pass when <predicate>.
 - [ ] Lane 10. <Scenario.> Save `<slug>.png`. Pass when <predicate>.
 
-**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its tests, live, and perf boxes are all checked.
 
 - [ ] Metric. <What is measured at both trunk and head. If trunk lacks the feature, also name the diff-added work and the end-to-end state the user waits for.>
 - [ ] Probe. <The command or procedure, run at trunk and at the head, interleaved. Both sides must produce the metric.>
