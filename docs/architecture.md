@@ -1,11 +1,13 @@
 # Architecture
 
 Objective: every new software system starts from this template with two parts.
-The memory: its agents feed the wiki on their own with what the user states while building, domain knowledge included (business rules, design system, organisation conventions).
-The development skills: the folders under `.claude/skills/`, where `omoikane-mode` routes each task (feature, bug, review, security audit) to a playbook, the skills it needs and the principles that apply; `omoikane/skills.md` lists where each vendored skill comes from.
+The memory: its agents feed the wiki on their own with what the user states while building, business rules, design system and conventions included.
+The development skills: they sit under `.claude/skills/` beside the seven memory skills.
+`omoikane-mode` routes each task (feature, bug, refactor, security audit) to a playbook, the skills it needs and the principles that apply.
+`omoikane/skills.md` lists where each vendored skill comes from.
 A change to this repository is worth making only when it moves the tool towards that; the plans that set it down are [specs/2026-10-02-realign-to-objective.md](specs/2026-10-02-realign-to-objective.md) and [specs/2026-10-07-software-toolkit.md](specs/2026-10-07-software-toolkit.md).
 
-Three layers, as in Karpathy's LLM Wiki pattern, plus one rule that makes it run unattended: bookkeeping is code, only meaning goes through the LLM.
+Three layers, as in Karpathy's LLM Wiki pattern, beside the code and the development skills, plus one rule that makes it run unattended: bookkeeping is code, only meaning goes through the LLM.
 
 ## Layers
 
@@ -14,7 +16,7 @@ Three layers, as in Karpathy's LLM Wiki pattern, plus one rule that makes it run
 | Raw sources | `omoikane/raw/` | Human, plus the session hook. Immutable once in `raw/sources/`. |
 | Wiki | `omoikane/wiki/` | Agent. Every page, every cross-reference. |
 | Schema | `AGENTS.md`, `omoikane/prompts/` | Human and agent together. |
-| Skills | `.claude/skills/`, `omoikane/skills.md` | The template; `update-from-template.py` brings its updates. A system adds its own `verify-<app>`. |
+| Development skills | `.claude/skills/` beside the memory skills, `omoikane/skills.md` | The template; `update-from-template.py` brings its updates. A system adds its own `verify-<app>`. |
 | System under construction | repository root | Whoever builds it. Omoikane only reads it. |
 
 `CLAUDE.md` contains only `@AGENTS.md`, so Claude Code and OpenCode read one manual.
