@@ -11,8 +11,8 @@ Order work as a sequence of small units, each ending in a state you can check, a
 
 **Execution.** In a sweep, migration, or any run of similar edits, verify each change before starting the next. Each unit is a before/after bracket: known-good state, one change, run the check, then proceed. Rebase onto clean trunk first so every check measures against the real baseline. When a script does the edits, the per-unit check is nearly free. Run it anyway.
 
-**Delivery.** Stack commits and PRs in the order that proves the work. The canonical shape is the failing test first, then the fix on top. Other story orders are a subtraction before the reshape, a baseline capture before the treatment, the scaffold before the feature. Each commit lands on its own and the sequence reads as an argument.
+**Delivery.** Stack commits and PRs in the order that proves the work. The canonical shape is the reproduction first, then the fix on top. Other story orders are a subtraction before the reshape, a baseline capture before the treatment, the scaffold before the feature. Each commit lands on its own and the sequence reads as an argument.
 
 Each check has to be real: [Prove It Works](prove-it-works.md).
 
-Source: pstack `skills/principle-sequence-verifiable-units/SKILL.md` at df58112 (https://github.com/cursor/plugins/tree/main/pstack/skills/principle-sequence-verifiable-units), as adapted in YuukiFST/agent-dotfiles at cc99061. MIT, see `../../LICENSE`.
+Source: pstack `skills/principle-sequence-verifiable-units/SKILL.md` at df58112 (https://github.com/cursor/plugins/tree/main/pstack/skills/principle-sequence-verifiable-units), as adapted in YuukiFST/agent-dotfiles at cc99061, with the delivery line from f0202c8. MIT, see `../../LICENSE`.
