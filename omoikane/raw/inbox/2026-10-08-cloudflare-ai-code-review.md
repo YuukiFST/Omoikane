@@ -9,7 +9,7 @@
 
 WebFetch returned a summary, not the full text.
 `curl -sL` fetched the full HTML once. Every quote below comes from that text.
-The page has four images, which were not read. They may include an example review and charts.
+The page's images were not read. They may include an example review and charts.
 The findings-by-reviewer table came through only in part.
 The `risk.ts` snippet lost its first condition during text conversion. The tier table next to it is intact.
 
@@ -25,16 +25,18 @@ Re-reviews track earlier findings. A separate reviewer checks whether AGENTS.md 
 1. **A "do not flag" list for each lens.**
    Quote: "telling an LLM what not to do is where the actual prompt engineering value resides."
    The security prompt excludes "Theoretical risks that require unlikely preconditions" and issues "in unchanged code".
-   Omoikane filters only after review, in `.claude/skills/interrogate/references/lead-judgment.md`.
-   The reviewer prompt only says to avoid restating code and praising it.
+   Omoikane already holds scattered do-not-flag rules: `reviewer-prompt.md` line 37, `rubric.md` lines 17, 43 and 72.
+   `lead-judgment.md` line 37 drops changes to code the author did not write, but only at the lead step.
+   The gap: no explicit do-not-flag list per lens, and the Security section of `rubric.md` (lines 70-77) has none.
    Affects: `.claude/skills/interrogate/references/reviewer-prompt.md`, `.claude/skills/interrogate/references/rubric.md`.
 
 2. **A reviewer that checks whether the change makes the agent instructions stale.**
    Quote: "these files rot incredibly fast."
    It rates each change as high, medium or low materiality for an AGENTS.md update.
    Omoikane checks only size (`omoikane/bin/context-budget.py`) and dead `code:` paths (`omoikane/bin/wiki-lint.py`).
-   No review lens asks whether a diff contradicts `AGENTS.md`, a skill, or a decision, gotcha or domain page.
-   Affects: the lens table in `.claude/skills/interrogate/SKILL.md`, Step 3. It is close to the memory half of `omoikane/wiki/domain/omoikane-objective.md`.
+   `blast-radius` Step 1 already opens the decision and gotcha pages whose `code:` lists a changed file, and the review route always runs it.
+   The gap: nothing checks a diff against `AGENTS.md`, the skills or the domain pages, and no step asks "does the diff contradict it".
+   Affects: `.claude/skills/blast-radius/SKILL.md` Step 1, or the lens table in `.claude/skills/interrogate/SKILL.md`, Step 3. It is close to the memory half of `omoikane/wiki/domain/omoikane-objective.md`.
 
 3. **Re-reviews that start from the previous review.**
    Quote: "an incremental re-review that is aware of its own previous findings."
@@ -64,7 +66,8 @@ Re-reviews track earlier findings. A separate reviewer checks whether AGENTS.md 
    Quote: "never underestimate the creativity of Cloudflare engineers".
    Babysit treats comment text as untrusted (`.claude/skills/omoikane-mode/playbooks/babysit.md`, line 17).
    `interrogate` Step 2 takes the PR description into the intent, and no rule says to treat it as data.
-   Affects: `.claude/skills/interrogate/SKILL.md` Step 2, `.claude/skills/interrogate/references/reviewer-prompt.md`.
+   `blast-radius` Step 1 also reads the PR body (`gh pr view --json title,body`) with no treat-as-data rule.
+   Affects: `.claude/skills/interrogate/SKILL.md` Step 2, `.claude/skills/interrogate/references/reviewer-prompt.md`, `.claude/skills/blast-radius/SKILL.md` Step 1.
 
 8. **An overall verdict that follows a rubric, with a bias toward approval.**
    Quote: "The bias is explicitly toward approval".
@@ -90,7 +93,7 @@ Re-reviews track earlier findings. A separate reviewer checks whether AGENTS.md 
 
 Ranked by value for the objective.
 
-1. Add a "memory drift" lens to `interrogate`. It checks the diff against `AGENTS.md`, the skills, and the wiki pages whose `code:` lists a changed file.
+1. Check each diff for memory drift: against `AGENTS.md`, the skills and the domain pages, asking whether the diff contradicts them. Extend `blast-radius` Step 1, which already opens the decision and gotcha pages, rather than add a sixth `interrogate` lens.
 2. Add a "do not flag" section to each lens in `rubric.md`, starting from the article's security exclusions.
 3. Make a re-review read the previous posted review: leave out fixed findings, repeat unfixed ones, respect resolved ones.
 4. Scale the lens set to the diff size, and always run every lens on security-sensitive paths.
@@ -107,6 +110,8 @@ Not worth it:
 ## Reference?
 
 Yes, if the user approves. It is the most detailed source read so far on multi-agent code review.
-The rule on `omoikane/wiki/domain/omoikane-references.md` covers capture, distill, storage and loading. Review sits outside that scope.
+The rule text on `omoikane/wiki/domain/omoikane-references.md` (line 14) still names only capture, distill, storage and loading.
+The list itself already holds review-side entries the user added on 2026-10-07: the Cloudflare security-audit-skill and "Build your own vulnerability harness" (lines 21-22).
+So the rule text lags the list, and this post fits the list's current practice.
 The user added every entry on that page, so the agent should only propose this one, through `omoikane/_review.md` or an inbox note.
 The reason to add it: `interrogate` and the review triage would gain a reference to check before they change.
