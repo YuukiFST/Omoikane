@@ -185,6 +185,7 @@ Updated: [[omoikane-references]].
 
 - routed (todo) handoff-proposals-680ff986: the turn-5 handoff prompt's proposals are cut by the capture; check they were done or dropped (turn 5)
 - skipped (self-resolved) x-posts-read-through-fxtwitter: X blocked direct reading of two posts; the agent read them through `api.fxtwitter.com` after retries, cause of the first failures not shown (turn 4)
+
 ## [2026-10-06] review | removed from _review.md
 
 - removed (guard) typecheck-harness-plugins
@@ -361,8 +362,8 @@ Updated: [[review-each-pr-with-a-subagent-before-merging]] (session 04edad59, li
 - dropped (known) omoikane-objective: [[objective-criterion-stays-out-of-agents-md]] keeps the criterion out of `AGENTS.md`
 - dropped (narrow) omoikane-references: governs changes to prompts, scripts, the page contract and hooks; the user rejected it in `AGENTS.md`
 - dropped (narrow) proposals-that-add-always-loaded-text-name-what-leaves: governs only changes to always-loaded text, and `context-budget.py` fails CI when that text grows past its budget
-- dropped (narrow) retest-pr-rule: [[retest-a-pr-on-the-current-main-before-merging-it]] governs merges only, which the promoted review rule gates; filed as a guard
-- dropped (narrow) worktree-cleanup-rule: [[remove-the-worktree-of-a-merged-pr-with-git-worktree-remove]] governs the cleanup after a merge only
+- dropped (narrow) retest-a-pr-on-the-current-main-before-merging-it: governs merges only, which the promoted review rule gates; filed as a guard
+- dropped (narrow) remove-the-worktree-of-a-merged-pr-with-git-worktree-remove: governs the cleanup after a merge only
 
 ## [2026-10-07] wrap-up | 2026-10-06 to 2026-10-07
 
@@ -430,3 +431,37 @@ Filed: nothing.
 - ingest omoikane/raw/inbox/2026-10-07-omoikane-mode-live-check.md
 - ingest omoikane/raw/inbox/2026-10-08-agent-written-tests-are-e2e-only.md
 - commits: 25 read, 0 used. No page created or updated. 22 fall inside capture 062e80af and were judged by the 2026-10-07 wrap-up (15cbeb5 is on [[commits-2026-10-06-to-2026-10-07]]); f6e36e8, 821238e and e4ce3f7 fall inside 0ac17a0f, and [[template-skills-write-e2e-tests-only]] already holds their reasons
+
+## [2026-10-08] review | removed from _review.md
+
+- removed (todo) second-domain-distill-eval
+- removed (todo) auto-merge-wiki-pr-74
+- removed (todo) close-second-domain-distill-eval
+- removed (todo) cut-realignment-prompt
+- removed (todo) cut-continuation-prompt
+- removed (todo) close-cut-realignment-prompt
+- removed (todo) merge-prs-92-to-95
+- removed (todo) capture-keeps-machine-local-path
+- removed (todo) wiki-auto-pages-missing-on-main
+- removed (todo) review-59-corrections-cut
+- removed (todo) merge-prs-99-and-100
+- removed (todo) confirm-pr-99-review-is-final
+- removed (todo) close-merge-prs-92-to-95
+- removed (todo) close-auto-merge-wiki-pr-74
+- removed (todo) close-wiki-auto-pages-missing-on-main
+- removed (todo) close-merge-prs-99-and-100
+- removed (todo) cut-pstack-review-prompt
+- removed (todo) cut-four-issues-handoff-prompt
+- removed (todo) remove-stale-worktrees-103-to-106
+- removed (todo) close-remove-stale-worktrees-103-to-106
+- removed (todo) close-capture-keeps-machine-local-path
+
+## [2026-10-08] review | removed from _review.md
+
+- removed (todo) domain-glossary-stale-after-90
+- removed (todo) commits-pages-waiting-on-wiki-auto
+
+## [2026-10-08] edit | pages waiting on PR #59 and the PR #122 review
+
+Updated: [[review-gate]] (`ece1f62`, `d263fcf`, `f15e1d0`, `91e82f4`), [[wiki-lint]] (`40c7e37`, `b63a6fb`), [[secret-redaction-patterns-leak-swallow-and-backtrack]] (`ec6aa80`, `0888cb2`), [[omoikane-holds-its-systems-domain-knowledge-itself]] (link to [[domain-page-type-holds-the-rules-the-user-states]]), [[domain-glossary]] (built as the `term` tag, PR #94), [[commits-2026-09-29-to-2026-10-06]] (five commits added, PR #59 merged).
+Fixed from the review of PR #122: [[opencode-read-tool-cuts-lines-at-2000-characters]] cites the code and `b76c817`, [[reshaping-capture-text-before-redaction-leaks-secrets]] says its test covers joining only, a blank line before the 2026-10-06 review heading, and the two `dropped (narrow)` slugs of the 2026-10-07 synthesize entry now name their pages.

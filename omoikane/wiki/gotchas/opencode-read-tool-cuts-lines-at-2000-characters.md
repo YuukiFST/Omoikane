@@ -14,7 +14,7 @@ Issue #104 (PR #109) raised the capture's prompt limit to 20,000 characters, so 
 The subagent review of #109 found that this was not enough: "o OpenCode corta cada linha em 2.000 caracteres" (turn 3).
 A long one-paragraph prompt is one line, so `/distill` run in [[opencode]] would still lose its end (commit `b76c817`).
 
-Fix: `wrap_long_lines` breaks each line longer than `LINE_CHARS = 1900` at its last space before the limit (turn 3).
+Fix: `wrap_long_lines` breaks each line longer than `LINE_CHARS = 1900` at its last space before the limit (`omoikane/bin/session-capture.py`, commit `b76c817`).
 It runs after redaction: [[reshaping-capture-text-before-redaction-leaks-secrets]].
 A run with no space stays whole (`wrap_long_lines` docstring).
 

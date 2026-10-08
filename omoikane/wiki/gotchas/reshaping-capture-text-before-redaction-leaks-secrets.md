@@ -25,7 +25,7 @@ Guard: `test_a_secret_in_the_error_message_is_redacted_before_its_lines_are_join
 PR #109 wraps capture lines longer than `LINE_CHARS` (1900) for OpenCode: [[opencode-read-tool-cuts-lines-at-2000-characters]].
 The agent moved the wrap after redaction: "quebrar antes poderia separar `password:` do valor e vazar o segredo" (source: [[session-2026-10-06-973284b2]], turn 2).
 `capture()` now calls `wrap_long_lines` on the redacted text; a code comment there gives the reason.
-No test fails when the order is reversed. A proposed test is in `omoikane/_review.md`, guard `wrapped-line-splits-a-name-from-its-secret`.
+No test fails when the order is reversed, so `guard: test` covers the joining case only. A proposed test is in `omoikane/_review.md`, guard `wrapped-line-splits-a-name-from-its-secret`.
 
 ## Workaround
 
