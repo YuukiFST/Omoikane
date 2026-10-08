@@ -4,8 +4,8 @@ type: decision
 summary: Every system gets the dev skills in .claude/skills, one budget, no opt-in pack; omoikane/skills.md lists each source
 tags: [skills, template, objective, context-budget, pi]
 created: 2026-10-07
-updated: 2026-10-07
-sources: [wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/2026-10-07-omoikane-objective-widens-to-a-work-toolkit.md]
+updated: 2026-10-08
+sources: [wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/2026-10-07-omoikane-objective-widens-to-a-work-toolkit.md, wiki/sources/session-2026-10-08-0ac17a0f.md]
 code: [docs/specs/2026-10-07-software-toolkit.md, omoikane/skills.md, tests/test_skills_manifest.py, omoikane/bin/context-budget.py, .pi/settings.json]
 ---
 
@@ -40,3 +40,4 @@ Commit `fd5a2a8` lowered the limits to 2,100 and 8,500, "keeping room for a syst
 
 Shipped as PRs #113, #114, #116, #118 and #115 of issue #111, merged on 2026-10-07 (source: [[session-2026-10-07-062e80af]]).
 The router that picks a skill for each task: [[omoikane-mode-routes-each-task-to-a-playbook]].
+PR #120 (2026-10-08) replaced TDD with E2E-only tests in the vendored skills: [[template-skills-write-e2e-tests-only]] (source: [[session-2026-10-08-0ac17a0f]], turn 9).

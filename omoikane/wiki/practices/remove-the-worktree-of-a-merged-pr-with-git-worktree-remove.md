@@ -4,8 +4,8 @@ type: practice
 summary: After a PR merges, check its worktree is clean, run git worktree remove on it, and delete the local and remote branch
 tags: [procedure, git, worktrees, pull-request]
 created: 2026-10-07
-updated: 2026-10-07
-sources: [wiki/sources/session-2026-10-02-04edad59.md, wiki/sources/session-2026-10-06-180e52eb.md, wiki/sources/session-2026-10-06-61eabe29.md, wiki/sources/session-2026-10-07-9e3fae7e.md]
+updated: 2026-10-08
+sources: [wiki/sources/session-2026-10-02-04edad59.md, wiki/sources/session-2026-10-06-180e52eb.md, wiki/sources/session-2026-10-06-61eabe29.md, wiki/sources/session-2026-10-07-9e3fae7e.md, wiki/sources/session-2026-10-08-0ac17a0f.md]
 ---
 
 ## Rule
@@ -19,6 +19,8 @@ Delete the PR's local and remote branch. Do not delete a worktree folder by hand
 - Asked which `omoikane-*` folders could go, the agent said: "Para remover, use `git worktree remove ../omoikane-74`, e não a lixeira do Windows. Apagar pela lixeira deixa registros órfãos no `.git`, que depois exigem `git worktree prune`." (source: [[session-2026-10-06-180e52eb]], turn 1). After #102 merged it ran `git worktree remove ../omoikane-101 && git branch -d feat/101-wrap-up-skill` and `git push -q origin --delete feat/101-wrap-up-skill` (turn 8).
 - The handoff the user pasted: "Depois de cada merge, remova a worktree correspondente com `git worktree remove` (nunca apague a pasta pela lixeira) e apague a branch local e remota." The agent ran `git -C ../omoikane-term status --short && echo "term clean" && git worktree remove ../omoikane-term` before deleting the branches, and removed four worktrees that way (source: [[session-2026-10-06-61eabe29]], turns 2, 6, 7).
 - After the merges of the #111 stack, the agent found the worktrees `omoikane-103` to `omoikane-106` still there; the branches of the first three had merged (#107 to #109) after the session that opened them ended (source: [[session-2026-10-07-9e3fae7e]], turn 2).
+- The next day the agent checked each of them: PRs #107 to #110 `MERGED`, no commit outside `origin/main`, a clean tree, no stash. It said: "Worktree não deve ser apagada pelo Explorer. Use `git worktree remove`, que também limpa `.git/worktrees/`." (source: [[session-2026-10-08-0ac17a0f]], turn 3).
+  After the user's "sim" it ran `git worktree remove --force` on the four and `git branch -d` on their branches (turns 3, 4). After PR #120 merged it removed `omoikane-119` and the branch, local and remote (turn 10).
 
 ## Scope
 

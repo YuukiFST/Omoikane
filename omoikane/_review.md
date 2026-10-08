@@ -130,3 +130,38 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
   No diff: the check goes in the PreToolUse Bash hook that `gh-pr-merge-delete-branch-closes-prs-stacked-on-it` proposes, beside `.claude/hooks/escape-edit-guard.py`. On `gh pr merge <n>`, it runs `git fetch -q origin`, reads `gh pr view <n> --json headRefOid,baseRefName`, and blocks when the base is `main` and `git merge-base --is-ancestor origin/main <head>` fails, with "test it merged onto origin/main in a scratch worktree, or merge origin/main into the branch and let CI run again". A stacked PR just moved to `main` fails the test though GitHub reran its CI on the merge with `main`; decide whether that false positive, and a network call on each merge, are worth it. GitHub's "Require branches to be up to date before merging" does the same in every harness, but needs a required status check, which `main` lacks.
 - [ ] rule recommend-an-option-and-wait-for-the-go-ahead: When a choice is the user's, recommend one option with its reason; act on it only after the user approves (synthesize)
 - [ ] rule machine-local-paths-stay-out-of-the-public-repo: Keep paths that hold only on this machine out of committed files; the repository is public (synthesize)
+
+## [2026-10-08] distill | session 0ac17a0f
+
+- [ ] guard (test) template-skills-teach-no-tdd: the template's `brainstorming` and `writing-plans` taught TDD after the user's rule made agent-written tests E2E only, and no check failed; a skill vendored again from upstream brings it back, see [[template-skills-write-e2e-tests-only]] (session 0ac17a0f, turn 7)
+  The changed `findings` runs in `test_repository_skills_match_the_manifest`; on `7d6bd37`, before PR #120, it fails on `brainstorming/SKILL.md` and `writing-plans/SKILL.md`, and on `main` it passes. No new unit case, since tests an agent writes are E2E only.
+````diff
+--- a/tests/test_skills_manifest.py
++++ b/tests/test_skills_manifest.py
+@@ -26,6 +26,8 @@ OWN = "Omoikane"
+ ROW = re.compile(r"^\|\s*([a-z][a-z0-9-]*)\s*\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|\s*$")
+ NAME = re.compile(r"^name:\s*(.+?)\s*$", re.M)
+ DESCRIPTION = re.compile(r"^description:\s*(.*?)\s*$", re.M)
++# Tests an agent writes are E2E only (#119); a skill vendored again from upstream can bring TDD back.
++TDD = re.compile(r"\bTDD\b|test-driven", re.I)
+ 
+ 
+ def manifest_rows(text: str) -> dict[str, str]:
+@@ -57,6 +59,8 @@ def findings(skills: Path, manifest: str, memory: frozenset[str] = MEMORY) -> list[str]:
+             out.append(f"{name}: licence {licence} but no LICENSE file in the folder")
+     out += [f"{f.name}: Markdown directly in the skills folder loads as a skill in Pi; move it into a skill folder"
+             for f in sorted(skills.glob("*.md"))]
++    out += [f"{f.relative_to(skills).as_posix()}: teaches TDD; tests an agent writes are E2E only, write the E2E wording of omoikane/skills.md"
++            for f in sorted(skills.rglob("*.md")) if TDD.search(f.read_text(encoding="utf-8"))]
+     for skill_md in sorted(skills.glob("*/SKILL.md")):
+         folder = skill_md.parent
+         if folder.name not in rows and folder.name not in memory and not SYSTEM_OWN.fullmatch(folder.name):
+````
+- todo close-remove-stale-worktrees-103-to-106: the worktrees `omoikane-103` to `-106`, their branches and `../omoikane-backup-2026-10-07/` are gone; the older todo can go (session 0ac17a0f, turn 3)
+- todo close-capture-keeps-machine-local-path: the term is in `omoikane/.capture-redact` and `redact` was tested on both path forms; the user approved keeping the committed capture as it is, so the older todo can go (session 0ac17a0f, turn 10)
+- todo security-audit-pr-69-closed-unmerged: cloudflare/security-audit-skill#69 closed without a merge, so `security-audit-upstream-pr-69` never fires; read why it closed and choose between the local copy and a new upstream PR (session 0ac17a0f, turn 5)
+
+## [2026-10-08] ingest | 2026-10-07 omoikane-mode live check
+
+- contradiction ai-tells-folder-in-opencode-run: the note says OpenCode used the personal `ai-tells` skill "from `~/.claude/skills/`", but the run's capture calls the lint under `~/.agents/skills/ai-tells/scripts/`, and both folders hold `ai-tells`; see [[2026-10-07-omoikane-mode-live-check]] (source: `omoikane/raw/sources/2026-10-07-omoikane-mode-live-check.md:16`, `omoikane/raw/sources/sessions/2026-10-07-Q7Bpg6M5.md:80`)
+- todo narrow-omoikane-mode-live-check: OpenCode lists and loads `/omoikane-mode`, and Pi lists it; only loading in Pi is left, so narrow the todo `omoikane-mode-live-check` to Pi (source: [[2026-10-07-omoikane-mode-live-check]])
