@@ -4,12 +4,24 @@ type: entity
 summary: omoikane/bin/wiki-lint.py, the deterministic check on the page contract that every wiki operation ends with
 tags: [wiki-lint, module, page-contract]
 created: 2026-09-30
-updated: 2026-10-07
-sources: [wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-02-1b324082.md, wiki/sources/session-2026-10-02-a8b45323.md, wiki/sources/2026-10-06-pstack-skills-review-round-2.md, wiki/sources/session-2026-10-06-973284b2.md]
+updated: 2026-10-08
+sources: [wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-02-1b324082.md, wiki/sources/session-2026-10-02-a8b45323.md, wiki/sources/2026-10-06-pstack-skills-review-round-2.md, wiki/sources/session-2026-10-06-973284b2.md, wiki/sources/commits-2026-09-29-to-2026-10-06.md]
 code: [omoikane/bin/wiki-lint.py, omoikane/bin/wikilib.py, tests/test_wiki_lint.py]
 ---
 
 `omoikane/bin/wiki-lint.py` checks the page contract; shared parsing lives in `omoikane/bin/wikilib.py`.
+
+PR #15 added two checks (source: [[commits-2026-09-29-to-2026-10-06]], commit `40c7e37`):
+
+- A slug that two folders share is a finding: a wikilink names a slug, not a folder, so `decisions/x.md` and `gotchas/x.md` both answered the slug `x`.
+- A page whose `code:` paths have a commit dated after its `updated` date is a warning, with exit 0. Most code changes leave the page true, so the semantic `/lint` pass judges each page against the code.
+
+The review of #15 fixed four faults in the staleness check (commit `b63a6fb`):
+
+- A `code:` path outside the repository reached git as a pathspec, and the lint printed a traceback. Only paths inside the repository go to git now.
+- A change merged through a merge commit was dated at the side commit; `--first-parent` dates it at the merge.
+- A shallow clone dated every file at HEAD and would warn on every page, so the check skips a shallow clone.
+- `code:` entries written as `.`, `./src` or with backslashes never matched git's paths; both sides now use git's spelling.
 
 Phase 2 added three checks (source: [[session-2026-09-30-c14af01e]]):
 

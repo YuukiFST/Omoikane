@@ -23,7 +23,6 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
 
 ## [2026-10-06] distill | session a9384e33
 
-- todo domain-glossary-stale-after-90: the `wiki/auto` concept `domain-glossary` says "not built yet" and goes stale when PR #94 (#90) merges (session a9384e33, turn 7)
 - todo persist-local-clones-memory-line: the line about local reference clones sits in `~/.claude/CLAUDE.md`, which `agent-dotfiles` `sync-config` overwrites; move it into `agent-dotfiles` (session a9384e33, turn 2)
 
 ## [2026-10-06] wrap-up | commits
@@ -42,7 +41,6 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
  5. Append to `omoikane/log.md`: `## [YYYY-MM-DD] wrap-up | <period start> to <today>`, then one line per file processed (`- distill <file>` or `- ingest <file>`), `- commits: <n> read, <n> used` with the pages created and updated, the `- routed` and `- skipped` lines of distill step 7 for the commits with `(commit <sha>)` in place of the turn, and `- synthesize` when it ran.
  6. Run `python omoikane/bin/wiki-index.py` then `python omoikane/bin/wiki-lint.py`. Fix every finding.
 ````
-- todo commits-pages-waiting-on-wiki-auto: after PR #59 merges, apply to its pages what these commits add: `review-gate` (the branch's code never runs, `ece1f62`, `d263fcf`, `f15e1d0`, `91e82f4`; link [[review-conflicts-keep-mains-file-plus-whole-added-runs]]), `wiki-lint` (duplicate slugs and staleness warnings, `40c7e37`, `b63a6fb`), `secret-redaction-patterns-leak-swallow-and-backtrack` (rounds 1 and 2, `ec6aa80`, `0888cb2`), and link `omoikane-holds-its-systems-domain-knowledge-itself` with [[domain-page-type-holds-the-rules-the-user-states]] (commit d263fcf)
 
 ## [2026-10-07] distill | session 61eabe29
 

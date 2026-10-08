@@ -4,8 +4,8 @@ type: gotcha
 summary: Secret regexes in session-capture leaked quoted keys, erased turns after an unterminated PEM and took 85 s to backtrack
 tags: [redaction, session-capture, regex, secrets]
 created: 2026-10-02
-updated: 2026-10-07
-sources: [wiki/sources/session-2026-10-02-a8b45323.md, wiki/sources/session-2026-10-06-973284b2.md]
+updated: 2026-10-08
+sources: [wiki/sources/session-2026-10-02-a8b45323.md, wiki/sources/session-2026-10-06-973284b2.md, wiki/sources/commits-2026-09-29-to-2026-10-06.md]
 code: [omoikane/bin/session-capture.py, tests/test_session_capture.py]
 guard: test
 ---
@@ -20,6 +20,19 @@ Round 1, "problemas sérios" (turn 2):
 - Backtracking: "A hyphenated run of keywords took 85 s on 8,000 characters, inside the Stop hook" (`tests/test_session_capture.py`).
 
 The agent rewrote the pattern block and `redact_secrets` with the failing tests first, then checked the repository's real captures for false positives (turn 2).
+
+The round 1 commit names more shapes (source: [[commits-2026-09-29-to-2026-10-06]], commit `ec6aa80`):
+
+- Leaked: `mysql -p`, Basic auth, `curl -u`, an empty URL user, PGP blocks and several token prefixes.
+- Redacted by mistake: quoted references and paths.
+- Fix: the name must end in what it holds, and the pattern matches it. Key headers take only key lines, every pattern is bounded, and references are whole-value shapes.
+
+Round 2 (commit `0888cb2`):
+
+- Leaked: flags (`--password=`), PEM keys with escaped newlines, camelCase key names and typed defaults. A key block left its tail.
+- Mangled: comparisons, walrus, template expressions, `bypass`- and `sort_key`-style names, `find` and `docker` commands.
+- Slow: separators scanned in quadratic time.
+- Fix: the names that hold a secret are an explicit list. Key blocks read up to their footer or take whole base64 lines only. References must match as a whole. The separator quantifiers are possessive.
 
 Round 3: PGP armor leaked (its `Version:` header and blank line), a name followed by a space swallowed the next assignment, and a literal `:=` was not handled; the callback moved to named groups (turn 2).
 After that round the real captures showed no change and no slowdown (turn 2).
