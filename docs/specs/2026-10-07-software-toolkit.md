@@ -21,7 +21,7 @@ What follows from it:
 - `omoikane/wiki/domain/omoikane-objective.md`, `omoikane/wiki/decisions/objective-criterion-stays-out-of-agents-md.md`, the opening of `docs/architecture.md` and the opening of `README.md` change. The wiki pages change through `/wrap-up`, from the inbox note above, not by hand.
 - `AGENTS.md` has no budget room: with a full rules block it measures 2,796 of 2,800 tokens (`tests/test_wiki_rules.py`). Its opening is reworded at equal or smaller length; the toolkit description lives in `README.md` and `docs/architecture.md`.
 - `omoikane/wiki/domain/omoikane-references.md` gets three references, through the same inbox note: pstack, the Cloudflare security-audit-skill, and the Cloudflare post "Build your own vulnerability harness".
-- The verdicts in `omoikane/raw/inbox/2026-10-06-pstack-skills-review.md` that rejected a skill for "no memory link" are reopened here; the verdicts about memory gaps stand.
+- The verdicts in `omoikane/raw/sources/2026-10-06-pstack-skills-review.md` that rejected a skill for "no memory link" are reopened here; the verdicts about memory gaps stand.
 
 ## References and sources
 
