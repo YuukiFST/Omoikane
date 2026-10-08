@@ -323,6 +323,34 @@ class UpdateFromTemplate(unittest.TestCase):
         self.assertIn("no commit of template/main", result.stdout)
         self.assertEqual((git(system, "rev-parse", "HEAD"), git(system, "status", "--porcelain")), (head, ""))
 
+    def test_a_conflict_outside_the_rules_block_keeps_the_system_rules_on_every_side(self) -> None:
+        system = self.cloned_system()
+        self.start(system)
+        rules = managed_rules((system / "AGENTS.md").read_text(encoding="utf-8"))
+        first = "Every agent session starts from nothing"
+        for repo, side in ((system, "the system"), (self.template, "the template")):
+            agents = (repo / "AGENTS.md").read_text(encoding="utf-8").replace(first, f"Edited by {side}: {first}")
+            if repo == self.template:
+                agents = agents.replace(RULES_START, RULES_START + "\n- A template rule. (omoikane/wiki/practices/x.md)")
+            (repo / "AGENTS.md").write_text(agents, encoding="utf-8", newline="\n")
+            git(repo, "commit", "-q", "-am", f"{side} edits the manual")
+
+        result = run(system, "update-from-template.py")
+
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("AGENTS.md: a conflict outside the rules block", result.stdout)
+        # Bytes: on Windows text mode reads a `\r` as a line end and would hide it.
+        staged = subprocess.run(["git", "-C", str(system), "ls-files", "-z", "--stage"],
+                                capture_output=True, check=True).stdout
+        entries = [entry.split(b"\t") for entry in staged.split(b"\0") if entry.endswith(b"\tAGENTS.md")]
+        self.assertEqual([info.split()[2] for info, _ in entries], [b"1", b"2", b"3"])
+        for info, _ in entries:
+            blob = subprocess.run(["git", "-C", str(system), "cat-file", "blob", info.split()[1].decode()],
+                                  capture_output=True, check=True).stdout
+            self.assertNotIn(b"\r\n", blob)
+            # `git checkout --theirs AGENTS.md` must not bring the template's rules in.
+            self.assertEqual(managed_rules(blob.decode("utf-8")), rules)
+
 
 if __name__ == "__main__":
     unittest.main()

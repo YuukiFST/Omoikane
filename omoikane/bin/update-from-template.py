@@ -42,11 +42,14 @@ class Refused(Exception):
 
 
 def git(repo: Path, *args: str, ok: tuple[int, ...] = (0,), stdin: str | None = None) -> str:
-    run = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, encoding="utf-8",
-                         input=stdin)
+    # Bytes, not text mode: on Windows text mode writes each "\n" to stdin as "\r\n", and `update-index
+    # --index-info` then ignores the path "AGENTS.md\r" with exit code 0.
+    run = subprocess.run(["git", "-C", str(repo), *args], capture_output=True,
+                         input=None if stdin is None else stdin.encode("utf-8"))
+    stdout, stderr = run.stdout.decode("utf-8"), run.stderr.decode("utf-8")
     if run.returncode not in ok:
-        raise subprocess.CalledProcessError(run.returncode, ["git", *args], run.stdout, run.stderr)
-    return run.stdout
+        raise subprocess.CalledProcessError(run.returncode, ["git", *args], stdout, stderr)
+    return stdout
 
 
 def tracked(repo: Path, rev: str | None) -> set[str]:
