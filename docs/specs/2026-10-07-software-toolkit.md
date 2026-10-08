@@ -6,7 +6,7 @@ Status: written before the code, issue #111.
 
 Omoikane is a memory template only.
 A system built from it starts with seven memory skills (`/ingest`, `/distill`, `/ask`, `/lint`, `/prune`, `/synthesize`, `/wrap-up`) and nothing for the work itself.
-On 2026-10-07 the user set a narrower, more precise objective: Omoikane is for software development, not generic research, and it gives the agent the skills for the work plus a mode that picks the best skill for each task, as pstack's `poteto-mode` does (`omoikane/raw/inbox/2026-10-07-omoikane-becomes-a-toolkit.md`).
+On 2026-10-07 the user set a narrower, more precise objective: Omoikane is for software development, not generic research, and it gives the agent the skills for the work plus a mode that picks the best skill for each task, as pstack's `poteto-mode` does (`omoikane/raw/sources/2026-10-07-omoikane-becomes-a-toolkit.md`).
 
 ## The objective, restated
 
