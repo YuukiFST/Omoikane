@@ -23,5 +23,7 @@ It does not return to upstream.
 
 - The gotcha `node-on-windows-lacks-o-nofollow-and-o-nonblock` still says, in the last paragraph of its Workaround section: "The same fix went upstream as cloudflare/security-audit-skill#69; once it merges, the copy returns to upstream as it is".
   Replace that sentence: #69 closed unmerged and the copy stays local.
+- The entity `cloudflare-security-audit-skill`, line 22, still says "the user decides between keeping the local copy and proposing the fix upstream again".
+  Replace it: the copy stays local for good (#138).
 - `docs/specs/2026-10-07-software-toolkit.md` already says so (#138).
-- The todos `security-audit-upstream-pr-69` and `security-audit-pr-69-closed-unmerged` are removed in #138.
+- #138 removes the todos `security-audit-upstream-pr-69` and `security-audit-pr-69-closed-unmerged`.
