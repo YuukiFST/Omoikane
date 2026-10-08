@@ -4,7 +4,7 @@ type: gotcha
 summary: OpenCode's read tool cuts each line at 2,000 characters, so session-capture wraps lines at LINE_CHARS (1900)
 tags: [opencode, session-capture, distill]
 created: 2026-10-07
-updated: 2026-10-07
+updated: 2026-10-08
 sources: [wiki/sources/session-2026-10-06-973284b2.md]
 code: [omoikane/bin/session-capture.py, tests/test_session_capture.py]
 guard: test

@@ -4,7 +4,7 @@ type: gotcha
 summary: Join or wrap capture lines only after redaction; a joined private key and a wrapped `password =` leaked their secrets
 tags: [redaction, session-capture, secrets]
 created: 2026-10-07
-updated: 2026-10-07
+updated: 2026-10-08
 sources: [wiki/sources/session-2026-10-06-973284b2.md]
 code: [omoikane/bin/session-capture.py, tests/test_session_capture.py]
 guard: test

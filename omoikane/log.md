@@ -465,3 +465,9 @@ Filed: nothing.
 
 Updated: [[review-gate]] (`ece1f62`, `d263fcf`, `f15e1d0`, `91e82f4`), [[wiki-lint]] (`40c7e37`, `b63a6fb`), [[secret-redaction-patterns-leak-swallow-and-backtrack]] (`ec6aa80`, `0888cb2`), [[omoikane-holds-its-systems-domain-knowledge-itself]] (link to [[domain-page-type-holds-the-rules-the-user-states]]), [[domain-glossary]] (built as the `term` tag, PR #94), [[commits-2026-09-29-to-2026-10-06]] (five commits added, PR #59 merged).
 Fixed from the review of PR #122: [[opencode-read-tool-cuts-lines-at-2000-characters]] cites the code and `b76c817`, [[reshaping-capture-text-before-redaction-leaks-secrets]] says its test covers joining only, a blank line before the 2026-10-06 review heading, and the two `dropped (narrow)` slugs of the 2026-10-07 synthesize entry now name their pages.
+
+## [2026-10-08] review | removed from _review.md
+
+- removed (prompt) wrap-up-commit-coverage-misses-wiki-auto-captures
+- removed (guard) gh-pr-merge-delete-branch-closes-prs-stacked-on-it
+- removed (guard) retest-pr-on-current-main
