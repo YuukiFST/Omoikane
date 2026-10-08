@@ -4,7 +4,7 @@ type: practice
 summary: Mark each choice the user must make DECIDIR in a handoff prompt; at a DECIDIR you receive, stop and ask
 tags: [preference, handoff, decisions]
 created: 2026-10-02
-updated: 2026-10-02
+updated: 2026-10-07
 sources: [wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-01-b5b6fb27.md, wiki/sources/session-2026-10-01-d4302021.md, wiki/sources/session-2026-10-02-1b324082.md]
 ---
 
@@ -22,4 +22,5 @@ When you write a handoff prompt for another session, mark DECIDIR on each choice
 
 ## Scope
 
+Outside a handoff, a choice that is the user's gets a recommendation: [[recommend-an-option-and-wait-for-the-go-ahead]].
 A prompt that grants authority instead overrides the marker for what it names: the turn-7 handoff of [[session-2026-10-02-1b324082]] authorised the next session to "decidir, mudar código, mergear PRs e reativar a tarefa agendada sem me perguntar, dentro das restrições abaixo".

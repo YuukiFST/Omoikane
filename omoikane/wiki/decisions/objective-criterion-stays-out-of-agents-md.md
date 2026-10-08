@@ -4,8 +4,8 @@ type: decision
 summary: AGENTS.md states what a system's memory must hold; the "improve the tool" criterion lives in docs and the wiki
 tags: [objective, agents-md, template]
 created: 2026-10-02
-updated: 2026-10-02
-sources: [wiki/sources/session-2026-10-02-1b324082.md]
+updated: 2026-10-07
+sources: [wiki/sources/session-2026-10-02-1b324082.md, wiki/sources/session-2026-10-07-062e80af.md]
 code: [AGENTS.md, docs/architecture.md, docs/specs/2026-10-02-realign-to-objective.md]
 ---
 
@@ -16,3 +16,7 @@ Rejected: the criterion in `AGENTS.md`. Every cloned system inherits that file, 
 Reason for `AGENTS.md` at all: it is the one file every session of every harness loads (turn 6).
 The opening paid for itself: it replaced the "Two ways" block and the `## Domain` placeholder, and the file ended 15 tokens smaller (turns 3, 6).
 The review of PR #67 asked that `AGENTS.md` describe today's mechanism (`/distill`, `/ingest`) without claiming domain capture it did not yet do; fixed in aa8bdcb (turn 3).
+
+On 2026-10-07 the objective became a toolkit for software development ([[omoikane-objective]]).
+PR #113 reworded the opening of `AGENTS.md` at equal or smaller length, "Every new software system starts from this template", and put the toolkit description in `README.md` and `docs/architecture.md` (source: [[session-2026-10-07-062e80af]], turn 6; `docs/specs/2026-10-07-software-toolkit.md`).
+Reason: with a full rules block `AGENTS.md` measured 2,796 of 2,800 tokens (same spec). The criterion stays out of `AGENTS.md`.
