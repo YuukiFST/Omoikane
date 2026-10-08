@@ -133,7 +133,7 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
 
 ## [2026-10-08] distill | session 0ac17a0f
 
-- [ ] guard (test) template-skills-teach-no-tdd: the template's `brainstorming` and `writing-plans` taught TDD after the user's rule made agent-written tests E2E only, and no check failed; a skill vendored again from upstream brings it back, see [[template-skills-write-e2e-tests-only]] (session 0ac17a0f, turn 7)
+- [ ] guard (test) template-skills-teach-no-tdd: the template's `brainstorming` and `writing-plans` taught TDD after the user's rule made agent-written tests E2E only, and no check failed; a skill vendored again from upstream brings it back, see [[template-skills-write-e2e-tests-only]] (session 0ac17a0f, turns 7, 8; commit 7d6bd37)
   The changed `findings` runs in `test_repository_skills_match_the_manifest`; on `7d6bd37`, before PR #120, it fails on `brainstorming/SKILL.md` and `writing-plans/SKILL.md`, and on `main` it passes. No new unit case, since tests an agent writes are E2E only.
 ````diff
 --- a/tests/test_skills_manifest.py

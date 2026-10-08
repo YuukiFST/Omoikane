@@ -389,6 +389,7 @@ One OpenCode turn of 87 seconds: the user asked to check `README.md` for AI slop
 - skipped (task-only) readme-is-human-and-minimal-without-prose: "Verifique se o readme esta sem AI slop, com texto humanizado e com apenas o necessario, sem prosa", a check of the current README, not a stated rule (turn 1)
 - skipped (one-off) ai-tells-lint-flags-literal-end-of-the-day: the ai-tells lint flagged "At the end of the day" at `README.md:20`, judged a false positive because it names the `/wrap-up` routine (turn 1)
 - skipped (missing-env) python3-command-for-ai-tells-lint: the agent ran the lint with `python3`, then again with `python`; the capture shows no error, and the script lives outside the repository (turn 1)
+
 ## [2026-10-08] distill | session af4a4869 | nothing kept
 
 One Pi turn of 13 seconds: the user wrote only "oi"; the capture holds no agent note, edit or command.

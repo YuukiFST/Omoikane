@@ -24,7 +24,13 @@ OpenCode is a coding agent harness with a plugin system (`@opencode-ai/plugin`, 
 - On 2026-10-07 the user ran `/omoikane-mode` in OpenCode, and the skill loaded and routed the task: [[omoikane-mode-routes-each-task-to-a-playbook]] (source: [[2026-10-07-omoikane-mode-live-check]]).
   `.opencode/command/omoikane-mode.md` expands the command into "Read `.claude/skills/omoikane-mode/SKILL.md` and follow it for the rest of this session".
 - The same run used the user's personal `ai-tells` skill, which Omoikane does not ship, next to the project skill (same source).
-  The note says it came from `~/.claude/skills/`; the run's capture calls the lint under `~/.agents/skills/`. The source page records both.
+  The two sources disagree on its folder; see Contradictions.
+
+## Contradictions
+
+- The note says OpenCode used "the user's personal `ai-tells` skill from `~/.claude/skills/`" (source: [[2026-10-07-omoikane-mode-live-check]], note line 16).
+- The capture of that run calls the lint under `~/.agents/skills/ai-tells/scripts/` (`omoikane/raw/sources/sessions/2026-10-07-Q7Bpg6M5.md:80`, turn 1).
+  Both folders hold `ai-tells` on 2026-10-08, so the run does not show which one OpenCode loaded. Filed as `ai-tells-folder-in-opencode-run` in `omoikane/_review.md`.
 
 ## Gotchas
 
