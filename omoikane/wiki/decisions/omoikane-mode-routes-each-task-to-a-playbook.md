@@ -4,9 +4,9 @@ type: decision
 summary: omoikane-mode, poteto-mode for one model, routes each task to a playbook, skills and principles; the brief reminds it
 tags: [skills, omoikane-mode, pstack, session-context]
 created: 2026-10-07
-updated: 2026-10-07
-sources: [wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/commits-2026-10-06-to-2026-10-07.md]
-code: [.claude/skills/omoikane-mode/SKILL.md, omoikane/bin/session-context.py, omoikane/skills.md, docs/specs/2026-10-07-software-toolkit.md]
+updated: 2026-10-08
+sources: [wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/commits-2026-10-06-to-2026-10-07.md, wiki/sources/session-2026-10-08-0ac17a0f.md, wiki/sources/2026-10-07-omoikane-mode-live-check.md]
+code: [.claude/skills/omoikane-mode/SKILL.md, omoikane/bin/session-context.py, omoikane/skills.md, docs/specs/2026-10-07-software-toolkit.md, .opencode/command/omoikane-mode.md]
 ---
 
 ## The request
@@ -38,3 +38,15 @@ The user, in turn 5 of [[session-2026-10-07-062e80af]]: "eu gosto do pstack, gos
 
 `figure-it-out` (PR #116) reads the principles of `omoikane-mode`, so #117 had to merge before #116 (turn 11).
 The skill set it routes to: [[every-system-ships-the-development-skills]]. Where it comes from: [[pstack]].
+
+## Live check
+
+On 2026-10-07 the user checked the mode in OpenCode and Pi (source: [[2026-10-07-omoikane-mode-live-check]]).
+
+- Both harnesses list the command while the user types it.
+- OpenCode loads the skill and routes with it: an AI-slop audit of `README.md` got the Investigation playbook's one-line checkpoint and a "Princípios aplicados" line.
+- Pi loading is not checked yet; the `_review.md` todo `omoikane-mode-live-check` holds only for Pi now.
+
+## History
+
+PR #120 (2026-10-08) made the `bug-fix`, `refactoring` and `multi-phase-plan` playbooks and the principle `sequence-verifiable-units` write E2E tests only: [[template-skills-write-e2e-tests-only]] (source: [[session-2026-10-08-0ac17a0f]], turn 9).

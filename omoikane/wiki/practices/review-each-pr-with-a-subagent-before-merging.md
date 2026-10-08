@@ -4,8 +4,8 @@ type: practice
 summary: Before merging a PR, post a subagent review on it and fix the real findings; merge only when the user authorized it
 tags: [procedure, pull-request, code-review, git]
 created: 2026-09-30
-updated: 2026-10-07
-sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-01-b5b6fb27.md, wiki/sources/session-2026-10-01-d4302021.md, wiki/sources/session-2026-10-02-1b324082.md, wiki/sources/session-2026-10-02-04edad59.md, wiki/sources/session-2026-10-02-a9384e33.md, wiki/sources/session-2026-10-05-1de79b19.md, wiki/sources/session-2026-10-06-180e52eb.md, wiki/sources/session-2026-10-06-61eabe29.md, wiki/sources/session-2026-10-06-973284b2.md, wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/session-2026-10-07-9e3fae7e.md]
+updated: 2026-10-08
+sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-01-b5b6fb27.md, wiki/sources/session-2026-10-01-d4302021.md, wiki/sources/session-2026-10-02-1b324082.md, wiki/sources/session-2026-10-02-04edad59.md, wiki/sources/session-2026-10-02-a9384e33.md, wiki/sources/session-2026-10-05-1de79b19.md, wiki/sources/session-2026-10-06-180e52eb.md, wiki/sources/session-2026-10-06-61eabe29.md, wiki/sources/session-2026-10-06-973284b2.md, wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/session-2026-10-07-9e3fae7e.md, wiki/sources/session-2026-10-08-0ac17a0f.md]
 ---
 
 ## Rule
@@ -31,6 +31,7 @@ Merge only when the user authorized it, then with `gh pr merge <n> --merge --del
 - PRs #107 to #110: the handoff asked for the `git-workflow` flow. Each PR got a subagent review posted with `gh pr review --comment`, and the agent fixed the real findings with a test or a commit of their own. It merged none: "Nenhum merge feito; cada um espera sua autorização" (source: [[session-2026-10-06-973284b2]], turns 2, 3).
 - PRs #112 to #118 (issue #111): after the user's "prossiga com a sua recomendação", the agent tried to merge #112, and the Claude Code auto mode classifier denied it as "[Merge Without Review]". The agent left the merge to the user: "Merge bloqueado pelo classificador de permissões. O merge fica com você." (source: [[session-2026-10-07-062e80af]], turn 6). Each of the seven PRs then got a subagent review posted on GitHub and its real findings fixed (turns 9 to 11). After the session they merged with merge commits, in the order the agent gave (turn 11; `git log`).
 - The merge of that stack: the handoff said "Mergeie SÓ quando eu autorizar nesta sessão". The agent checked CI, then stopped: "Ainda não fiz nenhum merge: preciso da sua autorização para começar." It merged the seven PRs only after the user's "prossiga de acordo com a sua recomendação" (source: [[session-2026-10-07-9e3fae7e]], turns 2, 3).
+- PRs #120 and #122: a subagent review was posted on each, and the agent fixed the three medium findings on #120 after it checked each in the file. It stopped at "Nenhum foi mergeado: os dois esperam sua autorização" and merged both with merge commits after the user's "autorizo, prossiga" (source: [[session-2026-10-08-0ac17a0f]], turns 8 to 10).
 
 ## Scope
 

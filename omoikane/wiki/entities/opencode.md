@@ -4,9 +4,9 @@ type: entity
 summary: OpenCode harness; .opencode/plugins/omoikane.ts wires it to session capture, wiki-ingest can drive it
 tags: [opencode, harness]
 created: 2026-09-30
-updated: 2026-10-01
-sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-01-b5b6fb27.md]
-code: [.opencode/plugins/omoikane.ts, omoikane/bin/wiki-ingest.ps1, omoikane/bin/headless-scope.py]
+updated: 2026-10-08
+sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-01-b5b6fb27.md, wiki/sources/2026-10-07-omoikane-mode-live-check.md]
+code: [.opencode/plugins/omoikane.ts, omoikane/bin/wiki-ingest.ps1, omoikane/bin/headless-scope.py, .opencode/command/omoikane-mode.md]
 ---
 
 OpenCode is a coding agent harness with a plugin system (`@opencode-ai/plugin`, SDK `@opencode-ai/sdk`, both read at 1.18.30) (source: [[session-2026-09-15-e04462b2]], turn 2).
@@ -18,6 +18,19 @@ OpenCode is a coding agent harness with a plugin system (`@opencode-ai/plugin`, 
 - `wiki-ingest.ps1 -Agent opencode` ran operations with `opencode run --command <name> <args>` (turn 3).
   Since PR #40 it runs `opencode run --pure --agent <fresh name> <message>` with the scope from [[headless-scope]] (source: [[session-2026-09-30-230a182d]], turn 2); the code comment gives the reason for dropping `--command`: a command's own `agent` overrides `--agent`.
 - [[session-capture]] skips OpenCode subagent sessions, identified by `parentID` (turn 3).
+
+## Skills
+
+- On 2026-10-07 the user ran `/omoikane-mode` in OpenCode, and the skill loaded and routed the task: [[omoikane-mode-routes-each-task-to-a-playbook]] (source: [[2026-10-07-omoikane-mode-live-check]]).
+  `.opencode/command/omoikane-mode.md` expands the command into "Read `.claude/skills/omoikane-mode/SKILL.md` and follow it for the rest of this session".
+- The same run used the user's personal `ai-tells` skill, which Omoikane does not ship, next to the project skill (same source).
+  The two sources disagree on its folder; see Contradictions.
+
+## Contradictions
+
+- The note says OpenCode used "the user's personal `ai-tells` skill from `~/.claude/skills/`" (source: [[2026-10-07-omoikane-mode-live-check]], note line 16).
+- The capture of that run calls the lint under `~/.agents/skills/ai-tells/scripts/` (`omoikane/raw/sources/sessions/2026-10-07-Q7Bpg6M5.md:80`, turn 1).
+  Both folders hold `ai-tells` on 2026-10-08, so the run does not show which one OpenCode loaded. Filed as `ai-tells-folder-in-opencode-run` in `omoikane/_review.md`.
 
 ## Gotchas
 

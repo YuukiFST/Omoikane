@@ -377,3 +377,56 @@ Updated: [[review-each-pr-with-a-subagent-before-merging]] (session 04edad59, li
 - distill omoikane/raw/inbox/sessions/2026-10-07-9e3fae7e.md
 - commits: 37 read, 1 used. Created [[commits-2026-10-06-to-2026-10-07]]. Updated [[omoikane-mode-routes-each-task-to-a-playbook]]. All 37 fall inside captures (4 in 180e52eb, 1 in 61eabe29, 10 in 973284b2, 22 in 062e80af); only 15cbeb5 states a reason its session page lacks
 - synthesize
+
+## [2026-10-08] distill | session FZGR4ll3 | nothing kept
+
+One OpenCode turn of 10 seconds: the user asked to check `README.md` for AI slop; the capture ends at the agent's first note, before any finding or edit.
+- skipped (task-only) readme-is-human-and-minimal-without-prose: "Verifique se o readme esta sem AI slop, com texto humanizado e com apenas o necessario, sem prosa", a check of the current README, not a stated rule (turn 1)
+
+## [2026-10-08] distill | session Q7Bpg6M5 | nothing kept
+
+One OpenCode turn of 87 seconds: the user asked to check `README.md` for AI slop; the agent ran the ai-tells lint, read the file and edited nothing.
+- skipped (task-only) readme-is-human-and-minimal-without-prose: "Verifique se o readme esta sem AI slop, com texto humanizado e com apenas o necessario, sem prosa", a check of the current README, not a stated rule (turn 1)
+- skipped (one-off) ai-tells-lint-flags-literal-end-of-the-day: the ai-tells lint flagged "At the end of the day" at `README.md:20`, judged a false positive because it names the `/wrap-up` routine (turn 1)
+- skipped (missing-env) python3-command-for-ai-tells-lint: the agent ran the lint with `python3`, then again with `python`; the capture shows no error, and the script lives outside the repository (turn 1)
+
+## [2026-10-08] distill | session af4a4869 | nothing kept
+
+One Pi turn of 13 seconds: the user wrote only "oi"; the capture holds no agent note, edit or command.
+
+## [2026-10-08] distill | session 0ac17a0f
+
+Created: [[session-2026-10-08-0ac17a0f]], [[template-skills-write-e2e-tests-only]], [[personal-skills-hide-stale-template-copies-in-claude-code]].
+Updated: [[cloudflare-security-audit-skill]] (#69 closed unmerged), [[machine-local-paths-stay-out-of-the-public-repo]] (term in `.capture-redact`, old capture kept), [[remove-the-worktree-of-a-merged-pr-with-git-worktree-remove]] (evidence), [[review-each-pr-with-a-subagent-before-merging]] (evidence), [[omoikane-mode-routes-each-task-to-a-playbook]] (history), [[every-system-ships-the-development-skills]] (history).
+
+- routed (guard) template-skills-teach-no-tdd: the template's skills taught TDD after the E2E-only rule and no check failed; a test in `tests/test_skills_manifest.py` (turn 7)
+- routed (todo) close-remove-stale-worktrees-103-to-106: the worktrees and the backup are removed; the older todo can go (turn 3)
+- routed (todo) close-capture-keeps-machine-local-path: the term is in `.capture-redact` and the user kept the committed capture; the older todo can go (turn 10)
+- routed (todo) security-audit-pr-69-closed-unmerged: #69 closed without a merge, so the upstream todo never fires; the user chooses (turn 5)
+- skipped (no-root-cause) x-com-403-in-the-browser: x.com answered 403 in `chrome-devtools-axi` and the fxtwitter API returned the posts; the session did not find why (turn 7)
+- skipped (no-root-cause) worktree-remove-force-for-ignored-files: the agent said `--force` was needed only for the ignored `__pycache__/`; it never ran the removal without it (turn 3)
+- skipped (self-resolved) sed-i-blocked-by-escape-edit-guard: `escape-edit-guard.py` blocked a `sed -i`, as designed (turn 8)
+- skipped (self-resolved) write-before-read-tool-error: `File has not been read yet` from the Write tool (turn 8)
+- skipped (self-resolved) session-capture-import-traceback: loading `session-capture.py` with `importlib` to test `redact` exited 1; the traceback is cut and the next try passed (turn 10)
+
+## [2026-10-08] ingest | 2026-10-07 omoikane-mode live check
+
+Created: [[2026-10-07-omoikane-mode-live-check]].
+Updated: [[omoikane-mode-routes-each-task-to-a-playbook]] (live check), [[opencode]] (skills: `/omoikane-mode` loads, personal `ai-tells` used), [[pi-coding-agent]] (Pi ran and lists the skill command; loading not checked).
+Filed: contradiction `ai-tells-folder-in-opencode-run`, todo `narrow-omoikane-mode-live-check`.
+
+## [2026-10-08] ingest | 2026-10-08 agent-written tests are E2E only
+
+Created: [[2026-10-08-agent-written-tests-are-e2e-only]], [[tests-an-agent-writes-are-e2e-only]] (convention: the user's rule from `CODING_STANDARDS.md`).
+Updated: [[template-skills-write-e2e-tests-only]] (study details the capture cut, the 44-task subset, post dates, commit `97f852f`, scope), [[personal-skills-hide-stale-template-copies-in-claude-code]] (the note confirms the shadowing; fourth commit).
+Filed: nothing.
+
+## [2026-10-08] wrap-up | 2026-10-07 to 2026-10-08
+
+- distill omoikane/raw/inbox/sessions/2026-10-07-FZGR4ll3.md
+- distill omoikane/raw/inbox/sessions/2026-10-07-Q7Bpg6M5.md
+- distill omoikane/raw/inbox/sessions/2026-10-07-af4a4869.md
+- distill omoikane/raw/inbox/sessions/2026-10-08-0ac17a0f.md
+- ingest omoikane/raw/inbox/2026-10-07-omoikane-mode-live-check.md
+- ingest omoikane/raw/inbox/2026-10-08-agent-written-tests-are-e2e-only.md
+- commits: 25 read, 0 used. No page created or updated. 22 fall inside capture 062e80af and were judged by the 2026-10-07 wrap-up (15cbeb5 is on [[commits-2026-10-06-to-2026-10-07]]); f6e36e8, 821238e and e4ce3f7 fall inside 0ac17a0f, and [[template-skills-write-e2e-tests-only]] already holds their reasons
