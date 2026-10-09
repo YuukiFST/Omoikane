@@ -7,7 +7,6 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
 ## [2026-09-30] distill | session e04462b2
 
 - todo unify-transcript-readers: merge the Claude, Pi and OpenCode readers in `session-capture.py` into one state machine (session e04462b2, turn 4)
-- todo pi-live-verification: run the Pi extension live once: `pi` at the repo root, accept project trust, prompt an edit, check `omoikane/raw/inbox/sessions/` (session e04462b2, turn 4)
 
 ## [2026-10-02] distill | session d4302021
 
@@ -60,14 +59,11 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
 ## [2026-10-07] distill | session 062e80af
 
 - todo personal-skills-shadow-template-copies: 12 of the vendored skills also sit in `~/.claude/skills/` from agent-dotfiles, and Claude Code runs the personal copy; decide whether to drop them from the global set or accept the shadowing (`docs/specs/2026-10-07-software-toolkit.md`, "Personal skills of the same name") (session 062e80af, turn 3)
-- todo pi-skill-capture-live-check: the Pi `/skill:` capture fix was never checked against a session file a real Pi run wrote; when doing `pi-live-verification`, also run `/skill:wrap-up` and check no capture appears, see [[pi-expands-a-skill-command-into-a-skill-block]] (session 062e80af, turn 6)
-- todo security-audit-upstream-pr-69: when cloudflare/security-audit-skill#69 merges, return `.claude/skills/security-audit/` to upstream as it is and update its `omoikane/skills.md` row (session 062e80af, turn 10)
 - todo security-audit-windows-promotion-step: the spec asks to check whether `.claude/skills/security-audit/SKILL.md`, whose artifact promotion uses no-follow descriptors and a link count of 1, needs a Windows step; the capture does not show it checked (session 062e80af, turn 3)
 
 ## [2026-10-07] distill | session 9e3fae7e
 
 - todo close-issue-111-after-wrap-up: after this `/wrap-up` applies the toolkit note to [[omoikane-objective]] and [[omoikane-references]], close issue #111 by hand when its acceptance criteria hold; no PR closes it, all use `Refs #111` (session 9e3fae7e, turn 2)
-- todo omoikane-mode-live-check: check live that `/skill:omoikane-mode` loads in Pi at the trusted repo root and that `/omoikane-mode` works in OpenCode, and write the result as a note in `omoikane/raw/inbox/`; do it with `pi-live-verification` and `pi-skill-capture-live-check` (session 9e3fae7e, turn 2)
 
 ## [2026-10-07] synthesize
 
@@ -100,9 +96,7 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
          folder = skill_md.parent
          if folder.name not in rows and folder.name not in memory and not SYSTEM_OWN.fullmatch(folder.name):
 ````
-- todo security-audit-pr-69-closed-unmerged: cloudflare/security-audit-skill#69 closed without a merge, so `security-audit-upstream-pr-69` never fires; read why it closed and choose between the local copy and a new upstream PR (session 0ac17a0f, turn 5)
 
 ## [2026-10-08] ingest | 2026-10-07 omoikane-mode live check
 
 - contradiction ai-tells-folder-in-opencode-run: the note says OpenCode used the personal `ai-tells` skill "from `~/.claude/skills/`", but the run's capture calls the lint under `~/.agents/skills/ai-tells/scripts/`, and both folders hold `ai-tells`; see [[2026-10-07-omoikane-mode-live-check]] (source: `omoikane/raw/sources/2026-10-07-omoikane-mode-live-check.md:16`, `omoikane/raw/sources/sessions/2026-10-07-Q7Bpg6M5.md:80`)
-- todo narrow-omoikane-mode-live-check: OpenCode lists and loads `/omoikane-mode`, and Pi lists it; only loading in Pi is left, so narrow the todo `omoikane-mode-live-check` to Pi (source: [[2026-10-07-omoikane-mode-live-check]])

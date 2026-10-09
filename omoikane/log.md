@@ -471,3 +471,12 @@ Fixed from the review of PR #122: [[opencode-read-tool-cuts-lines-at-2000-charac
 - removed (prompt) wrap-up-commit-coverage-misses-wiki-auto-captures
 - removed (guard) gh-pr-merge-delete-branch-closes-prs-stacked-on-it
 - removed (guard) retest-pr-on-current-main
+
+## [2026-10-08] review | removed from _review.md
+
+- removed (todo) pi-live-verification
+- removed (todo) pi-skill-capture-live-check
+- removed (todo) security-audit-upstream-pr-69
+- removed (todo) omoikane-mode-live-check
+- removed (todo) security-audit-pr-69-closed-unmerged
+- removed (todo) narrow-omoikane-mode-live-check

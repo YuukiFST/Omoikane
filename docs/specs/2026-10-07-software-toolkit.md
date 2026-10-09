@@ -179,7 +179,8 @@ The POSIX path stays as it is.
 The upstream suites prove nothing on Windows today: they skip every CLI test when `O_NOFOLLOW` is missing (`validate-findings.test.cjs` lines 18-19, `validate-coverage-ledger.test.cjs` lines 20-21) and skip the symlink and FIFO tests on `win32`.
 So the change adds `win32` tests for a regular file, a symbolic link, a junction and a swap between check and open, and lifts the skip for the fallback path.
 Omoikane's CI (`.github/workflows/ci.yml`) runs on Ubuntu only; a Windows job runs both suites.
-The patched copy is listed in `omoikane/skills.md`, and the same change is offered upstream as a pull request; once merged, the copy returns to upstream as it is.
+The patched copy is listed in `omoikane/skills.md`.
+The same change went upstream as cloudflare/security-audit-skill#69; the owner closed it unmerged on 2026-10-07 and deleted the fork, so the patched copy is a permanent divergence (#138).
 
 `SKILL.md` also describes the parent's artifact promotion in POSIX terms (no-follow descriptors, link count of 1). Check whether it needs a Windows step before the skill ships.
 
