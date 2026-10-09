@@ -4,6 +4,8 @@ Each coding agent session starts blank: the business rules, design system and co
 
 Omoikane is a template every new software system starts from.
 Its agents keep a wiki of that knowledge on their own, from what the user states while building, without asking the user to write anything down.
+Every system also starts with the development skills.
+`/omoikane-mode` routes each task (feature, bug, refactor, security audit) to a playbook, the skills it needs and the principles that apply.
 
 Named after 思金神 (Omoikane), the kami who gathers the thoughts of the other gods and returns a synthesis.
 Built on Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) pattern, with [brainmaxxing](https://github.com/poteto/brainmaxxing), [ai-memory](https://github.com/akitaonrails/ai-memory), [pstack](https://github.com/cursor/plugins/tree/main/pstack) and Cloudflare's [security-audit-skill](https://github.com/cloudflare/security-audit-skill) with its post [Build your own vulnerability harness](https://blog.cloudflare.com/build-your-own-vulnerability-harness/) as references. Omoikane's addition: coding sessions are a source too.
