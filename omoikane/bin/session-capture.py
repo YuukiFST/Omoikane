@@ -51,9 +51,16 @@ TOKENS = (r"gh[pousr]_[A-Za-z0-9]{30,}|github_pat_\w{20,}|sk-(?=[\w-]*\d)[\w-]{2
           r"|[sr]k_(?:live|test)_[A-Za-z0-9]{16,}|xox[abprs]-[A-Za-z0-9-]{10,}|xapp-[\w-]{20,}|AIza[\w-]{30,}"
           r"|(?:AKIA|ASIA)[0-9A-Z]{16}|glpat-[\w-]{20,}|npm_[A-Za-z0-9]{30,}|hf_[A-Za-z0-9]{30,}|pypi-[\w-]{20,}"
           r"|ya29\.[\w-]{20,}|GOCSPX-[\w-]{20,}|SG\.[\w-]{16,}\.[\w-]{16,}|whsec_[A-Za-z0-9+/]{20,}|hvs\.[\w-]{20,}"
-          r"|eyJ[\w-]{8,}\.eyJ[\w-]{8,}(?:\.[\w-]*)?|https://hooks\.slack\.com/services/[\w/]+")
+          r"|eyJ[\w-]{8,}\.eyJ[\w-]{8,}(?:\.[\w-]*)?|https://hooks\.slack\.com/services/[\w/]+"
+          # From ai-memory's sanitize.rs (#144): Gemini auth key, Google OAuth refresh token, Meta Graph token.
+          r"|AQ\.Ab[\w-]{30,}|1//[\w-]{20,}|EAA[A-Za-z0-9]{20,}"
+          # Telegram bot token: the issued `AA` shape, or the documented one, whose fixed length keeps
+          # `<sha>:<hex>` and `host:port` pairs out.
+          r"|\d{6,10}:(?:AA[\w-]{30,}|[\w-]{34,35}(?![\w-]))"
+          # A dotless base64 JSON object, as a Cloudflare tunnel token; 40 characters, so `eyJhIjoi` stays.
+          r"|eyJ[\w+/-]{40,}={0,2}")
 TOKEN_PREFIXES = (r"gh[pousr]_|github_pat_|sk-|[sr]k_(?:live|test)_|xox[abprs]-|xapp-|AIza|AKIA|ASIA|glpat-|npm_"
-                  r"|hf_|pypi-|ya29\.|GOCSPX-|SG\.|whsec_|hvs\.|eyJ")
+                  r"|hf_|pypi-|ya29\.|GOCSPX-|SG\.|whsec_|hvs\.|eyJ|AQ\.Ab|1//|EAA|\d{6,10}:AA")
 # A private key block, read by its structure: header, armor fields, base64 lines, footer. A line break may be real,
 # escaped (`\n` in JSON or .env), or a string concatenation in code ("...\n"<newline>"..."), and a line may be
 # `> `-quoted. Without a footer only whole base64 lines of 20+ characters follow, so a header quoted in prose takes
