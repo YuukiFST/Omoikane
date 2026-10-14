@@ -131,6 +131,33 @@ class Bootstrap(unittest.TestCase):
         git(self.project, "commit", "-q", "--amend", "-m", "docs: refunds, reworded")
         self.assertEqual(self.run_on(self.project), [])
 
+    def test_a_file_put_back_to_an_older_text_is_copied_again(self) -> None:
+        # Any earlier copy with the same text counted as current, so the wiki kept the reverted version (#151 review).
+        self.run_on(self.project)
+        readme = (self.project / "README.md").read_text(encoding="utf-8")
+        commit(self.project, {"README.md": readme + "\nRefunds take a week.\n"}, "docs: refunds take a week")
+        self.assertEqual(len(self.run_on(self.project)), 1)
+        commit(self.project, {"README.md": readme}, "revert: refunds take a week")
+        reverted = git(self.project, "rev-parse", "--short=7", "HEAD").strip()
+        self.assertEqual(self.run_on(self.project), [f"bootstrap-readme-md-{reverted}.md"])
+        self.assertNotIn("Refunds take a week.", self.inbox()[f"bootstrap-readme-md-{reverted}.md"])
+        self.assertEqual(self.run_on(self.project), [])
+
+    def test_another_repository_s_file_is_not_a_version_of_this_one(self) -> None:
+        # Copies matched by slug alone, so `--from` an old system's README was filed as a newer version of the
+        # system's own README and /ingest moved its `code:` (#151 review).
+        old = self.root / "old"
+        git(self.root, "init", "-q", "-b", "main", str(old))
+        commit(old, {"README.md": "# Old shop\n\nPrices were floats.\n"}, "docs: the old shop")
+        self.run_on(self.project)
+        self.assertIn("bootstrap-readme-md-old.md", self.run_on(old))
+        files = self.inbox()
+        self.assertIn("Prices were floats.", files["bootstrap-readme-md-old.md"])
+        self.assertNotIn("newer version", files["bootstrap-readme-md-old.md"])
+        self.assertIn("Prices are integer cents.", files["bootstrap-readme-md.md"])
+        self.assertEqual(self.run_on(old), [])
+        self.assertEqual(self.run_on(self.project), [])
+
     def test_a_source_of_this_repository_names_its_code_path(self) -> None:
         # /ingest left `code:` empty on a source page, so nothing tied the page to the file it copies (#150).
         self.run_on(self.project)

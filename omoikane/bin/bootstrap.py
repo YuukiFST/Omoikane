@@ -52,7 +52,8 @@ MAX_SLUG = 150  # file names stay well under the 255 bytes Windows and Linux all
 GATE_REFS = ("wiki/auto", "origin/wiki/auto", "origin/main")
 # A later version of a source is named after its commit; the slug's own collision suffix is 6 characters, not 7.
 VERSION = re.compile(r"-[0-9a-f]{7}\.md$")
-COPIED_IN = re.compile(r"in commit ([0-9a-f]{4,40})\.")
+LAST_CHANGED = re.compile(r"last changed (\d{4}-\d{2}-\d{2}) in commit ([0-9a-f]{4,40})\.")
+TITLE = re.compile(r"# .+ \(bootstrap\)\n")
 BODY_START = "\n\n---\n\n"
 
 
@@ -262,7 +263,7 @@ def copies(omoikane: Path) -> dict[str, str]:
 
 
 def earlier_copies(name: str, found: dict[str, str]) -> dict[str, str]:
-    """The copies of the source whose first copy is `name`: that one and the versions named after a commit.
+    """The copies under `name`: that one and the versions named after a commit.
 
     Example: earlier_copies("bootstrap-readme-md.md", found) holds "bootstrap-readme-md-1a2b3c4.md" too.
     """
@@ -270,17 +271,42 @@ def earlier_copies(name: str, found: dict[str, str]) -> dict[str, str]:
     return {n: text for n, text in found.items() if version.fullmatch(n)}
 
 
-def is_current(note: str, commit: str, earlier: dict[str, str]) -> bool:
-    """True when an earlier copy holds this version: the same commit, or the same text under another commit (a
-    rebase, or a template update that left this system's own lines alone). A copy whose header names no commit,
-    one the human rewrote in the inbox for instance, cannot be compared and counts as current."""
-    body = note.partition(BODY_START)[2]
-    for text in earlier.values():
-        head, _, copied_body = text.partition(BODY_START)
-        copied = COPIED_IN.search(head)
-        if not copied or copied_body == body or commit.startswith(copied.group(1)):
-            return True
-    return False
+def place(names: tuple[str, str], title: str, found: dict[str, str]) -> tuple[str, dict[str, str]] | None:
+    """The name this source's first copy takes and its earlier copies, the ones whose first line is `title`.
+
+    Copies under the first name with another source's title hold another repository's file with the same slug
+    (`--from`), so the source takes the second name, which carries its project. None when a copy under the name
+    has no bootstrap title: the human rewrote it, and whose it is cannot be told.
+    """
+    for name in names:
+        group = earlier_copies(name, found)
+        mine = {n: text for n, text in group.items() if text.partition("\n")[0] == title}
+        if mine or not group:
+            return name, mine
+        if not all(TITLE.match(text) for text in group.values()):
+            return None
+    return None
+
+
+def holds(copy: str, note: str, commit: str) -> bool:
+    """True when `copy` holds the version `note` is: the same commit, or the same text under another commit (a
+    rebase, or a template update that left this system's own lines alone)."""
+    head, _, body = copy.partition(BODY_START)
+    copied = LAST_CHANGED.search(head)
+    return body == note.partition(BODY_START)[2] or bool(copied and commit.startswith(copied.group(2)))
+
+
+def newest(copies_of: dict[str, str], order: list[str]) -> str:
+    """The copy of the newest version: latest date, then latest in `order`, the file's commits newest first. Only
+    this one is compared, so a file put back to an older text is copied again. A commit no longer in `order` was
+    rewritten (an amend, a rebase), so it ranks first on its date."""
+    def age(text: str) -> tuple[str, int]:
+        copied = LAST_CHANGED.search(text.partition(BODY_START)[0])
+        if not copied:
+            return "", 0
+        position = next((i for i, c in enumerate(order) if c.startswith(copied.group(2))), -1)
+        return copied.group(1), -position
+    return max(copies_of.values(), key=age)
 
 
 def bootstrap(project: Path, omoikane: Path = OMOIKANE, redact_file: Path = capture.REDACT_FILE) -> list[str]:
@@ -301,19 +327,26 @@ def bootstrap(project: Path, omoikane: Path = OMOIKANE, redact_file: Path = capt
 
     def redacted(text: str) -> str:
         return capture.redact(capture.redact_secrets(text), terms)
+    project_slug = re.sub(r"[^\w]+", "-", capture.redact(project.name, terms).lower()).strip("-_")
     notes: dict[str, str] = {}
     for path in paths:
         text = content(project, path, head[path], template)
         if text is None:
             continue
         partial = template is not None and any(path in version for version in template)
-        earlier = earlier_copies(names[path], found)
+        placed = place((names[path], f"{names[path][:-3]}-{project_slug}.md"),
+                       redacted(f"# {path} of {project.name} (bootstrap)"), found)
+        if placed is None:
+            continue
+        first, earlier = placed
         note = redacted(source_note(project, path, text, partial, local, sorted(earlier)))
-        commit = (last_commit(project, path) or ("", ""))[1]
         if not earlier:
-            notes[names[path]] = note
-        elif not is_current(note, commit, earlier):
-            notes[f"{names[path][:-3]}-{commit[:7]}.md"] = note
+            notes[first] = note
+            continue
+        order = git(project, "log", "--format=%H", "HEAD", "--", path).split()
+        commit = order[0] if order else ""
+        if not holds(newest(earlier, order), note, commit):
+            notes[f"{first[:-3]}-{commit[:7]}.md"] = note
     history = history_note(project, [base, *tips] if base else [])
     if history and f"{PREFIX}git-history.md" not in found:
         notes[f"{PREFIX}git-history.md"] = redacted(history)
