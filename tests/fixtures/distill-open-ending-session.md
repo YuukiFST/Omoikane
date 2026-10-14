@@ -9,7 +9,7 @@ cwd: C:\Users\dev\Desktop\shop
 branch: feat/34-order-totals-backfill
 ---
 
-# Coding session 2026-10-14 (7e2a9b14, part 1)
+# Coding session 2026-10-14 (open1ng0, part 1)
 
 Captured by `omoikane/bin/session-capture.py`, no LLM involved. Agent notes are clipped, not summarised.
 

@@ -9,7 +9,7 @@ cwd: C:\Users\dev\Desktop\shop
 branch: feat/31-orders-csv-export
 ---
 
-# Coding session 2026-10-14 (5c1d2e7f, part 1)
+# Coding session 2026-10-14 (carr1ed0, part 1)
 
 Captured by `omoikane/bin/session-capture.py`, no LLM involved. Agent notes are clipped, not summarised.
 
