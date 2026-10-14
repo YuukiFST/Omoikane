@@ -54,11 +54,14 @@ TOKENS = (r"gh[pousr]_[A-Za-z0-9]{30,}|github_pat_\w{20,}|sk-(?=[\w-]*\d)[\w-]{2
           r"|eyJ[\w-]{8,}\.eyJ[\w-]{8,}(?:\.[\w-]*)?|https://hooks\.slack\.com/services/[\w/]+"
           # From ai-memory's sanitize.rs (#142): Gemini auth keys, Google OAuth refresh tokens, Meta Graph tokens,
           # Telegram bot tokens (the issued AA shape, or the documented one length-anchored, since a bare \d+:[\w-]+
-          # is a timestamp or a port map), and base64 JSON with no dots (a Cloudflare tunnel token).
-          r"|AQ\.Ab[\w-]{30,}|1//[\w-]{20,}|EAA[A-Za-z0-9]{20,}|\d{6,10}:(?:AA[\w-]{30,}|[\w-]{34,35}(?![\w-]))"
+          # is a timestamp or a port map), and base64 JSON with no dots (a Cloudflare tunnel token). A refresh token
+          # starts 1//0: a bare 1// is also integer division in code (#143 review).
+          r"|AQ\.Ab[\w-]{30,}|1//0[\w-]{19,}|EAA[A-Za-z0-9]{20,}|\d{6,10}:(?:AA[\w-]{30,}|[\w-]{34,35}(?![\w-]))"
           r"|eyJ[\w+/-]{40,}={0,2}")
 TOKEN_PREFIXES = (r"gh[pousr]_|github_pat_|sk-|[sr]k_(?:live|test)_|xox[abprs]-|xapp-|AIza|AKIA|ASIA|glpat-|npm_"
-                  r"|hf_|pypi-|ya29\.|GOCSPX-|SG\.|whsec_|hvs\.|eyJ|AQ\.Ab|1//|EAA|\d{6,10}:(?=[\w-]*[A-Za-z])")
+                  r"|hf_|pypi-|ya29\.|GOCSPX-|SG\.|whsec_|hvs\.|eyJ|AQ\.Ab|1//0|EAA|\d{6,10}:(?=[\w-]*[A-Za-z])")
+# A token starts a word, or follows /bot: the Bot API URL holds a Telegram token as api.telegram.org/bot<token>/.
+TOKEN_START = r"(?:(?<![\w-])|(?<=/bot))"
 # A private key block, read by its structure: header, armor fields, base64 lines, footer. A line break may be real,
 # escaped (`\n` in JSON or .env), or a string concatenation in code ("...\n"<newline>"..."), and a line may be
 # `> `-quoted. Without a footer only whole base64 lines of 20+ characters follow, so a header quoted in prose takes
@@ -72,8 +75,8 @@ PRIVATE_KEY = (KEY_HEADER + r"(?:(?:(?:" + KEY_BREAK + r")+(?:" + KEY_ARMOR + r"
                + r")+" + KEY_FOOTER + r"|(?:[ \t]+[A-Za-z0-9+/=]{16,})+[ \t]+" + KEY_FOOTER
                + r"|(?:" + KEY_BREAK + r"[A-Za-z0-9+/=]{20,}(?=" + KEY_BREAK + r"|\Z|" + CLIP_MARK + r"))*"
                r"(?:" + KEY_BREAK + r"[A-Za-z0-9+/=]+(?=" + CLIP_MARK + r"))?)")
-SECRET_SHAPES = re.compile(PRIVATE_KEY + r"|(?<![\w-])(?:" + TOKENS + r")"
-                           r"|(?<![\w-])(?:" + TOKEN_PREFIXES + r")[\w.-]*(?=" + CLIP_MARK + r")")
+SECRET_SHAPES = re.compile(PRIVATE_KEY + r"|" + TOKEN_START + r"(?:" + TOKENS + r")"
+                           r"|" + TOKEN_START + r"(?:" + TOKEN_PREFIXES + r")[\w.-]*(?=" + CLIP_MARK + r")")
 # A label that stays, then the secret it introduces. Each pattern's group 1 is the label.
 SECRET_AFTER = [re.compile(p) for p in (
     r"(?i)(\bbearer[ \t]+)(?=[\w.~+/-]*\d)[\w.~+/-]{16,}=*",  # a digit: "bearer authenticationscheme" is prose
@@ -147,6 +150,7 @@ HARNESS_ORIGINS = {"task-notification", "peer"}
 HARNESS_BLOCK = re.compile(r"\s*<(?:task-notification|bash-stdout|bash-stderr|local-command-[\w-]+)>")
 # A command the user ran with the `!` prefix: listed with the agent's commands, marked by the `!`.
 SHELL_INPUT = re.compile(r"\s*<bash-input>(.*?)</bash-input>", re.DOTALL)
+SHELL_MARK = "! "
 NOTE_CHARS = 1500
 # Long prompts are where the user states rules: at 2,000 four rules past the cut never became pages (#104). The
 # longest prompt in the captures up to 2026-10-06 had 10,306 characters; the limit only bounds a pasted log.
@@ -204,7 +208,8 @@ class Session:
         """
         for turn in self.turns:
             command = command_of(turn.prompt)
-            answered = turn.notes or turn.files or turn.commands or turn.errors
+            agent_commands = [c for c in turn.commands if not c.startswith(SHELL_MARK)]  # `!` is the user's own
+            answered = turn.notes or turn.files or agent_commands or turn.errors
             if command and command not in OMOIKANE_COMMANDS and not answered:
                 continue
             return command
@@ -336,7 +341,7 @@ def read_claude_transcript(path: Path, session_id: str = "") -> Session:
                 continue
             if shell := SHELL_INPUT.match(content):
                 if current is not None and first_line(shell.group(1)):
-                    current.commands.append("! " + first_line(shell.group(1)))
+                    current.commands.append(SHELL_MARK + first_line(shell.group(1)))
                 continue
             command = COMMAND_TAG.match(content)
             current = Turn(prompt=clip(command.group(1) if command else content, PROMPT_CHARS))
