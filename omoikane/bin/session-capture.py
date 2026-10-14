@@ -51,9 +51,14 @@ TOKENS = (r"gh[pousr]_[A-Za-z0-9]{30,}|github_pat_\w{20,}|sk-(?=[\w-]*\d)[\w-]{2
           r"|[sr]k_(?:live|test)_[A-Za-z0-9]{16,}|xox[abprs]-[A-Za-z0-9-]{10,}|xapp-[\w-]{20,}|AIza[\w-]{30,}"
           r"|(?:AKIA|ASIA)[0-9A-Z]{16}|glpat-[\w-]{20,}|npm_[A-Za-z0-9]{30,}|hf_[A-Za-z0-9]{30,}|pypi-[\w-]{20,}"
           r"|ya29\.[\w-]{20,}|GOCSPX-[\w-]{20,}|SG\.[\w-]{16,}\.[\w-]{16,}|whsec_[A-Za-z0-9+/]{20,}|hvs\.[\w-]{20,}"
-          r"|eyJ[\w-]{8,}\.eyJ[\w-]{8,}(?:\.[\w-]*)?|https://hooks\.slack\.com/services/[\w/]+")
+          r"|eyJ[\w-]{8,}\.eyJ[\w-]{8,}(?:\.[\w-]*)?|https://hooks\.slack\.com/services/[\w/]+"
+          # From ai-memory's sanitize.rs (#142): Gemini auth keys, Google OAuth refresh tokens, Meta Graph tokens,
+          # Telegram bot tokens (the issued AA shape, or the documented one length-anchored, since a bare \d+:[\w-]+
+          # is a timestamp or a port map), and base64 JSON with no dots (a Cloudflare tunnel token).
+          r"|AQ\.Ab[\w-]{30,}|1//[\w-]{20,}|EAA[A-Za-z0-9]{20,}|\d{6,10}:(?:AA[\w-]{30,}|[\w-]{34,35}(?![\w-]))"
+          r"|eyJ[\w+/-]{40,}={0,2}")
 TOKEN_PREFIXES = (r"gh[pousr]_|github_pat_|sk-|[sr]k_(?:live|test)_|xox[abprs]-|xapp-|AIza|AKIA|ASIA|glpat-|npm_"
-                  r"|hf_|pypi-|ya29\.|GOCSPX-|SG\.|whsec_|hvs\.|eyJ")
+                  r"|hf_|pypi-|ya29\.|GOCSPX-|SG\.|whsec_|hvs\.|eyJ|AQ\.Ab|1//|EAA|\d{6,10}:(?=[\w-]*[A-Za-z])")
 # A private key block, read by its structure: header, armor fields, base64 lines, footer. A line break may be real,
 # escaped (`\n` in JSON or .env), or a string concatenation in code ("...\n"<newline>"..."), and a line may be
 # `> `-quoted. Without a footer only whole base64 lines of 20+ characters follow, so a header quoted in prose takes
@@ -135,6 +140,13 @@ COMMAND_TEMPLATE = re.compile(r"\s*Read `omoikane/prompts/(\w+)\.md` and follow 
 # Pi's /skill:<name> (#111): the typed form, or the block Pi expands it into (_expandSkillCommand in
 # dist/core/agent-session.js of pi-coding-agent 1.0.4). Anchored at the start, as COMMAND_TAG is.
 PI_SKILL = re.compile(r'(?:/skill:([\w-]+)(?:\s|\Z)|<skill name="([\w-]+)" location=")')
+# User turns Claude Code writes itself (#142): a background task's report, a subagent's hand-back, a `!` command's
+# output. /distill reads every prompt as something the user stated. Notifications are matched by the block too:
+# older transcripts have no `origin`. The opening tag decides alone, since the output inside is arbitrary text.
+HARNESS_ORIGINS = {"task-notification", "peer"}
+HARNESS_BLOCK = re.compile(r"\s*<(?:task-notification|bash-stdout|bash-stderr|local-command-[\w-]+)>")
+# A command the user ran with the `!` prefix: listed with the agent's commands, marked by the `!`.
+SHELL_INPUT = re.compile(r"\s*<bash-input>(.*?)</bash-input>", re.DOTALL)
 NOTE_CHARS = 1500
 # Long prompts are where the user states rules: at 2,000 four rules past the cut never became pages (#104). The
 # longest prompt in the captures up to 2026-10-06 had 10,306 characters; the limit only bounds a pasted log.
@@ -285,6 +297,17 @@ def jsonl_entries(path: Path) -> list[dict[str, object]]:
     return entries
 
 
+def written_by_harness(entry: dict[str, object], content: str) -> bool:
+    """Whether a Claude Code user turn holding text was written by the harness, not typed: meta lines, the
+    compaction summary, and the turns HARNESS_ORIGINS and HARNESS_BLOCK name.
+
+    Example: written_by_harness({"origin": {"kind": "peer"}}, "Another Claude session sent a message:") returns True.
+    """
+    origin = entry.get("origin")
+    return bool(entry.get("isMeta") or entry.get("isCompactSummary") or HARNESS_BLOCK.match(content)
+                or (isinstance(origin, dict) and origin.get("kind") in HARNESS_ORIGINS))
+
+
 def read_claude_transcript(path: Path, session_id: str = "") -> Session:
     """Parse a Claude Code JSONL transcript into turns: one per user prompt, with what the agent did in reply.
 
@@ -309,7 +332,11 @@ def read_claude_transcript(path: Path, session_id: str = "") -> Session:
         session.branch = session.branch or str(entry.get("gitBranch", ""))
         content = message.get("content")
         if kind == "user" and isinstance(content, str):
-            if entry.get("isMeta") or content.lstrip().startswith("<local-command-"):
+            if written_by_harness(entry, content):
+                continue
+            if shell := SHELL_INPUT.match(content):
+                if current is not None and first_line(shell.group(1)):
+                    current.commands.append("! " + first_line(shell.group(1)))
                 continue
             command = COMMAND_TAG.match(content)
             current = Turn(prompt=clip(command.group(1) if command else content, PROMPT_CHARS))
