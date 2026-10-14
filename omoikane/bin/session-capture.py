@@ -47,16 +47,17 @@ UNREDACTED_KEYS = ("harness", "session", "part", "turns", "started", "ended")
 CLIP_MARK = r" \[\.\.\. \d+ chars cut\]"
 CLIPPED = re.compile(CLIP_MARK)
 # Token shapes with a known prefix. A token cut short by a clip still starts with its prefix, so that part goes too.
+# Telegram bot token: the issued `AA` shape, or the documented one, whose fixed length keeps `<sha>:<hex>` and
+# `host:port` pairs out.
+TELEGRAM = r"\d{6,10}:(?:AA[\w-]{30,}|[\w-]{34,35}(?![\w-]))"
 TOKENS = (r"gh[pousr]_[A-Za-z0-9]{30,}|github_pat_\w{20,}|sk-(?=[\w-]*\d)[\w-]{20,}"  # a digit: sk-learn-... is prose
           r"|[sr]k_(?:live|test)_[A-Za-z0-9]{16,}|xox[abprs]-[A-Za-z0-9-]{10,}|xapp-[\w-]{20,}|AIza[\w-]{30,}"
           r"|(?:AKIA|ASIA)[0-9A-Z]{16}|glpat-[\w-]{20,}|npm_[A-Za-z0-9]{30,}|hf_[A-Za-z0-9]{30,}|pypi-[\w-]{20,}"
           r"|ya29\.[\w-]{20,}|GOCSPX-[\w-]{20,}|SG\.[\w-]{16,}\.[\w-]{16,}|whsec_[A-Za-z0-9+/]{20,}|hvs\.[\w-]{20,}"
           r"|eyJ[\w-]{8,}\.eyJ[\w-]{8,}(?:\.[\w-]*)?|https://hooks\.slack\.com/services/[\w/]+"
-          # From ai-memory's sanitize.rs (#144): Gemini auth key, Google OAuth refresh token, Meta Graph token.
-          r"|AQ\.Ab[\w-]{30,}|1//[\w-]{20,}|EAA[A-Za-z0-9]{20,}"
-          # Telegram bot token: the issued `AA` shape, or the documented one, whose fixed length keeps
-          # `<sha>:<hex>` and `host:port` pairs out.
-          r"|\d{6,10}:(?:AA[\w-]{30,}|[\w-]{34,35}(?![\w-]))"
+          # From ai-memory's sanitize.rs (#144): Gemini auth key, Google OAuth refresh token, Meta Graph token. A
+          # Meta token is mixed case, so an upper-case hash that starts with EAA stays (#145 review).
+          r"|AQ\.Ab[\w-]{30,}|1//[\w-]{20,}|EAA(?=[A-Za-z0-9]*[a-z])[A-Za-z0-9]{20,}|" + TELEGRAM +
           # A dotless base64 JSON object, as a Cloudflare tunnel token; 40 characters, so `eyJhIjoi` stays.
           r"|eyJ[\w+/-]{40,}={0,2}")
 TOKEN_PREFIXES = (r"gh[pousr]_|github_pat_|sk-|[sr]k_(?:live|test)_|xox[abprs]-|xapp-|AIza|AKIA|ASIA|glpat-|npm_"
@@ -75,7 +76,9 @@ PRIVATE_KEY = (KEY_HEADER + r"(?:(?:(?:" + KEY_BREAK + r")+(?:" + KEY_ARMOR + r"
                + r"|(?:" + KEY_BREAK + r"[A-Za-z0-9+/=]{20,}(?=" + KEY_BREAK + r"|\Z|" + CLIP_MARK + r"))*"
                r"(?:" + KEY_BREAK + r"[A-Za-z0-9+/=]+(?=" + CLIP_MARK + r"))?)")
 SECRET_SHAPES = re.compile(PRIVATE_KEY + r"|(?<![\w-])(?:" + TOKENS + r")"
-                           r"|(?<![\w-])(?:" + TOKEN_PREFIXES + r")[\w.-]*(?=" + CLIP_MARK + r")")
+                           r"|(?<![\w-])(?:" + TOKEN_PREFIXES + r")[\w.-]*(?=" + CLIP_MARK + r")"
+                           # The Bot API URL puts the token right after `/bot` (#145 review).
+                           r"|(?<=/bot)(?:" + TELEGRAM + r"|\d{6,10}:AA[\w.-]*(?=" + CLIP_MARK + r"))")
 # A label that stays, then the secret it introduces. Each pattern's group 1 is the label.
 SECRET_AFTER = [re.compile(p) for p in (
     r"(?i)(\bbearer[ \t]+)(?=[\w.~+/-]*\d)[\w.~+/-]{16,}=*",  # a digit: "bearer authenticationscheme" is prose
