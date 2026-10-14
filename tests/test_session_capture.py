@@ -234,6 +234,9 @@ class OperationOnlyFromTheFirstPrompt(unittest.TestCase):
         for name, entries, reason in (
                 ("builtin then operation", [clear, distill, edit], "omoikane operation /distill"),
                 ("builtin then coding", [clear, user("Fix the parser"), edit], None),
+                # A `!` command lands on the /clear turn; the agent still answered nothing there (#143 review).
+                ("builtin, shell mode, then operation", [clear, user("<bash-input>git pull</bash-input>"), distill,
+                                                         edit], "omoikane operation /distill"),
                 ("command-message first", [distill, edit], "omoikane operation /distill"),
                 ("tag pasted into prose", [pasted, edit], None)):
             with self.subTest(name), tempfile.TemporaryDirectory() as d:
@@ -292,6 +295,8 @@ class Redaction(unittest.TestCase):
         ("1//" + "0gFAKEfakeFAKEfake0123456789", "saved {} to the store", "0gFAKEfake"),  # Google OAuth refresh
         ("EAA" + "FAKEfakeFAKEfake0123456789", "fb={}", "FAKEfakeFAKE"),  # Meta Graph
         ("123456789:" + "AA" + "FAKEfakeFAKEfakeFAKEfake0123456789", "TG {} done", "FAKEfake"),  # Telegram bot
+        ("123456789:" + "AA" + "FAKEfakeFAKEfakeFAKEfake0123456789", "curl https://api.telegram.org/bot{}/getMe",
+         "FAKEfake"),  # in the Bot API URL, where it usually appears (#143 review)
         ("123456:" + "ABC-DEF1234ghIkl-zyx57W2v1u123ew11", "bot {} ok", "DEF1234"),  # Telegram's documented shape
         ("eyJ" + "hIjoiRkFLRUZBS0VGQUtFRkFLRUZBS0VGQUtFIiwidCI6IkZBS0VGQUtFIn0=", "cloudflared service install {}",
          "RkFLRUZB"),  # base64 JSON with no dots: a Cloudflare tunnel token
@@ -477,7 +482,9 @@ class Redaction(unittest.TestCase):
         # ai-memory's false-positive cases for the #142 formats: a bare prefix, a short run, colon-separated numbers.
         kept = {
             "gemini": ["see AQ.Ab for details", "AQ.A section", "AQ.Xyz0123456789abcdefghijklmnopqrstuvwxyz"],
-            "oauth": ["split it 1//2 and 1//3", "the v1//abcdefghijklmnopqrstuvwxyz route"],
+            "oauth": ["split it 1//2 and 1//3", "the v1//abcdefghijklmnopqrstuvwxyz route",
+                      "print(1//denominator_value_long_name)"],
+            "telegram in a word": ["robot123456789:AA" + "FAKEfakeFAKEfakeFAKEfake0123456789"],
             "meta": ["EAA is the airport code", "harmless b3BlbnNzaC1rZXktdjEAAAAA" + "AAAAAAAAAAAAAAAAAAAAAA value"],
             "telegram": ["timestamp 1234567:30 remaining", "map 127.0.0.1:8080 to the proxy",
                          "built 2026:08 release notes", "aspect ratio 16:9 widescreen",
