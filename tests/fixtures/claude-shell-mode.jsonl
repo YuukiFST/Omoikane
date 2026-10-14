@@ -1,0 +1,9 @@
+{"type":"user","timestamp":"2026-10-14T10:00:00Z","sessionId":"abcdef12-0003","cwd":"C:/proj","gitBranch":"main","message":{"role":"user","content":"<bash-input> git push origin --delete docs/1-old</bash-input>"}}
+{"type":"user","timestamp":"2026-10-14T10:00:10Z","sessionId":"abcdef12-0003","cwd":"C:/proj","gitBranch":"main","message":{"role":"user","content":"<bash-stdout>To https://github.com/example/proj.git\n - [deleted]         docs/1-old</bash-stdout><bash-stderr></bash-stderr>"}}
+{"type":"user","timestamp":"2026-10-14T10:01:00Z","sessionId":"abcdef12-0003","cwd":"C:/proj","gitBranch":"main","message":{"role":"user","content":"Fix the parser"}}
+{"type":"assistant","timestamp":"2026-10-14T10:02:00Z","message":{"role":"assistant","content":[{"type":"tool_use","name":"Edit","input":{"file_path":"C:/proj/src/parser.py"}},{"type":"tool_use","name":"Bash","input":{"command":"python -m pytest"}}]}}
+{"type":"user","timestamp":"2026-10-14T10:03:00Z","sessionId":"abcdef12-0003","cwd":"C:/proj","gitBranch":"main","message":{"role":"user","content":"<bash-input>git status --short\ngit log -1</bash-input>"}}
+{"type":"user","timestamp":"2026-10-14T10:03:05Z","sessionId":"abcdef12-0003","cwd":"C:/proj","gitBranch":"main","message":{"role":"user","content":"<bash-stdout> M src/parser.py STDOUTSENTINEL</bash-stdout><bash-stderr>STDERRSENTINEL</bash-stderr>"}}
+{"type":"user","timestamp":"2026-10-14T10:03:06Z","sessionId":"abcdef12-0003","cwd":"C:/proj","gitBranch":"main","message":{"role":"user","content":"<bash-stderr>fatal: STDERRONLYSENTINEL</bash-stderr>"}}
+{"type":"user","timestamp":"2026-10-14T10:04:00Z","sessionId":"abcdef12-0003","cwd":"C:/proj","gitBranch":"main","message":{"role":"user","content":"Now add a test"}}
+{"type":"assistant","timestamp":"2026-10-14T10:05:00Z","message":{"role":"assistant","content":[{"type":"tool_use","name":"Write","input":{"file_path":"C:/proj/tests/test_parser.py"}}]}}

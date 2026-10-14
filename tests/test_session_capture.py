@@ -286,6 +286,16 @@ class Redaction(unittest.TestCase):
                   {"type": "tool_use", "name": "Edit", "input": {"file_path": "C:/proj/acme/prices.py"}},
                   {"type": "tool_use", "name": "Bash", "input": {"command": "grep -c a.c+me src"}}),
     ]
+    # (token, the text it sits in, a part absent from the capture). Built by concatenation, as below.
+    NEW_TOKENS = [
+        ("AQ." + "Ab" + "FAKEfake0123456789abcdefghijklmn-_FAKE", "export it: {} done", "FAKEfake0123"),  # Gemini
+        ("1//" + "0gFAKEfakeFAKEfake0123456789", "saved {} to the store", "0gFAKEfake"),  # Google OAuth refresh
+        ("EAA" + "FAKEfakeFAKEfake0123456789", "fb={}", "FAKEfakeFAKE"),  # Meta Graph
+        ("123456789:" + "AA" + "FAKEfakeFAKEfakeFAKEfake0123456789", "TG {} done", "FAKEfake"),  # Telegram bot
+        ("123456:" + "ABC-DEF1234ghIkl-zyx57W2v1u123ew11", "bot {} ok", "DEF1234"),  # Telegram's documented shape
+        ("eyJ" + "hIjoiRkFLRUZBS0VGQUtFRkFLRUZBS0VGQUtFIiwidCI6IkZBS0VGQUtFIn0=", "cloudflared service install {}",
+         "RkFLRUZB"),  # base64 JSON with no dots: a Cloudflare tunnel token
+    ]
 
     def captured(self, redact_list: str | None, session: list[dict[str, object]] | None = None,
                  encoding: str = "utf-8") -> str:
@@ -426,6 +436,10 @@ class Redaction(unittest.TestCase):
              + 'PRIVATE KEY-----")', "MIIEvQ", 'key = ("[redacted]")'),
             ("<password>hunter22</password>", "hunter22", "<password>[redacted]</password>"),
             ("AccountKey=" + "abcd1234" * 4 + "==;", "abcd1234", "AccountKey=[redacted]"),
+            # Formats ai-memory redacts that leaked here (#142), whole and cut short by a clip.
+            *[case for token, context, absent in self.NEW_TOKENS for case in (
+                (context.format(token), absent, context.format(capture.REDACTED)),
+                ("y" * (capture.NOTE_CHARS - 16) + " " + token, token[:15], "[redacted] [... "))],
         ]
         for text, absent, present in cases:
             with self.subTest(text=text[:40]):
@@ -458,6 +472,26 @@ class Redaction(unittest.TestCase):
                                                           "input": {"file_path": "C:/p/a.py"}})])
         self.assertIn(text, md)
         self.assertNotIn("[redacted]", md)
+
+    def test_prose_shaped_like_the_new_token_formats_is_kept(self) -> None:
+        # ai-memory's false-positive cases for the #142 formats: a bare prefix, a short run, colon-separated numbers.
+        kept = {
+            "gemini": ["see AQ.Ab for details", "AQ.A section", "AQ.Xyz0123456789abcdefghijklmnopqrstuvwxyz"],
+            "oauth": ["split it 1//2 and 1//3", "the v1//abcdefghijklmnopqrstuvwxyz route"],
+            "meta": ["EAA is the airport code", "harmless b3BlbnNzaC1rZXktdjEAAAAA" + "AAAAAAAAAAAAAAAAAAAAAA value"],
+            "telegram": ["timestamp 1234567:30 remaining", "map 127.0.0.1:8080 to the proxy",
+                         "built 2026:08 release notes", "aspect ratio 16:9 widescreen",
+                         "ports 8080:my-service-name-here", "00:00:00,000 --> 00:00:04,120 caption",
+                         "commit 12345678:deadbeefcafebabe0123456789abcdef"],
+            "base64 json": ["payload eyJhIjoi", "decode eyJhbGciOiJIUzI1NiJ9 to read the header"],
+        }
+        for name, texts in kept.items():
+            for text in texts:
+                with self.subTest(name, text=text):
+                    md = self.captured(None, [user(text), assistant(
+                        {"type": "tool_use", "name": "Edit", "input": {"file_path": "C:/p/a.py"}})])
+                    self.assertIn(f"### Prompt\n\n{text}\n", md)
+                    self.assertNotIn("[redacted]", md)
 
     def test_a_secret_header_without_its_end_takes_nothing_after_it(self) -> None:
         # A PEM header with no END line ran on to the end of the capture and erased the turns after it (#82 review).
@@ -496,6 +530,56 @@ class Redaction(unittest.TestCase):
                 md = self.captured(redact_list)
                 self.assertIn("Read the Acme-Kit rules", md)
                 self.assertNotIn("[redacted]", md)
+
+
+class HarnessTurns(unittest.TestCase):
+    # Claude Code writes some user turns nobody typed (#142). /distill reads every prompt as something the user
+    # stated, so a subagent's report could become a domain rule credited to the user.
+    def captured(self, fixture: str) -> str:
+        """Run the Stop hook on a fixture transcript, as Claude Code runs it, and return the capture it writes."""
+        with tempfile.TemporaryDirectory() as d:
+            omoikane = Path(d) / "omoikane"
+            shutil.copytree(BIN, omoikane / "bin", ignore=shutil.ignore_patterns("__pycache__"))
+            payload = json.dumps({"transcript_path": str(FIXTURES / fixture), "session_id": ""})
+            env = {k: v for k, v in os.environ.items() if k != capture.NO_CAPTURE_ENV}
+            subprocess.run([sys.executable, str(omoikane / "bin" / "session-capture.py")], input=payload, env=env,
+                           capture_output=True, text=True, check=True)
+            return next((omoikane / "raw" / "inbox" / "sessions").glob("*.md")).read_text(encoding="utf-8")
+
+    def test_a_task_notification_is_not_a_prompt(self) -> None:
+        # Tagged by origin.kind, or only opening with the block: 1,743 local notifications had no origin.
+        md = self.captured("claude-task-notification.jsonl")
+        self.assertIn("\nturns: 2\n", md)
+        self.assertIn("## Turn 1\n\n### Prompt\n\nReview the billing module in the background\n\n"
+                      "### Edited\n\n- `src/billing.py`\n- `src/invoice.py`\n", md)
+        self.assertIn("## Turn 2\n\n### Prompt\n\nwhy does <task-notification> show up in the capture?\n", md)
+        for leaked in ("TAGGEDSENTINEL", "UNTAGGEDSENTINEL", "<task-id>", "integer cents"):
+            self.assertNotIn(leaked, md)
+
+    def test_a_subagent_hand_back_is_not_a_prompt(self) -> None:
+        md = self.captured("claude-peer-message.jsonl")
+        self.assertIn("\nturns: 1\n", md)
+        self.assertIn("### Prompt\n\nDelegate the parser fix to a subagent\n\n### Edited\n\n- `src/parser.py`\n", md)
+        for leaked in ("PEERSENTINEL", "agent-message", "Another Claude session"):
+            self.assertNotIn(leaked, md)
+
+    def test_a_shell_mode_command_is_listed_and_its_output_dropped(self) -> None:
+        # The `!` prefix: Claude Code writes the command and its output as two user turns.
+        md = self.captured("claude-shell-mode.jsonl")
+        self.assertIn("\nturns: 2\n", md)
+        self.assertIn("## Turn 1\n\n### Prompt\n\nFix the parser\n\n### Edited\n\n- `src/parser.py`\n\n"
+                      "### Commands\n\n```\npython -m pytest\n! git status --short\n```\n\n## Turn 2\n\n"
+                      "### Prompt\n\nNow add a test\n", md)
+        for leaked in ("bash-", "SENTINEL", "git push", "git log -1"):
+            self.assertNotIn(leaked, md)
+
+    def test_a_compaction_summary_is_not_a_prompt(self) -> None:
+        md = self.captured("claude-compact-summary.jsonl")
+        self.assertIn("\nturns: 1\n", md)
+        self.assertIn("### Prompt\n\nFix the parser\n\n### Edited\n\n- `src/parser.py`\n- `src/prices.py`\n", md)
+        self.assertIn("Picking up where the summary left off.", md)
+        for leaked in ("SUMMARYSENTINEL", "being continued"):
+            self.assertNotIn(leaked, md)
 
 
 class Continuation(unittest.TestCase):
