@@ -4,8 +4,8 @@ type: practice
 summary: When a choice is the user's, recommend one option with its reason; act on it only after the user approves
 tags: [preference, decisions, handoff]
 created: 2026-10-07
-updated: 2026-10-07
-sources: [wiki/sources/session-2026-10-02-680ff986.md, wiki/sources/session-2026-10-06-180e52eb.md, wiki/sources/session-2026-10-06-61eabe29.md, wiki/sources/session-2026-10-06-fd3ff955.md, wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/session-2026-10-07-9e3fae7e.md]
+updated: 2026-10-09
+sources: [wiki/sources/session-2026-10-02-680ff986.md, wiki/sources/session-2026-10-06-180e52eb.md, wiki/sources/session-2026-10-06-61eabe29.md, wiki/sources/session-2026-10-06-fd3ff955.md, wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/session-2026-10-07-9e3fae7e.md, wiki/sources/session-2026-10-08-0ac17a0f.md, wiki/sources/session-2026-10-08-21f37812.md, wiki/sources/session-2026-10-08-261b475d.md]
 ---
 
 ## Rule
@@ -21,6 +21,10 @@ Act on it only after the user approves; the user's usual answer is "prossiga de 
 - The user: "Qual a sua recomendação ?" The agent: "Minha recomendação é abrir três agora (#1, #2 e #3), segurar a #4 e abrir a issue do corte de prompts junto." (source: [[session-2026-10-06-fd3ff955]], turn 3).
 - After the agent's account of the revised spec, the user: "prossiga com a sua recomendação, da melhor forma possivel, escolha as alternativas mais inteligente possiveis" (source: [[session-2026-10-07-062e80af]], turn 6).
 - The agent checked CI on seven PRs and stopped: "Ainda não fiz nenhum merge: preciso da sua autorização para começar." It merged them after "prossiga de acordo com a sua recomendação" (source: [[session-2026-10-07-9e3fae7e]], turns 2, 3). The user answered the same way to the next report (turn 4).
+
+- The agent checked each step of the handoff file and named the choices that were the user's; the user answered "prossiga de acordo com a sua recomendação" (source: [[session-2026-10-08-0ac17a0f]], turns 5, 6). After the turn-7 recommendation that the template's skills stop teaching TDD, the user: "Prossiga de acordo com a sua recomendação" (turn 8). The merges waited for "autorizo, prossiga" (turn 10).
+- The agent gave a recommendation on each proposal in `_review.md`, such as "recomendo marcar", and acted after the user's "prossiga de acordo com a sua recomendação" (source: [[session-2026-10-08-21f37812]], turns 6, 7). The user answered the same way at turn 3.
+- The handoff the user pasted: "pare nele, recomende uma opção com o motivo e espere eu aprovar" (source: [[session-2026-10-08-261b475d]], turn 2). After the user's answer on the fork, the agent: "Fork apagado de propósito, então a recomendação vale: manter a cópia local como divergência permanente. Se você aprovar, faço num PR só" (turn 3).
 
 ## Scope
 

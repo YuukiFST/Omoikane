@@ -4,8 +4,8 @@ type: practice
 summary: After a PR merges, check its worktree is clean, run git worktree remove on it, and delete the local and remote branch
 tags: [procedure, git, worktrees, pull-request]
 created: 2026-10-07
-updated: 2026-10-08
-sources: [wiki/sources/session-2026-10-02-04edad59.md, wiki/sources/session-2026-10-06-180e52eb.md, wiki/sources/session-2026-10-06-61eabe29.md, wiki/sources/session-2026-10-07-9e3fae7e.md, wiki/sources/session-2026-10-08-0ac17a0f.md]
+updated: 2026-10-09
+sources: [wiki/sources/session-2026-10-02-04edad59.md, wiki/sources/session-2026-10-06-180e52eb.md, wiki/sources/session-2026-10-06-61eabe29.md, wiki/sources/session-2026-10-07-9e3fae7e.md, wiki/sources/session-2026-10-08-0ac17a0f.md, wiki/sources/session-2026-10-08-21f37812.md, wiki/sources/session-2026-10-08-261b475d.md]
 ---
 
 ## Rule
@@ -21,6 +21,9 @@ Delete the PR's local and remote branch. Do not delete a worktree folder by hand
 - After the merges of the #111 stack, the agent found the worktrees `omoikane-103` to `omoikane-106` still there; the branches of the first three had merged (#107 to #109) after the session that opened them ended (source: [[session-2026-10-07-9e3fae7e]], turn 2).
 - The next day the agent checked each of them: PRs #107 to #110 `MERGED`, no commit outside `origin/main`, a clean tree, no stash. It said: "Worktree não deve ser apagada pelo Explorer. Use `git worktree remove`, que também limpa `.git/worktrees/`." (source: [[session-2026-10-08-0ac17a0f]], turn 3).
   After the user's "sim" it ran `git worktree remove --force` on the four and `git branch -d` on their branches (turns 3, 4). After PR #120 merged it removed `omoikane-119` and the branch, local and remote (turn 10).
+
+- After the user merged #124 and #126: "Merges conferidos: #124 entrou como `8d68716` e #126 como `007d983`, e as issues #123 e #125 fecharam. Removi a worktree e as branches." (source: [[session-2026-10-08-21f37812]], turn 6).
+- The handoff that session wrote, pasted by the user: "Se #132 e #134 estiverem mergeados, remova as worktrees deles com `git worktree remove` e apague as branches locais e remotas, incluindo `docs/129-*`." The agent: "Removi `../omoikane-131` e `../omoikane-133` e apaguei as branches `docs/129-*`, `docs/131-*` e `docs/133-*`, locais e remotas, depois de confirmar que todas estão na `main`." (source: [[session-2026-10-08-261b475d]], turn 2).
 
 ## Scope
 

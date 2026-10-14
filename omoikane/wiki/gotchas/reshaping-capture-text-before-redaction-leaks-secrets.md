@@ -4,8 +4,8 @@ type: gotcha
 summary: Join or wrap capture lines only after redaction; a joined private key and a wrapped `password =` leaked their secrets
 tags: [redaction, session-capture, secrets]
 created: 2026-10-07
-updated: 2026-10-08
-sources: [wiki/sources/session-2026-10-06-973284b2.md]
+updated: 2026-10-09
+sources: [wiki/sources/session-2026-10-06-973284b2.md, wiki/sources/session-2026-10-08-21f37812.md]
 code: [omoikane/bin/session-capture.py, tests/test_session_capture.py]
 guard: test
 ---
@@ -26,6 +26,7 @@ PR #109 wraps capture lines longer than `LINE_CHARS` (1900) for OpenCode: [[open
 The agent moved the wrap after redaction: "quebrar antes poderia separar `password:` do valor e vazar o segredo" (source: [[session-2026-10-06-973284b2]], turn 2).
 `capture()` now calls `wrap_long_lines` on the redacted text; a code comment there gives the reason.
 No test fails when the order is reversed, so `guard: test` covers the joining case only. A proposed test is in `omoikane/_review.md`, guard `wrapped-line-splits-a-name-from-its-secret`.
+The agent ran it in a scratch worktree: it passes on `main`, and it fails when the wrap runs before redaction, with `hunter22` in the capture (source: [[session-2026-10-08-21f37812]], turn 6).
 
 ## Workaround
 

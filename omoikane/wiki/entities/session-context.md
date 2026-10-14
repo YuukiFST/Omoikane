@@ -4,8 +4,8 @@ type: entity
 summary: omoikane/bin/session-context.py, the SessionStart brief: index, undistilled sessions, open and approved review items
 tags: [session-context, module, build-mode, review-queue]
 created: 2026-09-30
-updated: 2026-10-07
-sources: [wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-10-02-1b324082.md, wiki/sources/session-2026-10-02-a8b45323.md, wiki/sources/session-2026-10-06-973284b2.md, wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/session-2026-10-07-9e3fae7e.md]
+updated: 2026-10-09
+sources: [wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-10-02-1b324082.md, wiki/sources/session-2026-10-02-a8b45323.md, wiki/sources/session-2026-10-06-973284b2.md, wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/session-2026-10-07-9e3fae7e.md, wiki/sources/2026-10-08-how-coding-agents-read-your-code.md]
 code: [omoikane/bin/session-context.py, tests/test_wiki_lint.py, omoikane/bin/context-budget.py, tests/test_session_capture.py]
 ---
 
@@ -34,3 +34,9 @@ Since PR #117 (issue #111) the brief ends with "Nontrivial software task: load t
 It stands in for Cursor's `reminder:` field, which no harness Omoikane supports has: [[omoikane-mode-routes-each-task-to-a-playbook]] (source: [[session-2026-10-07-062e80af]], turns 5, 9).
 Commit `0c3f4cd` measured the worst-case brief at 3,792 of 4,000 tokens with the line.
 With every #111 PR merged in one worktree, the worst-case brief measured 3903 of 4000, "perto do limite" (source: [[session-2026-10-07-9e3fae7e]], turn 2).
+
+## Nothing per file
+
+The brief runs once, at session start. Its header says "Open a page before touching the area it covers" (line 26), and `AGENTS.md` build mode says to open the pages whose `code:` lists an area; both are instructions to remember (source: [[2026-10-08-how-coding-agents-read-your-code]]).
+No hook in `.claude/settings.json` shows a page when the agent reads or edits a file.
+The note proposes one that names the decision and gotcha pages whose `code:` lists the file, after a check of what hook output Claude Code adds to context (candidate issue 1). It is not an issue yet.

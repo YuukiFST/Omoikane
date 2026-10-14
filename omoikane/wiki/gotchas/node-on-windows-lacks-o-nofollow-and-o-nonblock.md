@@ -4,8 +4,8 @@ type: gotcha
 summary: Node on Windows defines no O_NOFOLLOW or O_NONBLOCK, so Cloudflare's security-audit validators refuse to run there
 tags: [windows, node, security-audit, ci]
 created: 2026-10-07
-updated: 2026-10-07
-sources: [wiki/sources/session-2026-10-07-062e80af.md]
+updated: 2026-10-09
+sources: [wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/2026-10-08-security-audit-stays-a-local-copy.md]
 code: [.claude/skills/security-audit/validate-findings.cjs, .claude/skills/security-audit/validate-coverage-ledger.cjs, .github/workflows/ci.yml, omoikane/skills.md]
 guard: test
 ---
@@ -25,5 +25,5 @@ The review of #115 added more, in commit `822d2b2` (turn 10):
 - "ReFS IDs are not guaranteed unique and some file systems report ino 0"; the fallback refuses `ino` 0 and also compares the birth time.
 
 The `security-audit-windows` job in `.github/workflows/ci.yml` runs both suites on `windows-latest` with the `win32` tests (turn 8).
-The same fix went upstream as cloudflare/security-audit-skill#69; once it merges, the copy returns to upstream as it is (turn 10; `docs/specs/2026-10-07-software-toolkit.md`).
+The same fix went upstream as cloudflare/security-audit-skill#69 (turn 10). #69 closed unmerged on 2026-10-07, and the copy stays local: [[security-audit-stays-a-local-copy]] (source: [[2026-10-08-security-audit-stays-a-local-copy]]; `docs/specs/2026-10-07-software-toolkit.md`).
 The changes are listed on the `security-audit` row of `omoikane/skills.md`. See [[cloudflare-security-audit-skill]].

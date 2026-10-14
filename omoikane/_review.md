@@ -100,3 +100,54 @@ A bullet with a checkbox is a proposal: a guard or a prompt change, with its dif
 ## [2026-10-08] ingest | 2026-10-07 omoikane-mode live check
 
 - contradiction ai-tells-folder-in-opencode-run: the note says OpenCode used the personal `ai-tells` skill "from `~/.claude/skills/`", but the run's capture calls the lint under `~/.agents/skills/ai-tells/scripts/`, and both folders hold `ai-tells`; see [[2026-10-07-omoikane-mode-live-check]] (source: `omoikane/raw/sources/2026-10-07-omoikane-mode-live-check.md:16`, `omoikane/raw/sources/sessions/2026-10-07-Q7Bpg6M5.md:80`)
+
+## [2026-10-09] distill | session 21f37812
+
+- [ ] guard (test) git-add-omoikane-stages-the-running-sessions-own-capture: `git add omoikane/` committed the running session's capture from `omoikane/raw/inbox/sessions/`; the agent unstaged it by hand before the push, see [[git-add-omoikane-stages-the-running-sessions-own-capture]] (session 21f37812, turn 3)
+  No diff: the check goes in a new case under `tests/` that runs `git ls-files omoikane/raw/inbox/sessions` and fails on any file but `.gitkeep`, with an error that names `git rm --cached <file>`. On `main` only `.gitkeep` is tracked there today. Check first that `omoikane/bin/review-gate.py`, which moves inbox captures into the `wiki/auto` worktree, never commits one that a run left undistilled.
+
+## [2026-10-09] distill | session 261b475d
+
+- [ ] guard (test) run-the-tests-on-windows-in-ci: `update-from-template.py` sent git its stdin in text mode, and the `AGENTS.md` stages were lost on Windows only; the CI test job runs on `ubuntu-latest`, so the test that catches it never runs there, see [[git-update-index-index-info-ignores-a-cr-ended-path-and-exits-0]] (session 261b475d, turn 2)
+  On `e6b73f5^` with the new test of `e6b73f5`, this job fails; the session saw that test fail on Windows before the fix. The full suite has run on the user's Windows machine, not yet on `windows-latest`; read the first run.
+````diff
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -52,3 +52,15 @@
+           node-version: "22"
+       - name: Security-audit validators
+         run: node --test .claude/skills/security-audit/validate-findings.test.cjs .claude/skills/security-audit/validate-coverage-ledger.test.cjs
++
++  # Python's text mode writes "\n" to a child's stdin as "\r\n" on Windows only, so some tests fail only there
++  # (update-from-template, #135).
++  tests-windows:
++    runs-on: windows-latest
++    steps:
++      - uses: actions/checkout@v4
++      - uses: actions/setup-python@v5
++        with:
++          python-version: "3.11"
++      - name: Tests
++        run: python -m unittest discover -s tests
+````
+- [ ] prompt (ingest.md) ingest-logs-a-routed-line-for-each-todo: `/ingest` logs the todos it files as "Filed: ...", which `review-removals.py` does not read, so deleting `narrow-omoikane-mode-live-check` left no `- removed` line (session 261b475d, turn 4)
+  The open todo `quote-audit-proposal-not-opened`, filed by an `/ingest`, has no `- routed` line in `log.md` either.
+````diff
+--- a/omoikane/prompts/ingest.md
++++ b/omoikane/prompts/ingest.md
+@@ -10,7 +10,7 @@
+ 4. For each entity or concept in the source: update the existing page, or create one when the wiki has none and the source treats it as central. Cite the new source inline on every claim you add. Add a `## Contradictions` section where the source disagrees with a claim already on the page, and append the disagreement to `omoikane/_review.md`.
+    - Omission is disagreement when the source claims completeness. A source that presents itself as the full list, the whole schema, or the thing to read instead of the code, and leaves out what another source asserts, contradicts that source. Record it as a contradiction, not as "not covered".
+    - A rule the source sets for the system being built (a business rule, a design-system rule, an organisation convention) goes on a `domain` page under `omoikane/wiki/domain/`, as `omoikane/prompts/distill.md` step 4 describes, quoting the source with where it says so. One page per topic a later agent works on (a component, an area of the business), holding that topic's rules, with `summary` stating its main rule: the brief lists domain pages first, and one page per rule of a long guide would push every decision and gotcha out of it. Terms the source defines (a glossary, a "we call X ...") follow the same rule: one `term` page per topic, listing each term with its definition and the words rejected for it. A term the source pairs with a rejected word gets a `term` page of its own, as distill step 4 describes: that is the term an agent gets wrong.
+-5. Append to `omoikane/log.md`: `## [YYYY-MM-DD] ingest | <title>` followed by the list of pages created and updated.
++5. Append to `omoikane/log.md`: `## [YYYY-MM-DD] ingest | <title>` followed by the list of pages created and updated, then one line per todo you filed in `omoikane/_review.md`: `- routed (todo) <slug>: <the work left, one line>`. `review-removals.py` reads only `- routed` lines, so a todo without one leaves no `- removed` line when the human deletes its bullet.
+ 6. Move the source file from `omoikane/raw/inbox/` to `omoikane/raw/sources/` with `git mv` when tracked, plain move otherwise. A scheduled run may not move files: when `git mv` is denied, do not try another way; leave the file, `wiki-ingest.ps1` moves it after the run.
+ 7. Run `python omoikane/bin/wiki-index.py` then `python omoikane/bin/wiki-lint.py`. Fix every finding. In a scheduled run (`wiki-ingest.ps1`) skip this step: you have no shell, and lint runs after you and sends its findings back.
+ 
+````
+
+## [2026-10-09] synthesize
+
+- [ ] guard (hook) pr-merged-before-its-review-fixes: the user merged a PR while its review ran, and the agent pushed the fixes to the merged branch, where they missed `main` (sessions 21f37812, 261b475d; turns 8, 6)
+  No diff: the check goes in a new PreToolUse `Bash` hook beside `.claude/hooks/escape-edit-guard.py`, registered in `.claude/settings.json`. On `git push`, it runs `gh pr list --head <branch> --state merged --json number` and blocks with a message that names the merged PR and says to put the commits on a new PR. Both pushes ran after a `cd` into a worktree, one in agent-dotfiles, so the hook must resolve the repository from the command. It costs one `gh` call per push and covers Claude Code only. See [[review-each-pr-with-a-subagent-before-merging]].
+- [ ] rule tests-an-agent-writes-are-e2e-only: Write each test through the outermost interface the caller touches; unit or integration tests only when the user asks (synthesize)
