@@ -131,6 +131,12 @@ EDIT_TOOLS = {"edit", "write", "multiedit", "notebookedit"}
 SHELL_TOOLS = {"bash", "powershell"}
 # Path argument per harness: Claude Code file_path/notebook_path, OpenCode filePath, Pi path.
 PATH_KEYS = ("file_path", "notebook_path", "filePath", "path")
+# User entries Claude Code writes itself (#144): a background task's report, a `!` command's output. /distill reads
+# a prompt as the user's words, so a subagent report could become a rule the user never stated. Read by the opening
+# tag alone: the output is arbitrary text and may hold a closing tag of its own.
+HARNESS_TURN = re.compile(r"\s*<(?:local-command-|task-notification>|bash-stdout>|bash-stderr>)")
+# A command the user ran with Claude Code's `!` prefix: recorded apart from the agent's, under the current turn.
+BASH_INPUT = re.compile(r"\s*<bash-input>(.*?)(?:</bash-input>|\Z)", re.DOTALL)
 # Claude Code's command entry, with <command-message> before or after <command-name>. Anchored at the start: a
 # prompt that pastes a transcript excerpt is prose, not a command.
 COMMAND_TAG = re.compile(r"\s*(?:<command-message>[^<]*</command-message>\s*)?<command-name>(/[\w:-]+)</command-name>")
@@ -159,6 +165,8 @@ class Turn:
     notes: list[str] = field(default_factory=list)
     files: list[str] = field(default_factory=list)
     commands: list[str] = field(default_factory=list)
+    # Not counted in Session.first_command: the user ran them, so they answer nothing.
+    user_commands: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
 
@@ -316,7 +324,14 @@ def read_claude_transcript(path: Path, session_id: str = "") -> Session:
         session.branch = session.branch or str(entry.get("gitBranch", ""))
         content = message.get("content")
         if kind == "user" and isinstance(content, str):
-            if entry.get("isMeta") or content.lstrip().startswith("<local-command-"):
+            # The compaction summary repeats turns that stay earlier in the same transcript.
+            origin = entry.get("origin")
+            if (entry.get("isMeta") or entry.get("isCompactSummary") or HARNESS_TURN.match(content)
+                    or isinstance(origin, dict) and origin.get("kind") == "task-notification"):
+                continue
+            if bang := BASH_INPUT.match(content):
+                if current is not None and first_line(bang.group(1)):
+                    current.user_commands.append(first_line(bang.group(1)))
                 continue
             command = COMMAND_TAG.match(content)
             current = Turn(prompt=clip(command.group(1) if command else content, PROMPT_CHARS))
@@ -552,6 +567,8 @@ def render(session: Session, turns: list[Turn], part: int, worktree: list[str]) 
             out += ["### Edited", "", *[f"- `{f}`" for f in t.files], ""]
         if t.commands:
             out += ["### Commands", "", "```", *t.commands, "```", ""]
+        if t.user_commands:
+            out += ["### Commands the user ran", "", "```", *t.user_commands, "```", ""]
         if t.errors:
             out += ["### Errors", "", *[f"- {e}" for e in t.errors], ""]
         notes = [n for ni, n in enumerate(t.notes) if (i, ni) in kept]
