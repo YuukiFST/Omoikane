@@ -433,6 +433,11 @@ class Redaction(unittest.TestCase):
             ("graph call with EAA" + "FAKEfakeFAKEfake0123456789 failed", "FAKEfake", "graph call with [redacted] failed"),
             ("TG 123456789:AA" + "FAKEfakeFAKEfakeFAKEfake0123456789 done", "FAKEfake", "TG [redacted] done"),
             ("bot 123456:ABC-DEF" + "1234ghIkl-zyx57W2v1u123ew11 ok", "ABC-DEF", "bot [redacted] ok"),
+            # In the Bot API URL the token follows `bot`, a word character (#145 review).
+            ("curl https://api.telegram.org/bot123456789:AA" + "FAKEfakeFAKEfakeFAKEfake0123456789/getMe", "FAKEfake",
+             "https://api.telegram.org/bot[redacted]/getMe"),
+            ("https://api.telegram.org/bot123456:ABC-DEF" + "1234ghIkl-zyx57W2v1u123ew11/sendMessage", "ABC-DEF",
+             "/bot[redacted]/sendMessage"),
             ("cloudflared service install eyJhIjoi" + "RkFLRUZBS0VGQUtFRkFLRUZBS0VGQUtFIiwidCI6IkZBS0VGQUtFIn0=", "RkFLRUZB",
              "cloudflared service install [redacted]\n"),
             *(("y" * (capture.NOTE_CHARS - 13) + " " + token, token[:12], "y [redacted] [... ")
@@ -476,7 +481,9 @@ class Redaction(unittest.TestCase):
         prose = {
             "gemini": "see AQ.Ab for details; AQ.A section; AQ.Xyz0123456789abcdefghijklmnopqrstuvwxyz",
             "oauth refresh": "ratio 1//2 and https://example.com//a/b/c/d/e/f/g/h/i/j/k/l and x1//0gabcdefghijklmnopqrstuv",
-            "meta": "EAA is the airport code; harmless b3BlbnNzaC1rZXktdjEAAAAA value; EAAshort",
+            # An upper-case hash, as Get-FileHash prints it, is not a mixed-case Meta token (#145 review).
+            "meta": "EAA is the airport code; harmless b3BlbnNzaC1rZXktdjEAAAAA value; EAAshort; "
+                    "SHA256 EAA1F2C3D4E5F60718293A4B5C6D7E8F9 file.zip",
             "telegram": "built 2026:08 release notes; aspect ratio 16:9 widescreen; ports 8080:my-service-name-here; "
                         "00:00:00,000 --> 00:00:04,120 caption; commit 12345678:deadbeefcafebabe0123456789abcdef; "
                         "commit 12345678:" + "deadbeef" * 5,
