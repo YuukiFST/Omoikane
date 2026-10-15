@@ -585,13 +585,19 @@ class RuleStatements(unittest.TestCase):
     # session where the user only stated rules was dropped as "no files edited".
     EDIT = assistant({"type": "tool_use", "name": "Edit", "input": {"file_path": "C:/proj/a.py"}})
 
-    def stop(self, entries: list[dict[str, object]], redact_list: str = "") -> tuple[str, str]:
-        """Run the Stop hook on a transcript, as Claude Code runs it: its output line and the capture, "" if none."""
+    def stop(self, entries: list[dict[str, object]], redact_list: str = "", distilled_turns: int = 0) -> tuple[str, str]:
+        """Run the Stop hook on a transcript, as Claude Code runs it: its output line and the capture, "" if none.
+        `distilled_turns`: a part with that many turns is already under raw/sources/sessions/."""
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             omoikane = tmp / "omoikane"
             shutil.copytree(BIN, omoikane / "bin", ignore=shutil.ignore_patterns("__pycache__"))
             (omoikane / ".capture-redact").write_text(redact_list, encoding="utf-8")
+            if distilled_turns:
+                sources = omoikane / "raw" / "sources" / "sessions"
+                sources.mkdir(parents=True)
+                (sources / "2026-09-15-abcdef12.md").write_text(
+                    f"---\nsession: abcdef12-0000\nturns: {distilled_turns}\n---\n", encoding="utf-8")
             payload = json.dumps({"transcript_path": str(write_transcript(tmp, entries)), "session_id": "abcdef12-0000"})
             env = {k: v for k, v in os.environ.items() if k != capture.NO_CAPTURE_ENV}
             stop = subprocess.run([sys.executable, str(omoikane / "bin" / "session-capture.py")], input=payload,
@@ -642,6 +648,24 @@ class RuleStatements(unittest.TestCase):
                                             "- Turn 1: Never paste [redacted] here."])
         for leaked in ("hunter", "Acme", "a1a1"):
             self.assertNotIn(leaked, md)
+
+    def test_wrapped_clipped_and_mid_prompt_question_sentences(self) -> None:
+        # A hard-wrapped sentence is listed whole, a question followed by more text is not listed, and a rule cut by
+        # the clip keeps its marker whole, which tells /distill to give it no page.
+        clipped = "x\n" * 9990 + "Never push to main without a review from the owner of the module."
+        _, md = self.stop([user("From now\non, dates are in UTC. Você sempre usa tabs? Use espaços."), self.EDIT,
+                           user(clipped)])
+        listed = self.section(md)
+        self.assertEqual(listed[0], "- Turn 1: From now on, dates are in UTC.")
+        self.assertRegex(listed[1], r"^- Turn 2: Never push to main w[^\[]*\[\.\.\. \d+ chars cut\]$")
+        self.assertEqual(len(listed), 2)
+
+    def test_a_later_part_numbers_its_statements_as_its_own_turns(self) -> None:
+        _, md = self.stop([user("Never commit to main."), self.EDIT, user("Fix the parser."), self.EDIT,
+                           user("Por padrão, datas em UTC."), self.EDIT], distilled_turns=1)
+        self.assertIn("part: 2", md)
+        self.assertIn("## Turn 2\n\n### Prompt\n\nPor padrão, datas em UTC.", md)
+        self.assertEqual(self.section(md), ["- Turn 2: Por padrão, datas em UTC."])
 
     def test_the_section_stops_at_its_limit(self) -> None:
         prompt = "\n".join(f"Always run check {i}." for i in range(capture.RULE_ITEMS + 5))

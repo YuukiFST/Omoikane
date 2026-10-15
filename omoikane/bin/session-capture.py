@@ -171,8 +171,12 @@ RULE_SENTENCE_CHARS = 400
 # reviewable. ai-memory classifies candidates in batches of 20 (CLASSIFY_BATCH). Past the limit the prompts still
 # hold the rest.
 RULE_ITEMS = 20
+NO_EDITS = "no files edited"
 CODE_FENCE = re.compile(r"^[ \t]*(?:```|~~~).*?(?:^[ \t]*(?:```|~~~)[ \t]*$|\Z)", re.MULTILINE | re.DOTALL)
-SENTENCE_END = re.compile(r"(?<=[.!])\s+")
+# Not inside a clip marker: /distill gives a sentence cut by `[... N chars cut]` no page, so the item keeps it whole.
+SENTENCE_END = re.compile(r"(?<=[.!?])(?<!\[\.\.\.)\s+")
+# A hard-wrapped sentence: the line breaks with no end mark and the next one goes on in lower case.
+WRAPPED = re.compile(r"(?<![.!?:;])[ \t]*\n[ \t]*(?=[a-zà-ÿ])")
 LIST_MARK = re.compile(r"^(?:[-*+>]|\d+[.)])\s+")
 NOTE_CHARS = 1500
 # Long prompts are where the user states rules: at 2,000 four rules past the cut never became pages (#104). The
@@ -518,20 +522,20 @@ def skip_reason(session: Session, worktree: list[str], stated: bool = False) -> 
     if not session.turns:
         return "no prompts"
     if not session.files and not worktree and not stated:
-        return "no files edited"
+        return NO_EDITS
     return None
 
 
 def rule_statements(turns: list[Turn], terms: list[str]) -> list[tuple[int, str]]:
     """(turn number from 1, sentence) for each rule-shaped sentence in the prompts, outside code blocks; a question
-    or a sentence over RULE_SENTENCE_CHARS is not one. The prompt is redacted before it is split: a split between a
-    name and its value (`password = "a. b"`) would hide the value from redaction.
+    or a sentence over RULE_SENTENCE_CHARS is not one. The prompt is redacted before it is split or its wrapped lines
+    are joined: a split between a name and its value (`password = "a. b"`) would hide the value from redaction.
 
     Example: rule_statements([Turn("Fix it. Never push to main.")], []) returns [(1, "Never push to main.")].
     """
     found: list[tuple[int, str]] = []
     for number, turn in enumerate(turns, 1):
-        text = CODE_FENCE.sub("\n", redact(redact_secrets(turn.prompt), terms))
+        text = WRAPPED.sub(" ", CODE_FENCE.sub("\n", redact(redact_secrets(turn.prompt), terms)))
         for line in text.splitlines():
             for sentence in SENTENCE_END.split(LIST_MARK.sub("", line.strip())):
                 sentence = sentence.strip()
@@ -752,8 +756,11 @@ def capture(transcript: Path, session_id: str = "", harness: str = "claude", inb
     session = READERS[harness](transcript, session_id)
     worktree = git_status(session.cwd)
     terms = redaction_terms(redact_file)
-    statements = rule_statements(session.turns, terms)
-    reason = skip_reason(session, worktree, stated=bool(statements))
+    reason = skip_reason(session, worktree)
+    # Only a kept session, or one dropped for editing nothing, pays for the redaction rule_statements runs.
+    statements = rule_statements(session.turns, terms) if reason in (None, NO_EDITS) else []
+    if statements:
+        reason = skip_reason(session, worktree, stated=True)
     if reason:
         return f"skip: {reason}"
     session.branch = session.branch or git_branch(session.cwd)
