@@ -3,7 +3,7 @@
 **You own the resume point. Read the prior trail, don't redo it.**
 
 1. Locate the prior trail in Omoikane's memory and in live state:
-   - The session brief lists the captured sessions not yet distilled. Read the last one under `omoikane/raw/inbox/sessions/`: metadata and last messages first, then scan back for the decision points.
+   - The session brief lists the captured sessions not yet distilled, each with its branch. Read the one marked `resume` under `omoikane/raw/inbox/sessions/`, the newest of the current branch; a capture marked `possibly live` may belong to a session still running: metadata and last messages first, then scan back for the decision points.
    - Resume notes and other notes a prior agent left under `omoikane/raw/inbox/` (the Pause safely playbook writes them there).
    - Distilled sessions under `omoikane/wiki/sources/`, and the decision and gotcha pages whose `code:` lists the area you resume.
    - Live state: `git status`, `git log`, `git branch -a`, `git worktree list`, and `gh pr list --author @me` / `gh pr view <pr>` for a pushed branch.
