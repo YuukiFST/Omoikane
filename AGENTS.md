@@ -71,7 +71,8 @@ Fix every `wiki-lint.py` finding before you report done. Its `warning:` lines do
 
 ## Coding sessions (build mode)
 
-- The index is injected at session start, with any captured session not yet distilled; read the last one to pick up where the previous session stopped. Before editing an area, open the decision and gotcha pages whose `code:` lists it.
+- No 'Omoikane wiki brief' in context: run `python omoikane/bin/session-context.py` and read its output before the first edit; empty output means there is nothing to brief.
+- Before editing an area, open the decision and gotcha pages whose `code:` lists it.
 - Do not write under `omoikane/wiki/` during coding work. The Stop hook captures the session into `omoikane/raw/inbox/sessions/`; `/wrap-up` distills it. Pages written mid-session duplicate that work and skip the contract checks.
 - A proposal ticked `[x]` in `omoikane/_review.md` is approved; the brief counts them. Apply its diff when the human asks, run the tests, delete the bullet. A ticked `rule` has no diff: only `python omoikane/bin/wiki-rules.py`, run by the human, writes it into `AGENTS.md`. Never tick one yourself.
 - Something a later agent must know before the next distill runs: write it as a short Markdown file into `omoikane/raw/inbox/`; it is ingested like any source.
