@@ -151,6 +151,33 @@ COMMAND_TEMPLATE = re.compile(r"\s*Read `omoikane/prompts/(\w+)\.md` and follow 
 # Pi's /skill:<name> (#111): the typed form, or the block Pi expands it into (_expandSkillCommand in
 # dist/core/agent-session.js of pi-coding-agent 1.0.4). Anchored at the start, as COMMAND_TAG is.
 PI_SKILL = re.compile(r'(?:/skill:([\w-]+)(?:\s|\Z)|<skill name="([\w-]+)" location=")')
+# Phrases that make a sentence the user typed rule-shaped (#152), after ai-memory's PREFERENCE_MARKERS
+# (crates/ai-memory-consolidate/src/profile.rs). /distill gives each hit a destination, so a loose match costs one
+# rejection line; a rule the capture does not list is still in its prompt.
+RULE_MARKERS = (
+    "from now on", "going forward", "by default", "prefer", "instead of", "rather than", "make sure", "must",
+    r"(?:don['’]t|do not) (?:use|add|write|commit|push|edit|create)", "in all my projects", "every project",
+    "a partir de agora", "daqui (?:pra|para) frente", "de agora em diante", "por padr[ãa]o", "prefiro", "prefira",
+    "em vez de", r"ao inv[ée]s de", "n[ãa]o (?:use|usa|fa[çc]a|crie|escreva|commite|edite|adicione)", "tem que",
+    "devem?", "[ée] proibido", "[ée] obrigat[óo]rio", "em todos os (?:meus )?projetos",
+)
+# "Nunca vi isso", "it never worked": a past or descriptive verb after the word tells what happened, not a rule.
+RULE_ADVERBS = r"(?:always|never|sempre|nunca)(?!\s+(?:vi|foi|tive|tinha|fiz|ouvi|soube|funcionou|deu|seen|was|did|had|worked|heard)(?!\w))"
+# Not inside a path or slug: `proposals-that-add-always-loaded-text.md` states nothing.
+RULE_SHAPED = re.compile(r"(?i)(?<![\w./-])(?:" + RULE_ADVERBS + "|" + "|".join(RULE_MARKERS) + r")(?![\w/-])")
+# A longer sentence is a paste, not a rule (ai-memory's SENTENCE_MAX_BYTES).
+RULE_SENTENCE_CHARS = 400
+# /distill gives every listed item a destination and the source page records each rejection; 20 keeps that list
+# reviewable. ai-memory classifies candidates in batches of 20 (CLASSIFY_BATCH). Past the limit the prompts still
+# hold the rest.
+RULE_ITEMS = 20
+NO_EDITS = "no files edited"
+CODE_FENCE = re.compile(r"^[ \t]*(?:```|~~~).*?(?:^[ \t]*(?:```|~~~)[ \t]*$|\Z)", re.MULTILINE | re.DOTALL)
+# Not inside a clip marker: /distill gives a sentence cut by `[... N chars cut]` no page, so the item keeps it whole.
+SENTENCE_END = re.compile(r"(?<=[.!?])(?<!\[\.\.\.)\s+")
+# A hard-wrapped sentence: the line breaks with no end mark and the next one goes on in lower case.
+WRAPPED = re.compile(r"(?<![.!?:;])[ \t]*\n[ \t]*(?=[a-zà-ÿ])")
+LIST_MARK = re.compile(r"^(?:[-*+>]|\d+[.)])\s+")
 NOTE_CHARS = 1500
 # Long prompts are where the user states rules: at 2,000 four rules past the cut never became pages (#104). The
 # longest prompt in the captures up to 2026-10-06 had 10,306 characters; the limit only bounds a pasted log.
@@ -482,8 +509,9 @@ def record_tool_use(turn: Turn, name: str, tool_input: object, cwd: str) -> None
         turn.commands.append(first_line(tool_input.get("command")))
 
 
-def skip_reason(session: Session, worktree: list[str]) -> str | None:
-    """Return why the session is not worth a source file, or None when it is.
+def skip_reason(session: Session, worktree: list[str], stated: bool = False) -> str | None:
+    """Return why the session is not worth a source file, or None when it is. `stated`: the user typed a
+    rule-shaped sentence, which keeps a session that edited nothing, since stating rules is the whole session.
 
     Example: skip_reason(Session(..., turns=[Turn("/ingest")]), []) returns "omoikane operation /ingest".
     """
@@ -493,9 +521,28 @@ def skip_reason(session: Session, worktree: list[str]) -> str | None:
         return f"subagent of {session.parent}"
     if not session.turns:
         return "no prompts"
-    if not session.files and not worktree:
-        return "no files edited"
+    if not session.files and not worktree and not stated:
+        return NO_EDITS
     return None
+
+
+def rule_statements(turns: list[Turn], terms: list[str]) -> list[tuple[int, str]]:
+    """(turn number from 1, sentence) for each rule-shaped sentence in the prompts, outside code blocks; a question
+    or a sentence over RULE_SENTENCE_CHARS is not one. The prompt is redacted before it is split or its wrapped lines
+    are joined: a split between a name and its value (`password = "a. b"`) would hide the value from redaction.
+
+    Example: rule_statements([Turn("Fix it. Never push to main.")], []) returns [(1, "Never push to main.")].
+    """
+    found: list[tuple[int, str]] = []
+    for number, turn in enumerate(turns, 1):
+        text = WRAPPED.sub(" ", CODE_FENCE.sub("\n", redact(redact_secrets(turn.prompt), terms)))
+        for line in text.splitlines():
+            for sentence in SENTENCE_END.split(LIST_MARK.sub("", line.strip())):
+                sentence = sentence.strip()
+                if (len(sentence) <= RULE_SENTENCE_CHARS and not sentence.endswith("?")
+                        and RULE_SHAPED.search(sentence)):
+                    found.append((number, sentence))
+    return found
 
 
 def run_git(cwd: str, *args: str) -> str:
@@ -536,8 +583,10 @@ def keep_ends(lengths: list[int], budget: int) -> tuple[int, int]:
     return head, tail
 
 
-def render(session: Session, turns: list[Turn], part: int, worktree: list[str]) -> str:
-    """Markdown the distill prompt reads. Frontmatter carries the ids the continuation logic needs."""
+def render(session: Session, turns: list[Turn], part: int, worktree: list[str],
+           statements: list[tuple[int, str]] | None = None) -> str:
+    """Markdown the distill prompt reads. Frontmatter carries the ids the continuation logic needs. `statements`:
+    rule_statements() of `turns`, numbered as the turns here are."""
     out = [
         "---",
         f"harness: {session.harness}",
@@ -560,6 +609,11 @@ def render(session: Session, turns: list[Turn], part: int, worktree: list[str]) 
     files = sorted({f for t in turns for f in t.files})
     if files:
         out += ["## Files edited", "", *[f"- `{f}`" for f in files], ""]
+    if statements:
+        out += ["## Rule-shaped statements", "", *[f"- Turn {n}: {s}" for n, s in statements[:RULE_ITEMS]]]
+        if len(statements) > RULE_ITEMS:
+            out.append(f"- [... {len(statements) - RULE_ITEMS} more not listed; read the prompts]")
+        out.append("")
     flat = [(ti, ni) for ti, t in enumerate(turns) for ni in range(len(t.notes))]
     head, tail = keep_ends([len(turns[ti].notes[ni]) for ti, ni in flat], NOTES_BUDGET)
     kept = set(flat[:head] + (flat[len(flat) - tail:] if tail else []))
@@ -701,7 +755,12 @@ def capture(transcript: Path, session_id: str = "", harness: str = "claude", inb
             redact_file: Path = REDACT_FILE) -> str:
     session = READERS[harness](transcript, session_id)
     worktree = git_status(session.cwd)
+    terms = redaction_terms(redact_file)
     reason = skip_reason(session, worktree)
+    # Only a kept session, or one dropped for editing nothing, pays for the redaction rule_statements runs.
+    statements = rule_statements(session.turns, terms) if reason in (None, NO_EDITS) else []
+    if statements:
+        reason = skip_reason(session, worktree, stated=True)
     if reason:
         return f"skip: {reason}"
     session.branch = session.branch or git_branch(session.cwd)
@@ -713,7 +772,8 @@ def capture(transcript: Path, session_id: str = "", harness: str = "claude", inb
     suffix = "" if part == 1 else f"-part{part}"
     target = inbox / f"{session.day}-{session.short_id}{suffix}.md"
     inbox.mkdir(parents=True, exist_ok=True)
-    text = redact_capture(render(session, session.turns[covered:], part, worktree), redaction_terms(redact_file))
+    shown_statements = [(n - covered, s) for n, s in statements if n > covered]
+    text = redact_capture(render(session, session.turns[covered:], part, worktree, shown_statements), terms)
     # After redaction: a break between a name and its value (`password:` / `hunter22`) would hide the value from it.
     target.write_text(wrap_long_lines(text), encoding="utf-8")
     shown = target.relative_to(OMOIKANE.parent) if target.is_relative_to(OMOIKANE.parent) else target
