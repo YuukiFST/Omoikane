@@ -173,8 +173,8 @@ class ContextBudget(unittest.TestCase):
         brief, error = budget.worst_case_brief()
         self.assertEqual(error, "")
         self.assertIn("Omitted by budget: Domain", brief)
-        self.assertIn("- ... 100 more", brief)
-        self.assertIn("-part10.md` on feat/xxxxxxxxxxx[...] (resume, possibly live)", brief)
+        self.assertIn("- ... 1000 more", brief)
+        self.assertIn("-part1000.md` on feat/xxxxxxxxxxx[...] (resume, possibly live)", brief)
         for line in ("open items", "approved proposals", "approved rules", "Session capture failed 1000 times"):
             self.assertIn(line, brief)
         self.assertEqual([f for f in budget.check(agents_md(), [], brief) if f.startswith("session brief")], [])
