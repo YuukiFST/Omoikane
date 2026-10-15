@@ -47,13 +47,21 @@ UNREDACTED_KEYS = ("harness", "session", "part", "turns", "started", "ended")
 CLIP_MARK = r" \[\.\.\. \d+ chars cut\]"
 CLIPPED = re.compile(CLIP_MARK)
 # Token shapes with a known prefix. A token cut short by a clip still starts with its prefix, so that part goes too.
+# Telegram bot token: the issued `AA` shape, or the documented one, whose fixed length keeps `<sha>:<hex>` and
+# `host:port` pairs out.
+TELEGRAM = r"\d{6,10}:(?:AA[\w-]{30,}|[\w-]{34,35}(?![\w-]))"
 TOKENS = (r"gh[pousr]_[A-Za-z0-9]{30,}|github_pat_\w{20,}|sk-(?=[\w-]*\d)[\w-]{20,}"  # a digit: sk-learn-... is prose
           r"|[sr]k_(?:live|test)_[A-Za-z0-9]{16,}|xox[abprs]-[A-Za-z0-9-]{10,}|xapp-[\w-]{20,}|AIza[\w-]{30,}"
           r"|(?:AKIA|ASIA)[0-9A-Z]{16}|glpat-[\w-]{20,}|npm_[A-Za-z0-9]{30,}|hf_[A-Za-z0-9]{30,}|pypi-[\w-]{20,}"
           r"|ya29\.[\w-]{20,}|GOCSPX-[\w-]{20,}|SG\.[\w-]{16,}\.[\w-]{16,}|whsec_[A-Za-z0-9+/]{20,}|hvs\.[\w-]{20,}"
-          r"|eyJ[\w-]{8,}\.eyJ[\w-]{8,}(?:\.[\w-]*)?|https://hooks\.slack\.com/services/[\w/]+")
+          r"|eyJ[\w-]{8,}\.eyJ[\w-]{8,}(?:\.[\w-]*)?|https://hooks\.slack\.com/services/[\w/]+"
+          # From ai-memory's sanitize.rs (#144): Gemini auth key, Google OAuth refresh token, Meta Graph token. A
+          # Meta token is mixed case, so an upper-case hash that starts with EAA stays (#145 review).
+          r"|AQ\.Ab[\w-]{30,}|1//[\w-]{20,}|EAA(?=[A-Za-z0-9]*[a-z])[A-Za-z0-9]{20,}|" + TELEGRAM +
+          # A dotless base64 JSON object, as a Cloudflare tunnel token; 40 characters, so `eyJhIjoi` stays.
+          r"|eyJ[\w+/-]{40,}={0,2}")
 TOKEN_PREFIXES = (r"gh[pousr]_|github_pat_|sk-|[sr]k_(?:live|test)_|xox[abprs]-|xapp-|AIza|AKIA|ASIA|glpat-|npm_"
-                  r"|hf_|pypi-|ya29\.|GOCSPX-|SG\.|whsec_|hvs\.|eyJ")
+                  r"|hf_|pypi-|ya29\.|GOCSPX-|SG\.|whsec_|hvs\.|eyJ|AQ\.Ab|1//|EAA|\d{6,10}:AA")
 # A private key block, read by its structure: header, armor fields, base64 lines, footer. A line break may be real,
 # escaped (`\n` in JSON or .env), or a string concatenation in code ("...\n"<newline>"..."), and a line may be
 # `> `-quoted. Without a footer only whole base64 lines of 20+ characters follow, so a header quoted in prose takes
@@ -68,7 +76,9 @@ PRIVATE_KEY = (KEY_HEADER + r"(?:(?:(?:" + KEY_BREAK + r")+(?:" + KEY_ARMOR + r"
                + r"|(?:" + KEY_BREAK + r"[A-Za-z0-9+/=]{20,}(?=" + KEY_BREAK + r"|\Z|" + CLIP_MARK + r"))*"
                r"(?:" + KEY_BREAK + r"[A-Za-z0-9+/=]+(?=" + CLIP_MARK + r"))?)")
 SECRET_SHAPES = re.compile(PRIVATE_KEY + r"|(?<![\w-])(?:" + TOKENS + r")"
-                           r"|(?<![\w-])(?:" + TOKEN_PREFIXES + r")[\w.-]*(?=" + CLIP_MARK + r")")
+                           r"|(?<![\w-])(?:" + TOKEN_PREFIXES + r")[\w.-]*(?=" + CLIP_MARK + r")"
+                           # The Bot API URL puts the token right after `/bot` (#145 review).
+                           r"|(?<=/bot)(?:" + TELEGRAM + r"|\d{6,10}:AA[\w.-]*(?=" + CLIP_MARK + r"))")
 # A label that stays, then the secret it introduces. Each pattern's group 1 is the label.
 SECRET_AFTER = [re.compile(p) for p in (
     r"(?i)(\bbearer[ \t]+)(?=[\w.~+/-]*\d)[\w.~+/-]{16,}=*",  # a digit: "bearer authenticationscheme" is prose
@@ -124,6 +134,12 @@ EDIT_TOOLS = {"edit", "write", "multiedit", "notebookedit"}
 SHELL_TOOLS = {"bash", "powershell"}
 # Path argument per harness: Claude Code file_path/notebook_path, OpenCode filePath, Pi path.
 PATH_KEYS = ("file_path", "notebook_path", "filePath", "path")
+# User entries Claude Code writes itself (#144): a background task's report, a `!` command's output. /distill reads
+# a prompt as the user's words, so a subagent report could become a rule the user never stated. Read by the opening
+# tag alone: the output is arbitrary text and may hold a closing tag of its own.
+HARNESS_TURN = re.compile(r"\s*<(?:local-command-|task-notification>|bash-stdout>|bash-stderr>)")
+# A command the user ran with Claude Code's `!` prefix: recorded apart from the agent's, under the current turn.
+BASH_INPUT = re.compile(r"\s*<bash-input>(.*?)(?:</bash-input>|\Z)", re.DOTALL)
 # Claude Code's command entry, with <command-message> before or after <command-name>. Anchored at the start: a
 # prompt that pastes a transcript excerpt is prose, not a command.
 COMMAND_TAG = re.compile(r"\s*(?:<command-message>[^<]*</command-message>\s*)?<command-name>(/[\w:-]+)</command-name>")
@@ -152,6 +168,8 @@ class Turn:
     notes: list[str] = field(default_factory=list)
     files: list[str] = field(default_factory=list)
     commands: list[str] = field(default_factory=list)
+    # Not counted in Session.first_command: the user ran them, so they answer nothing.
+    user_commands: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
 
@@ -309,7 +327,14 @@ def read_claude_transcript(path: Path, session_id: str = "") -> Session:
         session.branch = session.branch or str(entry.get("gitBranch", ""))
         content = message.get("content")
         if kind == "user" and isinstance(content, str):
-            if entry.get("isMeta") or content.lstrip().startswith("<local-command-"):
+            # The compaction summary repeats turns that stay earlier in the same transcript.
+            origin = entry.get("origin")
+            if (entry.get("isMeta") or entry.get("isCompactSummary") or HARNESS_TURN.match(content)
+                    or isinstance(origin, dict) and origin.get("kind") == "task-notification"):
+                continue
+            if bang := BASH_INPUT.match(content):
+                if current is not None and first_line(bang.group(1)):
+                    current.user_commands.append(first_line(bang.group(1)))
                 continue
             command = COMMAND_TAG.match(content)
             current = Turn(prompt=clip(command.group(1) if command else content, PROMPT_CHARS))
@@ -545,6 +570,8 @@ def render(session: Session, turns: list[Turn], part: int, worktree: list[str]) 
             out += ["### Edited", "", *[f"- `{f}`" for f in t.files], ""]
         if t.commands:
             out += ["### Commands", "", "```", *t.commands, "```", ""]
+        if t.user_commands:
+            out += ["### Commands the user ran", "", "```", *t.user_commands, "```", ""]
         if t.errors:
             out += ["### Errors", "", *[f"- {e}" for e in t.errors], ""]
         notes = [n for ni, n in enumerate(t.notes) if (i, ni) in kept]

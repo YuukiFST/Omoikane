@@ -426,6 +426,23 @@ class Redaction(unittest.TestCase):
              + 'PRIVATE KEY-----")', "MIIEvQ", 'key = ("[redacted]")'),
             ("<password>hunter22</password>", "hunter22", "<password>[redacted]</password>"),
             ("AccountKey=" + "abcd1234" * 4 + "==;", "abcd1234", "AccountKey=[redacted]"),
+            # Shapes ai-memory's sanitize.rs redacts that this list missed (#144).
+            ("export it: AQ.Ab" + "FAKEfake0123456789abcdefghijklmn-_FAKE done", "FAKEfake", "export it: [redacted] done"),
+            ("gcloud printed 1//0g" + "FAKEfakeFAKEfake0123456789 as the refresh", "FAKEfake",
+             "gcloud printed [redacted] as the refresh"),
+            ("graph call with EAA" + "FAKEfakeFAKEfake0123456789 failed", "FAKEfake", "graph call with [redacted] failed"),
+            ("TG 123456789:AA" + "FAKEfakeFAKEfakeFAKEfake0123456789 done", "FAKEfake", "TG [redacted] done"),
+            ("bot 123456:ABC-DEF" + "1234ghIkl-zyx57W2v1u123ew11 ok", "ABC-DEF", "bot [redacted] ok"),
+            # In the Bot API URL the token follows `bot`, a word character (#145 review).
+            ("curl https://api.telegram.org/bot123456789:AA" + "FAKEfakeFAKEfakeFAKEfake0123456789/getMe", "FAKEfake",
+             "https://api.telegram.org/bot[redacted]/getMe"),
+            ("https://api.telegram.org/bot123456:ABC-DEF" + "1234ghIkl-zyx57W2v1u123ew11/sendMessage", "ABC-DEF",
+             "/bot[redacted]/sendMessage"),
+            ("cloudflared service install eyJhIjoi" + "RkFLRUZBS0VGQUtFRkFLRUZBS0VGQUtFIiwidCI6IkZBS0VGQUtFIn0=", "RkFLRUZB",
+             "cloudflared service install [redacted]\n"),
+            *(("y" * (capture.NOTE_CHARS - 13) + " " + token, token[:12], "y [redacted] [... ")
+              for token in ("AQ.Ab" + "FAKEfake0123456789abcdefghijklmn", "1//0g" + "FAKEfakeFAKEfake0123456789",
+                            "EAA" + "FAKEfakeFAKEfake0123456789", "123456789:AA" + "FAKEfakeFAKEfakeFAKEfake0123456789")),
         ]
         for text, absent, present in cases:
             with self.subTest(text=text[:40]):
@@ -458,6 +475,26 @@ class Redaction(unittest.TestCase):
                                                           "input": {"file_path": "C:/p/a.py"}})])
         self.assertIn(text, md)
         self.assertNotIn("[redacted]", md)
+
+    def test_prose_shaped_like_the_ai_memory_tokens_is_kept(self) -> None:
+        # The near misses ai-memory's sanitize.rs tests keep (#144), one group per token shape added from it.
+        prose = {
+            "gemini": "see AQ.Ab for details; AQ.A section; AQ.Xyz0123456789abcdefghijklmnopqrstuvwxyz",
+            "oauth refresh": "ratio 1//2 and https://example.com//a/b/c/d/e/f/g/h/i/j/k/l and x1//0gabcdefghijklmnopqrstuv",
+            # An upper-case hash, as Get-FileHash prints it, is not a mixed-case Meta token (#145 review).
+            "meta": "EAA is the airport code; harmless b3BlbnNzaC1rZXktdjEAAAAA value; EAAshort; "
+                    "SHA256 EAA1F2C3D4E5F60718293A4B5C6D7E8F9 file.zip",
+            "telegram": "built 2026:08 release notes; aspect ratio 16:9 widescreen; ports 8080:my-service-name-here; "
+                        "00:00:00,000 --> 00:00:04,120 caption; commit 12345678:deadbeefcafebabe0123456789abcdef; "
+                        "commit 12345678:" + "deadbeef" * 5,
+            "base64 json": "payload eyJhIjoi; header eyJhbGciOiJIUzI1NiJ9 alone",
+        }
+        for name, text in prose.items():
+            with self.subTest(name):
+                md = self.captured(None, [user(text), assistant({"type": "tool_use", "name": "Edit",
+                                                                  "input": {"file_path": "C:/p/a.py"}})])
+                self.assertIn(text, md)
+                self.assertNotIn("[redacted]", md)
 
     def test_a_secret_header_without_its_end_takes_nothing_after_it(self) -> None:
         # A PEM header with no END line ran on to the end of the capture and erased the turns after it (#82 review).
@@ -496,6 +533,51 @@ class Redaction(unittest.TestCase):
                 md = self.captured(redact_list)
                 self.assertIn("Read the Acme-Kit rules", md)
                 self.assertNotIn("[redacted]", md)
+
+
+class HarnessTurns(unittest.TestCase):
+    # Claude Code writes user entries nobody typed (#144). /distill reads every prompt as the user's words, so a
+    # subagent report captured as a prompt could become a domain rule the user never stated.
+    def captured(self, fixture: str) -> str:
+        """Run the Stop hook on a fixture transcript, as Claude Code runs it, and return the capture it writes."""
+        with tempfile.TemporaryDirectory() as d:
+            omoikane = Path(d) / "omoikane"
+            shutil.copytree(BIN, omoikane / "bin", ignore=shutil.ignore_patterns("__pycache__"))
+            payload = json.dumps({"transcript_path": str(FIXTURES / fixture), "session_id": "abcdef12-0000"})
+            env = {k: v for k, v in os.environ.items() if k != capture.NO_CAPTURE_ENV}
+            stop = subprocess.run([sys.executable, str(omoikane / "bin" / "session-capture.py")], input=payload,
+                                  env=env, capture_output=True, text=True, check=True)
+            self.assertIn("session-capture: captured", stop.stdout)
+            return next((omoikane / "raw" / "inbox" / "sessions").glob("*.md")).read_text(encoding="utf-8")
+
+    def prompts(self, md: str) -> list[str]:
+        return [p.split("\n\n", 1)[0] for p in md.split("### Prompt\n\n")[1:]]
+
+    def test_a_task_notification_is_not_a_prompt(self) -> None:
+        # Tagged by `origin.kind`, opened by the block, or both; a typed prompt that quotes the tag stays.
+        md = self.captured("claude-task-notification.jsonl")
+        self.assertEqual(self.prompts(md), ["Review the parser change in the background",
+                                            "Why does <task-notification> show up in the capture?"])
+        self.assertIn("turns: 2\n", md)
+        for sentinel in ("AGENTSENTINEL", "TAGSENTINEL", "BLOCKSENTINEL", "integer cents"):
+            self.assertNotIn(sentinel, md)
+        # What the agent did after the report stays, in the turn of the prompt it was working on.
+        self.assertIn("Started the review agent.\n\nThe review found one issue; fixed it.", md)
+
+    def test_a_bang_command_is_a_command_the_user_ran_and_its_output_is_dropped(self) -> None:
+        # Kept apart from the agent's commands: who ran it matters to /distill, and a turn with commands counts as
+        # answered in Session.first_command. The output is read by its opening tag alone: it may hold a closing tag.
+        md = self.captured("claude-bash-mode.jsonl")
+        self.assertEqual(self.prompts(md), ["Fix the parser", "Why does <bash-stdout>x</bash-stdout> appear?"])
+        self.assertIn("### Commands the user ran\n\n```\ngit stash drop\nprintf '</bash-stdout>'\n```", md)
+        for sentinel in ("STDOUTSENTINEL", "SHELLSENTINEL", "STDERRSENTINEL", "<bash-input>"):
+            self.assertNotIn(sentinel, md)
+
+    def test_the_compaction_summary_is_not_a_prompt(self) -> None:
+        # It repeats turns that stay earlier in the same transcript.
+        md = self.captured("claude-compact-summary.jsonl")
+        self.assertEqual(self.prompts(md), ["Fix the parser", "Now add a test"])
+        self.assertNotIn("SUMMARYSENTINEL", md)
 
 
 class Continuation(unittest.TestCase):
