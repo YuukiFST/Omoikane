@@ -8,11 +8,13 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from datetime import date, timedelta
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "omoikane" / "bin"))
+BIN = Path(__file__).resolve().parent.parent / "omoikane" / "bin"
+sys.path.insert(0, str(BIN))
 
 from wikilib import Page  # noqa: E402
 
@@ -433,9 +435,58 @@ class PendingNotes(unittest.TestCase):
             (omoikane / "_review.md").write_text("# Review queue\n\nIntro.\n\n- one\n- two\n", encoding="utf-8")
             out = context.pending_notes(omoikane)
         self.assertLess(out.index("2026-09-01-bbbbbbbb.md"), out.index("2026-09-01-aaaaaaaa.md"))
-        self.assertIn("`omoikane/raw/inbox/sessions/2026-09-01-aaaaaaaa.md`", out)
+        # Outside git there is no current branch: the newest capture is the resume point.
+        self.assertIn("- `2026-09-01-aaaaaaaa.md` (resume)", out)
         self.assertNotIn(".gitkeep", out)
         self.assertIn("2 open items in omoikane/_review.md", out)
+
+    def brief(self, root: Path, captures: list[tuple[str, str, float]]) -> list[str]:
+        """Run session-context.py as the SessionStart hook does, in a repository on branch feat/here.
+
+        Each capture is (name, branch, seconds since its last write); returns the Pending section's lines.
+        """
+        subprocess.run(["git", "init", "-q", "-b", "feat/here", str(root)], check=True)
+        sessions = root / "omoikane" / "raw" / "inbox" / "sessions"
+        sessions.mkdir(parents=True)
+        now = time.time()
+        for name, branch, age in captures:
+            (sessions / name).write_text(f"---\nharness: claude\nbranch: {branch}\n---\n\n## Turn 1\n",
+                                         encoding="utf-8")
+            os.utime(sessions / name, (now - age, now - age))
+        env = {k: v for k, v in os.environ.items() if k != context.NO_CAPTURE_ENV}
+        out = subprocess.run([sys.executable, str(BIN / "session-context.py"), "--omoikane", str(root / "omoikane")],
+                             capture_output=True, text=True, encoding="utf-8", env=env, check=True).stdout
+        return out.split("## Pending\n\n", 1)[1].splitlines()
+
+    def test_resume_is_the_newest_capture_of_the_current_branch(self) -> None:
+        # Parallel sessions on other branches are the normal case: the newest capture overall is not this work.
+        with tempfile.TemporaryDirectory() as d:
+            lines = self.brief(Path(d), [("2026-10-01-aaaaaaaa.md", "feat/here", 7_200),
+                                         ("2026-10-01-bbbbbbbb.md", "feat/here", 3_600),
+                                         ("2026-10-01-cccccccc.md", "fix/other", 1_800),
+                                         ("2026-10-01-dddddddd.md", "fix/other", 60)])
+        self.assertEqual(lines[1:5], ["- `2026-10-01-aaaaaaaa.md` on feat/here",
+                                      "- `2026-10-01-bbbbbbbb.md` on feat/here (resume)",
+                                      "- `2026-10-01-cccccccc.md` on fix/other",
+                                      "- `2026-10-01-dddddddd.md` on fix/other (possibly live)"])
+
+    def test_a_resume_point_older_than_the_shown_captures_replaces_the_oldest_shown(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            lines = self.brief(Path(d), [("2026-10-01-00000000.md", "feat/here", 9_000)]
+                               + [(f"2026-10-01-0000000{i}.md", "main", 8_000 - i) for i in range(1, 7)])
+        self.assertEqual(lines[1:7], ["- ... 2 more",
+                                      "- `2026-10-01-00000000.md` on feat/here (resume)",
+                                      "- `2026-10-01-00000003.md` on main",
+                                      "- `2026-10-01-00000004.md` on main",
+                                      "- `2026-10-01-00000005.md` on main",
+                                      "- `2026-10-01-00000006.md` on main"])
+
+    def test_a_long_branch_is_cut_and_a_live_resume_point_carries_both_labels(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            lines = self.brief(Path(d), [("2026-10-01-aaaaaaaa.md", "fix/" + "x" * 40, 3_600),
+                                         ("2026-10-01-bbbbbbbb.md", "feat/here", 30)])
+        self.assertEqual(lines[1:3], ["- `2026-10-01-aaaaaaaa.md` on fix/xxxxxxxxxxxx[...]",
+                                      "- `2026-10-01-bbbbbbbb.md` on feat/here (resume, possibly live)"])
 
     def test_proposed_diff_lines_are_not_counted_as_items(self) -> None:
         # A guard or prompt proposal carries a diff; its removed lines start with "- " too.

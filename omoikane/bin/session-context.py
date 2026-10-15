@@ -9,14 +9,24 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 from wikilib import OMOIKANE, review_bullets
 
 NO_CAPTURE_ENV = "OMOIKANE_NO_CAPTURE"
-# Undistilled captures listed by path; older ones are only counted. A stalled scheduler must not flood the brief.
+# Undistilled captures listed by name; older ones are only counted. A stalled scheduler must not flood the brief.
 PENDING_SESSIONS_SHOWN = 5
+# A branch name has no length limit; the brief has a token budget (context-budget.py). The cut keeps the
+# `<type>/<issue>-` head that git-workflow branch names start with.
+BRANCH_CHARS = 16
+# The Stop hook rewrites a capture on every turn, so a recent write may be a session still running. ai-memory
+# skips such a handoff for the same window (LIVE_BATON_QUIET_PERIOD, crates/ai-memory-hooks/src/router.rs).
+LIVE_SECONDS = 600
+BRANCH_LINE = re.compile(r"^branch: *(.*?) *$", re.MULTILINE)
 # Failed captures, one line each, written by session-capture.py (#103); the brief shows the count and the last one.
 CAPTURE_ERRORS = ".capture-errors"
 # The last error is cut here: its time, harness, session and type plus the start of the message name the failure,
@@ -100,14 +110,35 @@ def review_items(review: str) -> tuple[int, int, int]:
     return len(bullets), approved, rules
 
 
+def capture_branch(capture: Path) -> str:
+    """The `branch:` of a capture's frontmatter (session-capture.py writes it), or "" when it has none.
+
+    Example: capture_branch(Path("2026-10-14-9dc91394.md")) returns "docs/140-wrap-up-2026-10-09".
+    """
+    with capture.open(encoding="utf-8", errors="replace") as f:
+        head = f.read(4096)
+    m = BRANCH_LINE.search(head.split("\n---", 1)[0])
+    return m.group(1) if m else ""
+
+
+def current_branch(repo: Path) -> str:
+    """The branch checked out in repo, or "" outside git or on a detached HEAD."""
+    try:
+        run = subprocess.run(["git", "-C", str(repo), "branch", "--show-current"], capture_output=True, text=True,
+                             timeout=5, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return run.stdout.strip() if run.returncode == 0 else ""
+
+
 def pending_notes(omoikane: Path) -> str:
     """Name what is known but not in the wiki yet: captured sessions waiting for /distill, open review items.
 
-    The newest undistilled capture is where the previous session stopped; pointing at it lets the agent resume
-    without waiting for the next /wrap-up.
+    The newest undistilled capture of the current branch, or the newest of any branch when none matches, is where
+    the previous session stopped; pointing at it lets the agent resume without waiting for the next /wrap-up.
 
-    Example: pending_notes(Path("omoikane")) returns
-    "## Pending\\n\\nCaptured sessions not yet distilled, ...\\n- `omoikane/raw/inbox/sessions/2026-09-15-e04462b2.md`".
+    Example: pending_notes(Path("omoikane")) on branch main returns
+    "## Pending\\n\\nUndistilled captures in ...\\n- `2026-09-15-e04462b2.md` on main (resume)".
     """
     lines: list[str] = []
     errors = omoikane / CAPTURE_ERRORS
@@ -120,13 +151,32 @@ def pending_notes(omoikane: Path) -> str:
                      f"omoikane/{CAPTURE_ERRORS}.")
     # Not name order: names carry the start day and a random id tail. The Stop hook rewrites a capture on
     # every turn, so modification time is the last activity.
-    sessions = sorted((omoikane / "raw" / "inbox" / "sessions").glob("*.md"), key=lambda p: p.stat().st_mtime)
+    inbox = omoikane / "raw" / "inbox" / "sessions"
+    sessions: list[tuple[float, Path, str]] = []
+    for p in inbox.glob("*.md"):
+        try:
+            sessions.append((p.stat().st_mtime, p, capture_branch(p)))
+        except OSError:  # /distill moved it to raw/sources between the glob and the read
+            continue
+    sessions.sort()
     if sessions:
-        lines.append("Captured sessions not yet distilled, by last activity; the last one is where the previous "
-                     "session stopped:")
-        if len(sessions) > PENDING_SESSIONS_SHOWN:
-            lines.append(f"- ... {len(sessions) - PENDING_SESSIONS_SHOWN} older")
-        lines += [f"- `{p.relative_to(omoikane.parent).as_posix()}`" for p in sessions[-PENDING_SESSIONS_SHOWN:]]
+        here = current_branch(omoikane.parent)
+        # Parallel sessions on other branches are the normal case; their newest capture is not this one's work.
+        resume = ([s for s in sessions if here and s[2] == here] or sessions)[-1]
+        shown = sessions[-PENDING_SESSIONS_SHOWN:]
+        if resume not in shown:
+            shown = [resume, *shown[1:]]
+        lines.append(f"Undistilled captures in {inbox.relative_to(omoikane.parent).as_posix()}/, by last activity. "
+                     "Read the resume one first. possibly live: changed under 10 minutes ago, maybe still running.")
+        if len(sessions) > len(shown):
+            lines.append(f"- ... {len(sessions) - len(shown)} more")
+        now = time.time()
+        for s in shown:
+            mtime, p, branch = s
+            marks = ["resume"] * (s == resume) + ["possibly live"] * (now - mtime < LIVE_SECONDS)
+            branch = branch if len(branch) <= BRANCH_CHARS else branch[:BRANCH_CHARS] + "[...]"
+            lines.append(f"- `{p.name}`" + (f" on {branch}" if branch else "")
+                         + (f" ({', '.join(marks)})" if marks else ""))
     review = omoikane / "_review.md"
     if review.is_file():
         open_items, approved, rules = review_items(review.read_text(encoding="utf-8"))

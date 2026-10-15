@@ -78,6 +78,9 @@ coding session ends a turn  --stop hook of the harness-->  omoikane/bin/session-
 
 new session starts  --start hook of the harness-->  omoikane/bin/session-context.py
    prints pending work (capture failures, undistilled captures, open _review.md items), then omoikane/index.md
+   each capture line names its branch; resume marks the newest capture of the current branch (else the newest),
+   possibly live marks one written in the last 10 minutes; both hooks run from the checkout the session was
+   opened in, so a session opened in a worktree writes and reads that worktree's inbox only
    index filled entry by entry up to a character budget: domain, decision, gotcha and practice sections first
    get their first entry and a floor (half the budget, shared), the rest goes in PAGE_TYPES order; a last line
    counts what was omitted
