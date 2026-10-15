@@ -11,7 +11,8 @@ In a system born from the template (remote `template`, which new-system.py names
 describes Omoikane, not the system: a file the template shipped contributes only the lines the system added since
 it branched off, and the history starts there too. Elsewhere, a file holding Omoikane's managed rules block is
 Omoikane's manual and is skipped. A second run writes nothing already in the inbox, in raw/sources/, or on the
-review gate's branch.
+review gate's branch, except a source whose file changed since its last copy: that version becomes a new inbox file
+named after its commit (raw/sources/ is immutable), and it names the earlier copies it follows (#150).
 
 Usage: python omoikane/bin/bootstrap.py [--from PATH]     # default: this repository
 """
@@ -49,6 +50,11 @@ PREFIX = "bootstrap-"
 MAX_SLUG = 150  # file names stay well under the 255 bytes Windows and Linux allow
 # Where the review gate keeps what it ingested until the human's checkout pulls it (review-gate.py).
 GATE_REFS = ("wiki/auto", "origin/wiki/auto", "origin/main")
+# A later version of a source is named after its commit; the slug's own collision suffix is 6 characters, not 7.
+VERSION = re.compile(r"-[0-9a-f]{7}\.md$")
+LAST_CHANGED = re.compile(r"last changed (\d{4}-\d{2}-\d{2}) in commit ([0-9a-f]{4,40})\.")
+TITLE = re.compile(r"# .+ \(bootstrap\)\n")
+BODY_START = "\n\n---\n\n"
 
 
 class BootstrapError(Exception):
@@ -187,12 +193,23 @@ def slugs(paths: list[str], terms: list[str]) -> dict[str, str]:
     return {p: name_of(p, name) for p, name in base.items()}
 
 
-def source_note(project: Path, path: str, text: str, partial: bool) -> str:
-    changed = git(project, "log", "-1", "--format=%cs %h", "HEAD", "--", path).split()
-    when = f"last changed {changed[0]} in commit {changed[1]}" if changed else "date unknown"
+def last_commit(project: Path, path: str) -> tuple[str, str] | None:
+    """Date and full id of the newest commit of HEAD that touched `path`."""
+    changed = git(project, "log", "-1", "--format=%cs %H", "HEAD", "--", path).split()
+    return (changed[0], changed[1]) if changed else None
+
+
+def source_note(project: Path, path: str, text: str, partial: bool, local: bool, follows: list[str]) -> str:
+    """The inbox file for one source. `local`: the project is the wiki's own repository, so the source page can list
+    `path` in `code:`. `follows`: the earlier copies of the same file that this version replaces."""
+    changed = last_commit(project, path)
+    when = f"last changed {changed[0]} in commit {changed[1][:7]}" if changed else "date unknown"
     scope = " Only the lines this system added to the template's copy follow." if partial else ""
+    code = f" `{path}` is a file of this repository: list it in the source page's `code:`." if local else ""
+    newer = (f" This is a newer version of the file than the earlier copies {', '.join(f'`{n}`' for n in follows)}: "
+             "their source pages no longer match it." if follows else "")
     return (f"# {path} of {project.name} (bootstrap)\n\nCopied by `omoikane/bin/bootstrap.py` from `{path}` in "
-            f"`{project.name}`, {when}.{scope}\n\n---\n\n{text}")
+            f"`{project.name}`, {when}.{scope}{code}{newer}{BODY_START}{text}")
 
 
 def history_note(project: Path, exclude: list[str]) -> str | None:
@@ -214,13 +231,82 @@ def history_note(project: Path, exclude: list[str]) -> str | None:
             "subject, then the body. A body often holds the reason for a change.\n\n" + "\n\n".join(entries) + "\n")
 
 
-def already_there(name: str, omoikane: Path) -> bool:
-    """In this checkout's inbox or sources, or on the review gate's branch before the human pulled it."""
-    if (omoikane / "raw" / "inbox" / name).exists() or (omoikane / "raw" / "sources" / name).exists():
-        return True
-    return any(subprocess.run(["git", "-C", str(omoikane.parent), "cat-file", "-e",
-                               f"{ref}:omoikane/raw/{folder}/{name}"], capture_output=True).returncode == 0
-               for ref in GATE_REFS for folder in ("sources", "inbox"))
+def copies(omoikane: Path) -> dict[str, str]:
+    """Every bootstrap file already written, name to text: this checkout's inbox and sources first, then the review
+    gate's branches before the human pulled them. One `git cat-file --batch` reads every file on those branches."""
+    found: dict[str, str] = {}
+    for folder in ("inbox", "sources"):
+        for file in sorted((omoikane / "raw" / folder).glob(f"{PREFIX}*.md")):
+            found.setdefault(file.name, file.read_text(encoding="utf-8", errors="replace"))
+    wanted: list[str] = []
+    for ref in GATE_REFS:
+        listing = subprocess.run(["git", "-C", str(omoikane.parent), "-c", "core.quotePath=false", "ls-tree", "-r",
+                                  "--name-only", ref, "--", "omoikane/raw/sources", "omoikane/raw/inbox"],
+                                 capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if listing.returncode == 0:
+            wanted += [f"{ref}:{line}" for line in listing.stdout.splitlines()
+                       if PurePosixPath(line).name.startswith(PREFIX) and PurePosixPath(line).name not in found]
+    if not wanted:
+        return found
+    out = subprocess.run(["git", "-C", str(omoikane.parent), "cat-file", "--batch"], capture_output=True,
+                         input="".join(f"{spec}\n" for spec in wanted).encode("utf-8")).stdout
+    at = 0
+    for spec in wanted:
+        end = out.index(b"\n", at)
+        header, at = out[at:end].split(), end + 1
+        if len(header) != 3:
+            continue  # "<spec> missing"
+        size = int(header[2])
+        found.setdefault(PurePosixPath(spec).name, out[at:at + size].decode("utf-8", "replace"))
+        at += size + 1
+    return found
+
+
+def earlier_copies(name: str, found: dict[str, str]) -> dict[str, str]:
+    """The copies under `name`: that one and the versions named after a commit.
+
+    Example: earlier_copies("bootstrap-readme-md.md", found) holds "bootstrap-readme-md-1a2b3c4.md" too.
+    """
+    version = re.compile(re.escape(name[:-3]) + r"(-[0-9a-f]{7})?\.md")
+    return {n: text for n, text in found.items() if version.fullmatch(n)}
+
+
+def place(names: tuple[str, str], title: str, found: dict[str, str]) -> tuple[str, dict[str, str]] | None:
+    """The name this source's first copy takes and its earlier copies, the ones whose first line is `title`.
+
+    Copies under the first name with another source's title hold another repository's file with the same slug
+    (`--from`), so the source takes the second name, which carries its project. None when a copy under the name
+    has no bootstrap title: the human rewrote it, and whose it is cannot be told.
+    """
+    for name in names:
+        group = earlier_copies(name, found)
+        mine = {n: text for n, text in group.items() if text.partition("\n")[0] == title}
+        if mine or not group:
+            return name, mine
+        if not all(TITLE.match(text) for text in group.values()):
+            return None
+    return None
+
+
+def holds(copy: str, note: str, commit: str) -> bool:
+    """True when `copy` holds the version `note` is: the same commit, or the same text under another commit (a
+    rebase, or a template update that left this system's own lines alone)."""
+    head, _, body = copy.partition(BODY_START)
+    copied = LAST_CHANGED.search(head)
+    return body == note.partition(BODY_START)[2] or bool(copied and commit.startswith(copied.group(2)))
+
+
+def newest(copies_of: dict[str, str], order: list[str]) -> str:
+    """The copy of the newest version: latest date, then latest in `order`, the file's commits newest first. Only
+    this one is compared, so a file put back to an older text is copied again. A commit no longer in `order` was
+    rewritten (an amend, a rebase), so it ranks first on its date."""
+    def age(text: str) -> tuple[str, int]:
+        copied = LAST_CHANGED.search(text.partition(BODY_START)[0])
+        if not copied:
+            return "", 0
+        position = next((i for i, c in enumerate(order) if c.startswith(copied.group(2))), -1)
+        return copied.group(1), -position
+    return max(copies_of.values(), key=age)
 
 
 def bootstrap(project: Path, omoikane: Path = OMOIKANE, redact_file: Path = capture.REDACT_FILE) -> list[str]:
@@ -236,23 +322,39 @@ def bootstrap(project: Path, omoikane: Path = OMOIKANE, redact_file: Path = capt
     terms = capture.redaction_terms(redact_file)
     paths = sorted(p for p in head if is_source(p))
     names = slugs(paths, terms)
+    local = project.resolve() == omoikane.parent.resolve()
+    found = copies(omoikane)
+
+    def redacted(text: str) -> str:
+        return capture.redact(capture.redact_secrets(text), terms)
+    project_slug = re.sub(r"[^\w]+", "-", capture.redact(project.name, terms).lower()).strip("-_")
     notes: dict[str, str] = {}
     for path in paths:
         text = content(project, path, head[path], template)
-        if text is not None:
-            partial = template is not None and any(path in version for version in template)
-            notes[names[path]] = source_note(project, path, text, partial)
+        if text is None:
+            continue
+        partial = template is not None and any(path in version for version in template)
+        placed = place((names[path], f"{names[path][:-3]}-{project_slug}.md"),
+                       redacted(f"# {path} of {project.name} (bootstrap)"), found)
+        if placed is None:
+            continue
+        first, earlier = placed
+        note = redacted(source_note(project, path, text, partial, local, sorted(earlier)))
+        if not earlier:
+            notes[first] = note
+            continue
+        order = git(project, "log", "--format=%H", "HEAD", "--", path).split()
+        commit = order[0] if order else ""
+        if not holds(newest(earlier, order), note, commit):
+            notes[f"{first[:-3]}-{commit[:7]}.md"] = note
     history = history_note(project, [base, *tips] if base else [])
-    if history:
-        notes[f"{PREFIX}git-history.md"] = history
+    if history and f"{PREFIX}git-history.md" not in found:
+        notes[f"{PREFIX}git-history.md"] = redacted(history)
     inbox = omoikane / "raw" / "inbox"
     written = []
     for name, text in notes.items():
-        if already_there(name, omoikane):
-            continue
         inbox.mkdir(parents=True, exist_ok=True)
-        (inbox / name).write_text(capture.redact(capture.redact_secrets(text), terms), encoding="utf-8",
-                                  newline="\n")
+        (inbox / name).write_text(text, encoding="utf-8", newline="\n")
         written.append(name)
     return written
 
@@ -278,7 +380,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"bootstrap: these come from {project.name}, another repository; the scheduled run commits and pushes "
               "what it ingests, so read them first and delete what must stay private")
     for name in written:
-        print(f"bootstrap: wrote omoikane/raw/inbox/{name}")
+        print(f"bootstrap: wrote omoikane/raw/inbox/{name}" + ("; its file changed since the last copy, and /ingest "
+                                                               "marks the earlier source page outdated"
+                                                               if VERSION.search(name) else ""))
     print(f"bootstrap: {len(written)} files for /ingest, one agent run each")
     return 0
 

@@ -110,6 +110,63 @@ class Bootstrap(unittest.TestCase):
         self.assertEqual(self.inbox()["bootstrap-pkg-api-claude-md.md"], "edited by the human")
         self.assertNotIn("bootstrap-readme-md.md", self.inbox())
 
+    def test_a_changed_file_comes_back_as_a_new_source(self) -> None:
+        # Every copied file was skipped forever, so a rules doc edited after bootstrap never reached the wiki (#150).
+        self.run_on(self.project)
+        sources = self.omoikane / "raw" / "sources"
+        sources.mkdir(parents=True)
+        for file in (self.omoikane / "raw" / "inbox").glob("*.md"):
+            file.rename(sources / file.name)
+        first = (sources / "bootstrap-readme-md.md").read_text(encoding="utf-8")
+        commit(self.project, {"README.md": "# Shop\n\nPrices are integer cents.\n\nRefunds go back to the card.\n",
+                              "src/total.py": "def total(): return 1\n"}, "docs: refunds")
+        changed = git(self.project, "rev-parse", "--short=7", "HEAD").strip()
+        self.assertEqual(self.run_on(self.project), [f"bootstrap-readme-md-{changed}.md"])
+        note = self.inbox()[f"bootstrap-readme-md-{changed}.md"]
+        self.assertIn("Refunds go back to the card.", note)
+        self.assertIn("newer version of the file than the earlier copies `bootstrap-readme-md.md`", note)
+        self.assertEqual((sources / "bootstrap-readme-md.md").read_text(encoding="utf-8"), first)
+        self.assertEqual(self.run_on(self.project), [])
+        # The same text under a new commit, as a rebase leaves it, is not a new version.
+        git(self.project, "commit", "-q", "--amend", "-m", "docs: refunds, reworded")
+        self.assertEqual(self.run_on(self.project), [])
+
+    def test_a_file_put_back_to_an_older_text_is_copied_again(self) -> None:
+        # Any earlier copy with the same text counted as current, so the wiki kept the reverted version (#151 review).
+        self.run_on(self.project)
+        readme = (self.project / "README.md").read_text(encoding="utf-8")
+        commit(self.project, {"README.md": readme + "\nRefunds take a week.\n"}, "docs: refunds take a week")
+        self.assertEqual(len(self.run_on(self.project)), 1)
+        commit(self.project, {"README.md": readme}, "revert: refunds take a week")
+        reverted = git(self.project, "rev-parse", "--short=7", "HEAD").strip()
+        self.assertEqual(self.run_on(self.project), [f"bootstrap-readme-md-{reverted}.md"])
+        self.assertNotIn("Refunds take a week.", self.inbox()[f"bootstrap-readme-md-{reverted}.md"])
+        self.assertEqual(self.run_on(self.project), [])
+
+    def test_another_repository_s_file_is_not_a_version_of_this_one(self) -> None:
+        # Copies matched by slug alone, so `--from` an old system's README was filed as a newer version of the
+        # system's own README and /ingest moved its `code:` (#151 review).
+        old = self.root / "old"
+        git(self.root, "init", "-q", "-b", "main", str(old))
+        commit(old, {"README.md": "# Old shop\n\nPrices were floats.\n"}, "docs: the old shop")
+        self.run_on(self.project)
+        self.assertIn("bootstrap-readme-md-old.md", self.run_on(old))
+        files = self.inbox()
+        self.assertIn("Prices were floats.", files["bootstrap-readme-md-old.md"])
+        self.assertNotIn("newer version", files["bootstrap-readme-md-old.md"])
+        self.assertIn("Prices are integer cents.", files["bootstrap-readme-md.md"])
+        self.assertEqual(self.run_on(old), [])
+        self.assertEqual(self.run_on(self.project), [])
+
+    def test_a_source_of_this_repository_names_its_code_path(self) -> None:
+        # /ingest left `code:` empty on a source page, so nothing tied the page to the file it copies (#150).
+        self.run_on(self.project)
+        self.assertNotIn("is a file of this repository", self.inbox()["bootstrap-readme-md.md"])
+        self.omoikane = self.project / "omoikane"
+        self.run_on(self.project)
+        self.assertIn("`README.md` is a file of this repository: list it in the source page's `code:`.",
+                      self.inbox()["bootstrap-readme-md.md"])
+
     def test_what_the_review_gate_holds_is_not_written_again(self) -> None:
         # The gate moves inbox files to wiki/auto; until the human pulls, a second run wrote them all again and the
         # next run's move onto the ingested copy failed (#84 review).
