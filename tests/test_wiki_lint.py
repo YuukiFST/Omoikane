@@ -485,7 +485,7 @@ class PendingNotes(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             lines = self.brief(Path(d), [("2026-10-01-aaaaaaaa.md", "fix/" + "x" * 40, 3_600),
                                          ("2026-10-01-bbbbbbbb.md", "feat/here", 30)])
-        self.assertEqual(lines[1:3], ["- `2026-10-01-aaaaaaaa.md` on fix/xxxxxxxxxxxxxxxxxxxx[...]",
+        self.assertEqual(lines[1:3], ["- `2026-10-01-aaaaaaaa.md` on fix/xxxxxxxxxxxx[...]",
                                       "- `2026-10-01-bbbbbbbb.md` on feat/here (resume, possibly live)"])
 
     def test_proposed_diff_lines_are_not_counted_as_items(self) -> None:

@@ -20,8 +20,9 @@ from wikilib import OMOIKANE, review_bullets
 NO_CAPTURE_ENV = "OMOIKANE_NO_CAPTURE"
 # Undistilled captures listed by name; older ones are only counted. A stalled scheduler must not flood the brief.
 PENDING_SESSIONS_SHOWN = 5
-# A branch name has no length limit; the brief has a token budget (context-budget.py).
-BRANCH_CHARS = 24
+# A branch name has no length limit; the brief has a token budget (context-budget.py). The cut keeps the
+# `<type>/<issue>-` head that git-workflow branch names start with.
+BRANCH_CHARS = 16
 # The Stop hook rewrites a capture on every turn, so a recent write may be a session still running. ai-memory
 # skips such a handoff for the same window (LIVE_BATON_QUIET_PERIOD, crates/ai-memory-hooks/src/router.rs).
 LIVE_SECONDS = 600
@@ -151,23 +152,29 @@ def pending_notes(omoikane: Path) -> str:
     # Not name order: names carry the start day and a random id tail. The Stop hook rewrites a capture on
     # every turn, so modification time is the last activity.
     inbox = omoikane / "raw" / "inbox" / "sessions"
-    sessions = sorted(inbox.glob("*.md"), key=lambda p: p.stat().st_mtime)
+    sessions: list[tuple[float, Path, str]] = []
+    for p in inbox.glob("*.md"):
+        try:
+            sessions.append((p.stat().st_mtime, p, capture_branch(p)))
+        except OSError:  # /distill moved it to raw/sources between the glob and the read
+            continue
+    sessions.sort()
     if sessions:
-        branches = {p: capture_branch(p) for p in sessions}
         here = current_branch(omoikane.parent)
         # Parallel sessions on other branches are the normal case; their newest capture is not this one's work.
-        resume = ([p for p in sessions if here and branches[p] == here] or sessions)[-1]
+        resume = ([s for s in sessions if here and s[2] == here] or sessions)[-1]
         shown = sessions[-PENDING_SESSIONS_SHOWN:]
         if resume not in shown:
             shown = [resume, *shown[1:]]
-        lines.append(f"Undistilled captures in {inbox.relative_to(omoikane.parent).as_posix()}/, by last activity; "
-                     "resume marks where the last session stopped: read it first.")
+        lines.append(f"Undistilled captures in {inbox.relative_to(omoikane.parent).as_posix()}/, by last activity. "
+                     "Read the resume one first. possibly live: changed under 10 minutes ago, maybe still running.")
         if len(sessions) > len(shown):
             lines.append(f"- ... {len(sessions) - len(shown)} more")
         now = time.time()
-        for p in shown:
-            marks = ["resume"] * (p == resume) + ["possibly live"] * (now - p.stat().st_mtime < LIVE_SECONDS)
-            branch = branches[p] if len(branches[p]) <= BRANCH_CHARS else branches[p][:BRANCH_CHARS] + "[...]"
+        for s in shown:
+            mtime, p, branch = s
+            marks = ["resume"] * (s == resume) + ["possibly live"] * (now - mtime < LIVE_SECONDS)
+            branch = branch if len(branch) <= BRANCH_CHARS else branch[:BRANCH_CHARS] + "[...]"
             lines.append(f"- `{p.name}`" + (f" on {branch}" if branch else "")
                          + (f" ({', '.join(marks)})" if marks else ""))
     review = omoikane / "_review.md"
