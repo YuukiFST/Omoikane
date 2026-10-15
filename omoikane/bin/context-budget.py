@@ -88,8 +88,9 @@ def session_brief(*args: str) -> tuple[str, str]:
 def write_worst_case(omoikane: Path) -> None:
     """Fill an omoikane/ tree past every bound of the brief: more index entries per section than the index
     budget holds, each at its longest (120 characters is the lint limit for a summary), four-digit omitted
-    counts, 100 more pending captures than the brief lists, every kind of `_review.md` line it counts, and
-    four-digit capture errors whose last line is past the length the brief shows.
+    counts, 1000 more pending captures than the brief lists, each a four-digit part on a branch past the
+    brief's cut, every kind of `_review.md` line it counts, and four-digit capture errors whose last line is
+    past the length the brief shows.
     The index part stops within one entry (~250 characters) of its budget, since filling stops at the first
     entry that does not fit.
 
@@ -104,8 +105,10 @@ def write_worst_case(omoikane: Path) -> None:
     sessions = omoikane / "raw" / "inbox" / "sessions"
     sessions.mkdir(parents=True)
     (omoikane / "index.md").write_text("\n".join(lines), encoding="utf-8")
-    for i in range(session_context.PENDING_SESSIONS_SHOWN + 100):
-        (sessions / f"2026-09-30-{i:08d}-part10.md").write_text("", encoding="utf-8")
+    # Written just now, so every shown capture is possibly live and the newest also carries resume.
+    branch = "feat/" + "x" * (session_context.BRANCH_CHARS * 2)
+    for i in range(session_context.PENDING_SESSIONS_SHOWN + 1000):
+        (sessions / f"2026-09-30-{i:08d}-part1000.md").write_text(f"---\nbranch: {branch}\n---\n", encoding="utf-8")
     (omoikane / "_review.md").write_text(
         "- [ ] guard (test) a: open\n- [x] guard (test) b: approved\n- [x] prompt (distill.md) c: approved\n"
         "- [x] rule d: Do d. (synthesize)\n- [x] rule e: Do e. (synthesize)\n- todo f: open\n", encoding="utf-8")
