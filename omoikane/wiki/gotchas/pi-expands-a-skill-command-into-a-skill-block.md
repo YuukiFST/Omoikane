@@ -4,8 +4,8 @@ type: gotcha
 summary: Pi stores /skill:distill as typed or as a <skill name="distill" location=...> block; capture must skip both forms
 tags: [pi, session-capture, skills]
 created: 2026-10-07
-updated: 2026-10-07
-sources: [wiki/sources/session-2026-10-07-062e80af.md]
+updated: 2026-10-09
+sources: [wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/2026-10-08-pi-assumed-working.md]
 code: [omoikane/bin/session-capture.py, tests/test_session_capture.py]
 guard: test
 ---
@@ -24,3 +24,4 @@ A block pasted inside prose and a skill that is not an Omoikane operation, such 
 `test_pi_skill_command` in `tests/test_session_capture.py` covers the four cases; it failed before the fix and passed after (turn 6).
 
 The fix was not checked against a session file a real Pi run wrote (`docs/specs/2026-10-07-software-toolkit.md`). See [[pi-coding-agent]].
+The owner assumes it works and will fix it when a real Pi run fails: [[pi-is-assumed-working-without-a-live-check]] (source: [[2026-10-08-pi-assumed-working]]).

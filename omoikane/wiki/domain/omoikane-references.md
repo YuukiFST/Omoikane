@@ -4,8 +4,8 @@ type: domain
 summary: Before changing how Omoikane captures, distills, stores or loads knowledge, consult the matching reference project
 tags: [references, objective]
 created: 2026-10-02
-updated: 2026-10-07
-sources: [wiki/sources/2026-10-02-omoikane-references.md, wiki/sources/session-2026-10-02-680ff986.md, wiki/sources/2026-10-06-pstack-is-an-omoikane-reference.md, wiki/sources/session-2026-10-06-61eabe29.md, wiki/sources/2026-10-06-pstack-skills-review-round-2.md, wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/2026-10-07-omoikane-objective-widens-to-a-work-toolkit.md]
+updated: 2026-10-09
+sources: [wiki/sources/2026-10-02-omoikane-references.md, wiki/sources/session-2026-10-02-680ff986.md, wiki/sources/2026-10-06-pstack-is-an-omoikane-reference.md, wiki/sources/session-2026-10-06-61eabe29.md, wiki/sources/2026-10-06-pstack-skills-review-round-2.md, wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/2026-10-07-omoikane-objective-widens-to-a-work-toolkit.md, wiki/sources/2026-10-08-cloudflare-ai-code-review.md, wiki/sources/2026-10-08-how-coding-agents-read-your-code.md]
 code: [README.md, docs/architecture.md, omoikane/bin/bootstrap.py]
 ---
 
@@ -28,6 +28,13 @@ So the rule covers pstack's skills too, those not read yet included ([[pstack]])
 On 2026-10-07, when the user made Omoikane a toolkit for software development ([[omoikane-objective]]), the user added the two Cloudflare items and restated pstack: "caso não tenha colocado como referencia coloque : https://github.com/cloudflare/security-audit-skill https://blog.cloudflare.com/build-your-own-vulnerability-harness/ e tambem https://github.com/cursor/plugins/tree/main/pstack" (source: [[session-2026-10-07-062e80af]], turn 5).
 The skill is vendored as [[cloudflare-security-audit-skill]]; the post describes the multi-stage harness the skill is the starting point of (`docs/specs/2026-10-07-software-toolkit.md`, "References and sources").
 Grant Bourzikas wrote the post, dated 2026-06-18 (source: [[2026-10-07-omoikane-objective-widens-to-a-work-toolkit]]).
+
+Proposed, not on the list: Cloudflare's "Orchestrating AI Code Review at scale", https://blog.cloudflare.com/ai-code-review/, as a reference for [[interrogate]] and the review triage (source: [[2026-10-08-cloudflare-ai-code-review]], "Reference?").
+The agent's note recommends it only "if the user approves"; the user has not answered.
+The note also observes that the rule above names capture, distill, storage and loading, while the two Cloudflare entries are about security review.
+
+Considered and not proposed: Modem's "How coding agents read your code", https://modem.ai/blog/how-coding-agents-read-your-code (source: [[2026-10-08-how-coding-agents-read-your-code]], "Reference?").
+Reason in the note: it covers how agents read source code, it is one blog post with observational data, and it is "not a project to consult again". It makes the same observation on the rule's scope.
 
 ## Who it is for
 

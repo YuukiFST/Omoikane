@@ -4,8 +4,8 @@ type: entity
 summary: Pi coding agent harness; .pi/extensions/omoikane.ts wires it to session capture and the wiki index
 tags: [pi, harness]
 created: 2026-09-30
-updated: 2026-10-08
-sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/2026-10-07-omoikane-mode-live-check.md]
+updated: 2026-10-09
+sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/2026-10-07-omoikane-mode-live-check.md, wiki/sources/2026-10-08-pi-assumed-working.md]
 code: [.pi/extensions/omoikane.ts, .pi/settings.json]
 ---
 
@@ -29,10 +29,14 @@ The agent read Pi's skill rules in `docs/skills.md` and `docs/settings.md` of `@
 - Pi expands `/skill:<name>` into a block the capture had to learn: [[pi-expands-a-skill-command-into-a-skill-block]].
 - Pi loads a Markdown file placed directly in a skills folder as a skill: [[pi-loads-loose-markdown-in-a-skills-folder-as-a-skill]].
 
-## Not verified
+## Not verified live
 
-The extension was never run live: `pi` was not installed on the machine (turn 4).
+In session e04462b2 the extension was not run live: `pi` was not installed on the machine (turn 4).
 The check the agent proposed: open `pi` at the repository root, accept project trust, send a prompt that edits a file, look in `omoikane/raw/inbox/sessions/` (turn 4).
 
 On 2026-10-07 Pi ran on the user's machine and listed the omoikane-mode skill command while the user typed it (source: [[2026-10-07-omoikane-mode-live-check]]).
-So Pi reads the project skills of `.pi/settings.json` there. Whether the skill loads in Pi was not checked, and the note leaves `pi-live-verification` and `pi-skill-capture-live-check` open.
+So Pi reads the project skills of `.pi/settings.json` there. Whether the skill loads in Pi was not checked.
+
+Capture `af4a4869` of 2026-10-07 shows that the extension captures a session (source: [[2026-10-08-pi-assumed-working]]).
+On 2026-10-08 the owner chose to assume Pi works and to fix it when a real run fails: [[pi-is-assumed-working-without-a-live-check]].
+Issue #138 removed the todos `pi-live-verification` and `pi-skill-capture-live-check` (source: [[2026-10-08-pi-assumed-working]]).

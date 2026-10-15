@@ -4,8 +4,8 @@ type: decision
 summary: omoikane-mode, poteto-mode for one model, routes each task to a playbook, skills and principles; the brief reminds it
 tags: [skills, omoikane-mode, pstack, session-context]
 created: 2026-10-07
-updated: 2026-10-08
-sources: [wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/commits-2026-10-06-to-2026-10-07.md, wiki/sources/session-2026-10-08-0ac17a0f.md, wiki/sources/2026-10-07-omoikane-mode-live-check.md]
+updated: 2026-10-09
+sources: [wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/commits-2026-10-06-to-2026-10-07.md, wiki/sources/session-2026-10-08-0ac17a0f.md, wiki/sources/2026-10-07-omoikane-mode-live-check.md, wiki/sources/2026-10-08-pi-assumed-working.md, wiki/sources/2026-10-08-how-coding-agents-read-your-code.md]
 code: [.claude/skills/omoikane-mode/SKILL.md, omoikane/bin/session-context.py, omoikane/skills.md, docs/specs/2026-10-07-software-toolkit.md, .opencode/command/omoikane-mode.md]
 ---
 
@@ -20,6 +20,7 @@ The user, in turn 5 of [[session-2026-10-07-062e80af]]: "eu gosto do pstack, gos
 - The user turns it on with `/omoikane-mode` in Claude Code and OpenCode, `/skill:omoikane-mode` in Pi; it holds to the end of the session (turn 5).
 - It indexes the 24 pstack principles under `references/principles/`, the user's 9 adapted versions replacing pstack's (`omoikane/skills.md`).
   It is the one principles router: the agent's turn-5 note says "é o roteador único que você escolheu, sem skill `principles` separada".
+  None of the 24 covers names as search terms; a "write discoverable code" principle is proposed, not an issue yet ([[discoverable-code]]; source: [[2026-10-08-how-coding-agents-read-your-code]], candidate issue 2).
 - It carries the `poteto-mode` playbooks adapted to one model; session pickup and pause safely use Omoikane's memory, and a new playbook routes to `security-audit` (turn 5).
 - The session brief ends with "Nontrivial software task: load the omoikane-mode skill first." (`omoikane/bin/session-context.py`).
   Reason: "o campo `reminder:` do Cursor não existe nas três harnesses" (turn 5); commit `0c3f4cd` adds the line, and the worst-case brief stays at 3,792 of 4,000 tokens. See [[session-context]].
@@ -45,7 +46,7 @@ On 2026-10-07 the user checked the mode in OpenCode and Pi (source: [[2026-10-07
 
 - Both harnesses list the command while the user types it.
 - OpenCode loads the skill and routes with it: an AI-slop audit of `README.md` got the Investigation playbook's one-line checkpoint and a "Princípios aplicados" line.
-- Pi loading is not checked yet; the `_review.md` todo `omoikane-mode-live-check` holds only for Pi now.
+- Pi loading is not verified live. Issue #138 removed the todo `omoikane-mode-live-check`, and the owner assumes Pi works: [[pi-is-assumed-working-without-a-live-check]] (source: [[2026-10-08-pi-assumed-working]]).
 
 ## History
 

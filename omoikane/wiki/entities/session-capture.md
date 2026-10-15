@@ -4,8 +4,8 @@ type: entity
 summary: omoikane/bin/session-capture.py, turns a Claude Code, Pi or OpenCode transcript into an inbox session file
 tags: [session-capture, module, build-mode]
 created: 2026-09-30
-updated: 2026-10-07
-sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-02-1b324082.md, wiki/sources/session-2026-10-02-a8b45323.md, wiki/sources/2026-10-06-pstack-skills-review-round-2.md, wiki/sources/session-2026-10-06-fd3ff955.md, wiki/sources/session-2026-10-06-973284b2.md, wiki/sources/session-2026-10-07-062e80af.md]
+updated: 2026-10-09
+sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-02-1b324082.md, wiki/sources/session-2026-10-02-a8b45323.md, wiki/sources/2026-10-06-pstack-skills-review-round-2.md, wiki/sources/session-2026-10-06-fd3ff955.md, wiki/sources/session-2026-10-06-973284b2.md, wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/session-2026-10-08-21f37812.md]
 code: [omoikane/bin/session-capture.py, tests/test_session_capture.py]
 ---
 
@@ -16,6 +16,7 @@ code: [omoikane/bin/session-capture.py, tests/test_session_capture.py]
 `--harness claude|pi|opencode` selects one transcript reader; all produce the same Session/Turn objects (source: [[session-2026-09-15-e04462b2]], turn 3).
 
 - Claude Code: the JSONL transcript, called from `.claude/settings.json` hooks (turn 2).
+  The `Stop` hook writes the capture after each turn, so a broad `git add omoikane/` stages the running session's own capture: [[git-add-omoikane-stages-the-running-sessions-own-capture]] (source: [[session-2026-10-08-21f37812]], turn 3).
 - [[pi-coding-agent]]: the session JSONL, a tree; the reader walks from the last entry to the root and drops dead `/tree` branches (turn 3).
 - [[opencode]]: the `opencode export` document `{info, messages}`; sessions with a `parentID` (subagents) are skipped (turn 3).
 

@@ -4,8 +4,8 @@ type: concept
 summary: Record of each business term the user defines, built as domain pages tagged `term` (PR #94): definition, rejected words
 tags: [glossary, domain]
 created: 2026-10-02
-updated: 2026-10-08
-sources: [wiki/sources/2026-10-02-ste-and-oversight-posts.md, wiki/sources/session-2026-10-02-a9384e33.md, wiki/sources/session-2026-10-06-61eabe29.md]
+updated: 2026-10-09
+sources: [wiki/sources/2026-10-02-ste-and-oversight-posts.md, wiki/sources/session-2026-10-02-a9384e33.md, wiki/sources/session-2026-10-06-61eabe29.md, wiki/sources/2026-10-08-how-coding-agents-read-your-code.md]
 code: [omoikane/prompts/distill.md, omoikane/prompts/ingest.md]
 ---
 
@@ -15,6 +15,7 @@ The idea, taken from the controlled dictionary of [[asd-ste100]]: when the user 
 
 Without that record an agent swaps synonyms, names entities wrongly, and one idea becomes two pages that grep does not join (source: [[2026-10-02-ste-and-oversight-posts]]).
 A term's meaning is domain knowledge stated while building, which [[omoikane-objective]] says the wiki must hold.
+Modem's post on how agents read code gives "one spelling per concept" as a rule for code names, for the same reason: agents find code by text search (source: [[2026-10-08-how-coding-agents-read-your-code]]). The glossary does not reach code: its term rule exempts code identifiers. See [[discoverable-code]].
 
 ## Status
 

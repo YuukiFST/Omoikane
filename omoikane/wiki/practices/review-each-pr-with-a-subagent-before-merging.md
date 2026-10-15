@@ -4,8 +4,8 @@ type: practice
 summary: Before merging a PR, post a subagent review on it and fix the real findings; merge only when the user authorized it
 tags: [procedure, pull-request, code-review, git]
 created: 2026-09-30
-updated: 2026-10-08
-sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-01-b5b6fb27.md, wiki/sources/session-2026-10-01-d4302021.md, wiki/sources/session-2026-10-02-1b324082.md, wiki/sources/session-2026-10-02-04edad59.md, wiki/sources/session-2026-10-02-a9384e33.md, wiki/sources/session-2026-10-05-1de79b19.md, wiki/sources/session-2026-10-06-180e52eb.md, wiki/sources/session-2026-10-06-61eabe29.md, wiki/sources/session-2026-10-06-973284b2.md, wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/session-2026-10-07-9e3fae7e.md, wiki/sources/session-2026-10-08-0ac17a0f.md]
+updated: 2026-10-09
+sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026-09-30-c14af01e.md, wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-01-b5b6fb27.md, wiki/sources/session-2026-10-01-d4302021.md, wiki/sources/session-2026-10-02-1b324082.md, wiki/sources/session-2026-10-02-04edad59.md, wiki/sources/session-2026-10-02-a9384e33.md, wiki/sources/session-2026-10-05-1de79b19.md, wiki/sources/session-2026-10-06-180e52eb.md, wiki/sources/session-2026-10-06-61eabe29.md, wiki/sources/session-2026-10-06-973284b2.md, wiki/sources/session-2026-10-07-062e80af.md, wiki/sources/session-2026-10-07-9e3fae7e.md, wiki/sources/session-2026-10-08-0ac17a0f.md, wiki/sources/session-2026-10-08-21f37812.md, wiki/sources/session-2026-10-08-261b475d.md]
 ---
 
 ## Rule
@@ -13,6 +13,7 @@ sources: [wiki/sources/session-2026-09-15-e04462b2.md, wiki/sources/session-2026
 Before merging a PR in YuukiFST/Omoikane, have a subagent review it and post the findings on the PR.
 Fix the findings judged real and wait for green CI.
 Merge only when the user authorized it, then with `gh pr merge <n> --merge --delete-branch`, and close the issue.
+Before you push review fixes, check the PR is still open with `gh pr view <n> --json state`. When it merged without them, put the fix commits on another PR and say so to the user and on the merged PR.
 
 ## Evidence
 
@@ -32,6 +33,13 @@ Merge only when the user authorized it, then with `gh pr merge <n> --merge --del
 - PRs #112 to #118 (issue #111): after the user's "prossiga com a sua recomendação", the agent tried to merge #112, and the Claude Code auto mode classifier denied it as "[Merge Without Review]". The agent left the merge to the user: "Merge bloqueado pelo classificador de permissões. O merge fica com você." (source: [[session-2026-10-07-062e80af]], turn 6). Each of the seven PRs then got a subagent review posted on GitHub and its real findings fixed (turns 9 to 11). After the session they merged with merge commits, in the order the agent gave (turn 11; `git log`).
 - The merge of that stack: the handoff said "Mergeie SÓ quando eu autorizar nesta sessão". The agent checked CI, then stopped: "Ainda não fiz nenhum merge: preciso da sua autorização para começar." It merged the seven PRs only after the user's "prossiga de acordo com a sua recomendação" (source: [[session-2026-10-07-9e3fae7e]], turns 2, 3).
 - PRs #120 and #122: a subagent review was posted on each, and the agent fixed the three medium findings on #120 after it checked each in the file. It stopped at "Nenhum foi mergeado: os dois esperam sua autorização" and merged both with merge commits after the user's "autorizo, prossiga" (source: [[session-2026-10-08-0ac17a0f]], turns 8 to 10).
+- PRs #124 to #134: the user's prompt asked for "uma revisão de subagente postada no PR" and a merge "só quando eu autorizar, com merge commit e nunca squash". Each of the six PRs got a posted review; the agent fixed the real findings and answered on the PR (source: [[session-2026-10-08-21f37812]], turns 2 to 8).
+  The classifier denied the agent's merge of #124 as "[Merge Without Review]" again, with the review posted and CI green. The agent asked the user to run `! gh pr merge 124 --merge` or allow `gh pr merge` in the settings, and the user merged (turns 4, 6).
+  #130 merged before its review fixes (`81343d1`) reached the branch; they went in with #132, and the agent said so on both PRs (turn 8).
+  The agent's turn-6 report had listed #130 with "A revisão de subagente ainda está rodando". In turn 8 it ran `gh pr view 130 --json mergedAt,headRefOid`, then commented on #130: "This PR merged at `ade0292`, before the review fixes (`81343d1`) reached the branch. Those fixes now ride on #132, which is built on this branch." (turns 6, 8).
+- PRs #136, #137 and #139: the handoff asked again for "revisão por subagente postada no PR" and kept the merges for the user (source: [[session-2026-10-08-261b475d]], turn 2). Each review ran in the background: #136 had no blocking finding, #137 had one real finding, and #139 had two real findings and a nit, all fixed and answered on the PR (turns 2, 4). The agent merged none.
+  In agent-dotfiles the user merged PR #130 before its review fixes were pushed, as happened to Omoikane PR #130; the agent moved the two fix commits to a new PR, #132 (turn 6).
+  The agent had reported #130 with "Uma revisão por subagente roda em background e ainda não terminou" and "O merge é seu, depois que a revisão chegar"; the push of the fixes started no CI run, and only then did it see the merge: "O #130 foi mergeado às 10:52 só com a cópia da skill; meus dois commits de correção chegaram depois e ficaram fora da `main`. Abro um PR novo com os dois." (turn 6).
 
 ## Scope
 
@@ -40,4 +48,5 @@ The #111 handoff stated it: "`gh pr merge <n> --merge --delete-branch` (merge co
 Before the merge, retest the PR on the current `main`: [[retest-a-pr-on-the-current-main-before-merging-it]]. After it, remove its worktree: [[remove-the-worktree-of-a-merged-pr-with-git-worktree-remove]].
 In a stack of PRs, move each upper PR's base to `main` before `--delete-branch` removes it: [[gh-pr-merge-delete-branch-closes-prs-stacked-on-it]].
 Authorisation can be given ahead in a handoff prompt: the turn-7 handoff of [[session-2026-10-02-1b324082]] let the next session merge PRs with review and green CI.
+An early merge happened twice, in two repositories, and each time the PR had been reported while its review still ran in the background ([[session-2026-10-08-21f37812]], [[session-2026-10-08-261b475d]]).
 In the Phase 2 session the merge of #22 happened after "Merge do #22 autorizado" (source: [[session-2026-09-30-c14af01e]], turn 2); the push and merge confirmation rules of the user's git rules still apply.

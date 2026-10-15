@@ -480,3 +480,92 @@ Fixed from the review of PR #122: [[opencode-read-tool-cuts-lines-at-2000-charac
 - removed (todo) omoikane-mode-live-check
 - removed (todo) security-audit-pr-69-closed-unmerged
 - removed (todo) narrow-omoikane-mode-live-check
+
+## [2026-10-09] distill | session 21f37812
+
+Created: [[session-2026-10-08-21f37812]], [[git-add-omoikane-stages-the-running-sessions-own-capture]], [[specs-keep-paths-that-record-their-own-day]].
+Updated: [[review-each-pr-with-a-subagent-before-merging]] (evidence for PRs #124 to #134), [[cloudflare-security-audit-skill]] (#69 closed with the deleted fork), [[reshaping-capture-text-before-redaction-leaks-secrets]] (proposed test run against both orders), [[session-capture]] (link to the staging gotcha).
+
+- routed (guard) git-add-omoikane-stages-the-running-sessions-own-capture: `git add omoikane/` committed the running session's capture; a test that fails on a tracked file in `omoikane/raw/inbox/sessions/` (turn 3)
+- skipped (no-root-cause) auto-mode-classifier-denies-gh-pr-merge: the classifier denied `gh pr merge 124` as "[Merge Without Review]" with the review posted and CI green; other sessions merged the same way, and none found why (turn 4)
+- skipped (task-only) wiki-work-and-code-work-in-separate-sessions: "Passo 3 (trabalho no wiki, sessão separada do trabalho de código)", the plan's scoping of its steps (turn 2)
+- skipped (self-resolved) pr-merged-before-its-review-fixes: #130 merged as `ade0292` before `81343d1` reached its branch; the fixes went in with #132 (turn 8)
+- skipped (self-resolved) wikilink-in-inline-code-fails-lint: wiki-lint read `[[x]]` in code as a broken wikilink; the finding named it and the agent fixed it (turn 6)
+- skipped (self-resolved) python-heredoc-blocked-by-escape-edit-guard: `escape-edit-guard.py` blocked a Python heredoc with `\n`, as designed (turn 6)
+- skipped (self-resolved) write-before-read-tool-error: `File has not been read yet` from the Write tool (turn 7)
+- skipped (self-resolved) sed-i-blocked-by-escape-edit-guard: `escape-edit-guard.py` blocked a `sed -i`, as designed (turn 8)
+
+## [2026-10-09] distill | session 261b475d
+
+Created: [[session-2026-10-08-261b475d]], [[git-update-index-index-info-ignores-a-cr-ended-path-and-exits-0]].
+Updated: [[python-text-mode-stdin-writes-crlf-on-windows]] (second case in update-from-template, `e6b73f5`), [[update-from-template]] (Windows stages fix, #135), [[cloudflare-security-audit-skill]] (copy added to agent-dotfiles, PRs #130 and #132), [[personal-skills-hide-stale-template-copies-in-claude-code]] (security-audit joins the shadowed set), [[review-each-pr-with-a-subagent-before-merging]] (evidence for PRs #136, #137, #139), [[git-merge-no-commit-needs-a-committer-identity]] (checked against `e6b73f5`, still holds).
+The two decisions of turns 3 and 4 (security-audit stays a local copy, Pi assumed working) are left to the ingest of their inbox notes, written in this session.
+
+- routed (guard) run-the-tests-on-windows-in-ci: text-mode stdin lost the `AGENTS.md` stages on Windows only, and CI runs the tests on `ubuntu-latest` only; add a `windows-latest` test job (turn 2)
+- routed (prompt) ingest-logs-a-routed-line-for-each-todo: `/ingest` logs filed todos as "Filed: ...", which `review-removals.py` does not read, so a deleted todo left no `- removed` line (turn 4)
+- skipped (task-only) stop-when-the-planned-test-passes: "Se ele não falhar, relate isso e pare" scoped one step; the agent went on and said so (turn 2)
+- skipped (self-resolved) pr-merged-before-its-review-fixes: agent-dotfiles #130 merged before its review fixes were pushed; they went to #132 (turn 6)
+- skipped (self-resolved) python-heredoc-blocked-by-escape-edit-guard: `escape-edit-guard.py` blocked a Python heredoc with `\n`, as designed (turn 2)
+- skipped (self-resolved) sed-i-blocked-by-escape-edit-guard: `escape-edit-guard.py` blocked a `sed -i` on the #111 body, as designed (turn 4)
+- skipped (self-resolved) write-before-read-tool-error: `File has not been read yet` from the Write tool (turn 2)
+- skipped (missing-env) python-yaml-and-yq-missing: `import yaml` raised `ModuleNotFoundError` and `yq` is not installed, so agent-dotfiles' frontmatter check ran only in CI (turn 6)
+- skipped (no-root-cause) gh-pr-create-forks-on-its-own: "O `gh pr create` costuma criar esse fork sozinho", which the agent said it did not confirm (turn 3)
+
+## [2026-10-09] distill | session 514fdb90 | nothing kept
+
+Two Claude Code turns of about one minute: `/effort`, then `/code-simplifier`, which read `git status` and `git log`, found the last code change in PR #117 and edited nothing.
+
+## [2026-10-09] ingest | 2026-10-08 Pi assumed working
+
+Created: [[2026-10-08-pi-assumed-working]], [[pi-is-assumed-working-without-a-live-check]].
+Updated: [[pi-coding-agent]] (line 38 replaced: the owner assumes Pi works, #138 removed both todos; capture `af4a4869` proves capture), [[omoikane-mode-routes-each-task-to-a-playbook]] (line 48 replaced: #138 removed `omoikane-mode-live-check`, Pi loading assumed), [[pi-expands-a-skill-command-into-a-skill-block]] (link to the decision), [[session-2026-10-08-261b475d]] (link to the decision and the note).
+[[2026-10-07-omoikane-mode-live-check]] stays as it is, as the note asks.
+No `_review.md` change: PR #139 already removed the four Pi todos the note settles (see the 2026-10-08 review entry above).
+
+## [2026-10-09] ingest | 2026-10-08 security-audit stays a local copy
+
+Created: [[2026-10-08-security-audit-stays-a-local-copy]], [[security-audit-stays-a-local-copy]].
+Updated: [[cloudflare-security-audit-skill]] (line 23 replaced: the copy stays local for good, #138; identical to the head of #69), [[node-on-windows-lacks-o-nofollow-and-o-nonblock]] (last Workaround sentence replaced: #69 closed unmerged, the copy stays local), [[session-2026-10-08-261b475d]] (link to the decision and the note).
+No `_review.md` change: PR #139 already removed `security-audit-upstream-pr-69` and `security-audit-pr-69-closed-unmerged` (see the 2026-10-08 review entry above); the note does not settle `security-audit-windows-promotion-step`, which stays open.
+
+## [2026-10-09] ingest | 2026-10-08 Cloudflare AI code review
+
+Created: [[2026-10-08-cloudflare-ai-code-review]], [[interrogate]].
+Updated: [[omoikane-references]] (the post proposed as a reference, not on the list; the rule's scope against the list), [[session-2026-10-08-21f37812]] (link to the note).
+No `_review.md` change: the note contradicts no wiki page, and its five candidate issues and its reference proposal are proposals, which the ingest prompt does not file.
+
+## [2026-10-09] ingest | 2026-10-08 How coding agents read your code
+
+Created: [[2026-10-08-how-coding-agents-read-your-code]], [[discoverable-code]].
+Updated: [[session-context]] (new "Nothing per file": no hook shows a file's pages, candidate issue 1), [[omoikane-mode-routes-each-task-to-a-playbook]] (no principle covers names, candidate issue 2), [[domain-page-type-holds-the-rules-the-user-states]] (new "Proposed": a domain page per deliberate absence, candidate issue 3), [[domain-glossary]] (one spelling per concept in code; the term rule exempts code identifiers), [[omoikane-references]] (the post considered and not proposed as a reference), [[2026-10-08-cloudflare-ai-code-review]] (link to the sibling note), [[session-2026-10-08-21f37812]] (link to the note).
+No `_review.md` change: the note contradicts no wiki page; two of its coverage claims are narrower than stated, recorded on the source page; its three candidate issues are proposals, which the ingest prompt does not file.
+
+## [2026-10-09] synthesize | 10 sessions
+
+Sessions read: 261b475d, 21f37812, 0ac17a0f, 9e3fae7e, 062e80af, fd3ff955, 973284b2, 61eabe29, 180e52eb, 1de79b19; also 680ff986 for the fxtwitter reads, and the captures of FZGR4ll3 and Q7Bpg6M5, which have no page.
+Created: [[read-x-posts-through-the-fxtwitter-api]] (sessions 680ff986, 0ac17a0f).
+Updated: [[review-each-pr-with-a-subagent-before-merging]] (Rule: check the PR is open before pushing review fixes, move them to another PR when it merged; evidence from 21f37812 and 261b475d), [[stop-and-ask-at-every-decidir-in-a-handoff-prompt]], [[recommend-an-option-and-wait-for-the-go-ahead]] and [[remove-the-worktree-of-a-merged-pr-with-git-worktree-remove]] (evidence from 0ac17a0f, 21f37812, 261b475d), [[session-2026-10-02-680ff986]], [[session-2026-10-08-0ac17a0f]] (links to the new practice).
+
+- routed (guard) pr-merged-before-its-review-fixes: a hook on `git push` that blocks when the branch's PR already merged; Omoikane #130 and agent-dotfiles #130 merged while their reviews ran (sessions 21f37812, 261b475d; turns 8, 6)
+- routed (rule) tests-an-agent-writes-are-e2e-only: domain page created since the last synthesize; any task that writes a test can break it, and the worst-case budget already counts a full rules block
+- dropped (one-session) readme-is-human-and-minimal-without-prose: FZGR4ll3 and Q7Bpg6M5 are one request retried 24 seconds apart (15:25:22 and 15:25:46 UTC) during the OpenCode live check, about the current README
+- dropped (known) python-heredoc-blocked-by-escape-edit-guard: 062e80af, 21f37812 and 261b475d; `escape-edit-guard.py` blocks it and names the fix, and [[python-heredoc-edits-corrupt-backslash-n]] holds the lesson
+- dropped (known) sed-i-blocked-by-escape-edit-guard: again in 0ac17a0f, 21f37812 and 261b475d; the guard blocks it as designed
+- dropped (known) write-before-read-tool-error: again in 0ac17a0f, 21f37812 and 261b475d; the Write tool refuses the write and names the fix
+- dropped (known) auto-mode-classifier-denies-gh-pr-merge: "[Merge Without Review]" in 062e80af turn 6 and 21f37812 turn 4; both left the merge to the user, as [[review-each-pr-with-a-subagent-before-merging]] records
+- dropped (known) captures-stay-out-of-commits: 0ac17a0f, 21f37812 and 261b475d kept `omoikane/raw/inbox/sessions/` out of commits; [[git-add-omoikane-stages-the-running-sessions-own-capture]] holds it and its guard is open in `_review.md`
+- dropped (known) run-tests-budget-and-lint-before-a-pr: 21f37812 turns 5 and 9, and the task-only `context-budget-before-and-after-each-pr` of 973284b2; CI runs all three on every PR
+- dropped (narrow) omoikane-references: changed since the last synthesize; still governs only changes to how Omoikane captures, distills, stores or loads knowledge
+
+## [2026-10-09] wrap-up | 2026-10-06 to 2026-10-09
+
+- distill omoikane/raw/inbox/sessions/2026-10-08-21f37812.md
+- distill omoikane/raw/inbox/sessions/2026-10-08-261b475d.md
+- distill omoikane/raw/inbox/sessions/2026-10-09-514fdb90.md
+- ingest omoikane/raw/inbox/2026-10-08-pi-assumed-working.md
+- ingest omoikane/raw/inbox/2026-10-08-security-audit-stays-a-local-copy.md
+- ingest omoikane/raw/inbox/2026-10-08-cloudflare-ai-code-review.md
+- ingest omoikane/raw/inbox/2026-10-08-how-coding-agents-read-your-code.md
+- left in inbox: omoikane/raw/inbox/sessions/2026-10-09-8861cece.md, the session running this wrap-up is still open
+- commits: 46 read, 0 used. No page created or updated. 40 were judged by the 2026-10-07 and 2026-10-08 wrap-ups; 4de531c and bc4be32 fall inside capture 21f37812, whose [[specs-keep-paths-that-record-their-own-day]] holds their reason; e6b73f5, 7a0db80, cf03149 and 4fcf261 fall inside 261b475d, whose [[git-update-index-index-info-ignores-a-cr-ended-path-and-exits-0]], [[pi-is-assumed-working-without-a-live-check]] and [[security-audit-stays-a-local-copy]] hold their reasons
+- synthesize

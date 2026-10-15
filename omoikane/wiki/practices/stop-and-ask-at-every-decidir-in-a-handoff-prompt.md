@@ -4,8 +4,8 @@ type: practice
 summary: Mark each choice the user must make DECIDIR in a handoff prompt; at a DECIDIR you receive, stop and ask
 tags: [preference, handoff, decisions]
 created: 2026-10-02
-updated: 2026-10-07
-sources: [wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-01-b5b6fb27.md, wiki/sources/session-2026-10-01-d4302021.md, wiki/sources/session-2026-10-02-1b324082.md]
+updated: 2026-10-09
+sources: [wiki/sources/session-2026-09-30-230a182d.md, wiki/sources/session-2026-10-01-b5b6fb27.md, wiki/sources/session-2026-10-01-d4302021.md, wiki/sources/session-2026-10-02-1b324082.md, wiki/sources/session-2026-10-08-0ac17a0f.md, wiki/sources/session-2026-10-08-21f37812.md, wiki/sources/session-2026-10-08-261b475d.md]
 ---
 
 ## Rule
@@ -19,6 +19,9 @@ When you write a handoff prompt for another session, mark DECIDIR on each choice
 - The user: "Ao enviar este prompt, eu aprovo as recomendações da seção "Aprovado". Onde eu escrevi DECIDIR, pare e me pergunte." (source: [[session-2026-10-01-b5b6fb27]], turn 2).
 - The user: "Onde está escrito DECIDIR, pare e me pergunte." (source: [[session-2026-10-01-d4302021]], turn 3).
 - The user: "Onde estiver escrito DECIDIR, pare e me pergunte. Para o resto, decida você e justifique no relatório." (source: [[session-2026-10-02-1b324082]], turn 3).
+- The agent marked the todo `security-audit-upstream-pr-69` DECIDIR in the handoff file, and its turn-11 handoff prompt says: "Cada ponto marcado **DECIDIR** é uma escolha minha: pare nele, recomende uma opção com o motivo e espere eu aprovar." (source: [[session-2026-10-08-0ac17a0f]], turns 6, 11).
+- The user pasted that prompt. The agent stopped: "Parei no **DECIDIR** do passo 2." Its turn-10 handoff prompt marks each choice the same way: "Os itens que dependem de você estão marcados **DECIDIR**" (source: [[session-2026-10-08-21f37812]], turns 2, 10).
+- The user pasted that prompt, with the same sentence (source: [[session-2026-10-08-261b475d]], turn 2). The agent asked the DECIDIR points together: "Juntando os fatos dos pontos DECIDIR para perguntar tudo de uma vez." (turn 2).
 
 ## Scope
 

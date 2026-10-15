@@ -4,8 +4,8 @@ type: entity
 summary: omoikane/bin/update-from-template.py merges template/main into a system and keeps the system's own memory
 tags: [template, new-system, module, git]
 created: 2026-10-07
-updated: 2026-10-07
-sources: [wiki/sources/session-2026-10-06-973284b2.md, wiki/sources/2026-10-06-pstack-skills-review-round-2.md, wiki/sources/session-2026-10-06-fd3ff955.md]
+updated: 2026-10-09
+sources: [wiki/sources/session-2026-10-06-973284b2.md, wiki/sources/2026-10-06-pstack-skills-review-round-2.md, wiki/sources/session-2026-10-06-fd3ff955.md, wiki/sources/session-2026-10-08-261b475d.md]
 code: [omoikane/bin/update-from-template.py, tests/test_new_system.py, docs/architecture.md, README.md]
 ---
 
@@ -41,3 +41,11 @@ The subagent review of #108 gave 7 findings, 2 of them medium and confirmed (tur
 
 - A rerun while the merge still waited for a commit reported success and merged nothing; the script now refuses while a merge, rebase, cherry-pick or revert is in progress (turn 2).
 - `index.md` was rendered by the system's old `wiki-index.py`; it is now rendered by the merged one, as CI renders it (turn 2).
+
+## Windows stages fix (#135)
+
+On Windows the script lost its own `AGENTS.md` stages on a conflict outside the rules block (source: [[session-2026-10-08-261b475d]], turn 2).
+`git()` sent its stdin in text mode, so `git update-index --index-info` got the path `AGENTS.md\r`, ignored it and exited 0.
+The index kept git's own stages, and stages 1 and 3 held the template's rules block (turn 2).
+Details and the test: [[git-update-index-index-info-ignores-a-cr-ended-path-and-exits-0]].
+Commit `e6b73f5` makes `git()` send bytes; issue #135, PR #136, merged as `a35e342` (`git log`).

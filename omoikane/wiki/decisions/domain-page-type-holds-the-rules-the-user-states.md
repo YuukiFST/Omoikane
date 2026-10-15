@@ -4,8 +4,8 @@ type: decision
 summary: User-stated business, design-system and convention rules get a domain page type; no older type fit them
 tags: [domain, page-contract, distill, wiki-lint]
 created: 2026-10-06
-updated: 2026-10-06
-sources: [wiki/sources/commits-2026-09-29-to-2026-10-06.md]
+updated: 2026-10-09
+sources: [wiki/sources/commits-2026-09-29-to-2026-10-06.md, wiki/sources/2026-10-08-how-coding-agents-read-your-code.md]
 code: [omoikane/bin/wikilib.py, omoikane/bin/wiki-lint.py, omoikane/bin/session-context.py, omoikane/prompts/distill.md]
 ---
 
@@ -27,3 +27,9 @@ The page types were shaped for lessons about code, so such a rule had no destina
 - `distill.md` skipped "restatements of the prompt", so a rule stated inside a coding prompt tended to be dropped. It now writes the rule, quoted with its turn, and a new reject rule, `task-only`, drops instructions scoped to the current change (`c377d0d`).
 - `/ingest` writes domain pages from documents that set rules; `/prune` leaves a domain page alone when only the code disagrees with it (`c377d0d`).
 - The review of #72 found that a rule a check could catch lost its page to the guard route, that code breaking a rule became a dispute instead of a rule and a todo, and that a disputed rule reached the brief as settled; each was fixed (`1802d44`).
+
+## Proposed
+
+Make distill and ingest write a domain page for each deliberate absence the human states ("the system never does X"), with the behaviour in the title (source: [[2026-10-08-how-coding-agents-read-your-code]], candidate issue 3).
+The reason: "Grep can find code; it can't find the absence of code."
+The type already takes a prohibition the user states ("never a raw colour", `omoikane/prompts/distill.md`, line 7); the proposal adds a step that looks for one. It is not an issue yet.
