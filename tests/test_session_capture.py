@@ -580,6 +580,77 @@ class HarnessTurns(unittest.TestCase):
         self.assertNotIn("SUMMARYSENTINEL", md)
 
 
+class RuleStatements(unittest.TestCase):
+    # /distill must find every rule the user states in a capture of up to 20,000 characters a prompt (#152), and a
+    # session where the user only stated rules was dropped as "no files edited".
+    EDIT = assistant({"type": "tool_use", "name": "Edit", "input": {"file_path": "C:/proj/a.py"}})
+
+    def stop(self, entries: list[dict[str, object]], redact_list: str = "") -> tuple[str, str]:
+        """Run the Stop hook on a transcript, as Claude Code runs it: its output line and the capture, "" if none."""
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            omoikane = tmp / "omoikane"
+            shutil.copytree(BIN, omoikane / "bin", ignore=shutil.ignore_patterns("__pycache__"))
+            (omoikane / ".capture-redact").write_text(redact_list, encoding="utf-8")
+            payload = json.dumps({"transcript_path": str(write_transcript(tmp, entries)), "session_id": "abcdef12-0000"})
+            env = {k: v for k, v in os.environ.items() if k != capture.NO_CAPTURE_ENV}
+            stop = subprocess.run([sys.executable, str(omoikane / "bin" / "session-capture.py")], input=payload,
+                                  env=env, capture_output=True, text=True, encoding="utf-8", check=True)
+            written = list((omoikane / "raw" / "inbox" / "sessions").glob("*.md"))
+            return stop.stdout.strip(), written[0].read_text(encoding="utf-8") if written else ""
+
+    def section(self, md: str) -> list[str]:
+        if "## Rule-shaped statements\n\n" not in md:
+            return []
+        return md.split("## Rule-shaped statements\n\n", 1)[1].split("\n\n", 1)[0].splitlines()
+
+    def test_rule_sentences_are_listed_with_their_turn_and_the_rest_are_not(self) -> None:
+        first = ("Corrija o parser. Nunca commite direto na main.\n"
+                 "- From now on, run the tests before each push.\n"
+                 "Nunca vi isso antes. It never worked on Windows.\n"
+                 "Você sempre usa tabs?\n"
+                 "Leia wiki/domain/proposals-that-add-always-loaded-text.md antes.\n"
+                 "```\n# always quote the path\n```\n"
+                 "Prefiro f-strings em vez de format().")
+        second = "Ok. Don't use print for logs; use logging. Por padrão, datas em UTC."
+        _, md = self.stop([user(first), self.EDIT, user(second), assistant({"type": "text", "text": "Done."})])
+        self.assertEqual(self.section(md), [
+            "- Turn 1: Nunca commite direto na main.",
+            "- Turn 1: From now on, run the tests before each push.",
+            "- Turn 1: Prefiro f-strings em vez de format().",
+            "- Turn 2: Don't use print for logs; use logging.",
+            "- Turn 2: Por padrão, datas em UTC.",
+        ])
+
+    def test_a_session_that_edited_nothing_is_kept_when_the_user_stated_a_rule(self) -> None:
+        out, md = self.stop([user("Daqui pra frente, todo preço fica em centavos inteiros."),
+                             assistant({"type": "text", "text": "Anotado."})])
+        self.assertIn("session-capture: captured", out)
+        self.assertEqual(self.section(md), ["- Turn 1: Daqui pra frente, todo preço fica em centavos inteiros."])
+
+    def test_a_session_that_edited_nothing_is_skipped_without_a_rule(self) -> None:
+        out, md = self.stop([user("Nunca vi isso. O que faz esse script?"),
+                             assistant({"type": "text", "text": "Ele captura a sessão."})])
+        self.assertEqual(out, "session-capture: skip: no files edited")
+        self.assertEqual(md, "")
+
+    def test_the_section_lists_redacted_sentences(self) -> None:
+        # Redaction runs before the split: split first, `password = "hunter. 22x"` leaves `"hunter.` unredacted.
+        prompt = 'Always set password = "hunter. 22x" in Acme staging. Never paste ghp_' + "a1" * 20 + " here."
+        _, md = self.stop([user(prompt), self.EDIT], redact_list="Acme\n")
+        self.assertEqual(self.section(md), ['- Turn 1: Always set password = "[redacted]" in [redacted] staging.',
+                                            "- Turn 1: Never paste [redacted] here."])
+        for leaked in ("hunter", "Acme", "a1a1"):
+            self.assertNotIn(leaked, md)
+
+    def test_the_section_stops_at_its_limit(self) -> None:
+        prompt = "\n".join(f"Always run check {i}." for i in range(capture.RULE_ITEMS + 5))
+        _, md = self.stop([user(prompt), self.EDIT])
+        listed = self.section(md)
+        self.assertEqual(len(listed), capture.RULE_ITEMS + 1)
+        self.assertEqual(listed[-1], "- [... 5 more not listed; read the prompts]")
+
+
 class Continuation(unittest.TestCase):
     # The review gate distills in a worktree on wiki/auto (#45): until its PR is merged and pulled, the distilled
     # capture is on that branch only. A session that goes on must not capture those turns again.
