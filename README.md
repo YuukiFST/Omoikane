@@ -38,6 +38,7 @@ Omoikane is for software development, not generic research (#111).
 | End of day: inbox, recent commits, synthesize when due | `/wrap-up [days]` | same |
 | Process everything in inbox (headless) | `omoikane/bin/wiki-ingest.ps1` | `omoikane/bin/wiki-ingest.ps1 -Agent opencode` |
 | Structural checks (no LLM) | `python omoikane/bin/wiki-lint.py` | same |
+| Score a headless distill of the fixtures, before changing `distill.md` | `python omoikane/bin/distill-fidelity.py score <omoikane-dir> tests/fixtures/distill-*.md` | same |
 | Promote rules ticked in `_review.md` into `AGENTS.md` | `python omoikane/bin/wiki-rules.py` | same |
 | Measure what every session loads | `python omoikane/bin/context-budget.py` | same |
 | Rebuild index | `python omoikane/bin/wiki-index.py` | same |
