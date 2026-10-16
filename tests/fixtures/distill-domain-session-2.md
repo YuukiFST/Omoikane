@@ -7,6 +7,8 @@ started: 2026-10-03T09:00:00.000Z
 ended: 2026-10-03T09:50:00.000Z
 cwd: C:\Users\dev\Desktop\shop
 branch: feat/15-orders-table
+must_mention: [Toda tabela do sistema tem coluna tenant_id, sem exceção, O total de um pedido nunca fica abaixo de zero, imposto agora é calculado com 4 casas decimais e só arredonda pra centavos no final, migrations/0003_coupons.sql]
+must_not_mention: []
 ---
 
 # Coding session 2026-10-03 (0eva2d0m, part 1)

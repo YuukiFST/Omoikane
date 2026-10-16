@@ -7,6 +7,8 @@ started: 2026-10-04T10:00:00.000Z
 ended: 2026-10-04T10:45:00.000Z
 cwd: C:\Users\dev\Desktop\shop
 branch: feat/18-shipping-fee
+must_mention: [Valor monetário é centavos inteiros]
+must_not_mention: [shipping_fee(subtotal: float) -> float]
 ---
 
 # Coding session 2026-10-04 (0eva3d0m, part 1)

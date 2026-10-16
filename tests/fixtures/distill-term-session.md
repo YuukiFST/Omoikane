@@ -7,6 +7,8 @@ started: 2026-10-02T15:00:00.000Z
 ended: 2026-10-02T15:35:00.000Z
 cwd: C:\Users\dev\Desktop\ledger
 branch: feat/21-monthly-list
+must_mention: [um registro já confirmado no livro-caixa, list_lancamentos]
+must_not_mention: [ordena por data decrescente por enquanto]
 ---
 
 # Coding session 2026-10-02 (e0a1term, part 1)
