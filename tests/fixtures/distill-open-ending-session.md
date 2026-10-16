@@ -7,6 +7,8 @@ started: 2026-10-14T14:00:00.000Z
 ended: 2026-10-14T15:05:00.000Z
 cwd: C:\Users\dev\Desktop\shop
 branch: feat/34-order-totals-backfill
+must_mention: [python manage.py backfill_order_totals --since 2025-01-01, Quando o deploy de staging terminar]
+must_not_mention: [keep the stored `total_cents`]
 ---
 
 # Coding session 2026-10-14 (open1ng0, part 1)

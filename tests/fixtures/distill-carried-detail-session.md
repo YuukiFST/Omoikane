@@ -7,6 +7,8 @@ started: 2026-10-14T09:00:00.000Z
 ended: 2026-10-14T10:10:00.000Z
 cwd: C:\Users\dev\Desktop\shop
 branch: feat/31-orders-csv-export
+must_mention: [python scripts/regen_golden.py, quando alguém mexer no schema de pedidos, iterator(chunk_size=2000), 2.1 GB]
+must_not_mention: [DataFrame.to_csv]
 ---
 
 # Coding session 2026-10-14 (carr1ed0, part 1)

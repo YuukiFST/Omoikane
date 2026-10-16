@@ -7,6 +7,8 @@ started: 2026-10-02T13:00:00.000Z
 ended: 2026-10-02T13:40:00.000Z
 cwd: C:\Users\dev\Desktop\shop
 branch: feat/12-checkout-total
+must_mention: [todo valor monetário é guardado e calculado em centavos inteiros, nunca float, botão primário sempre usa o token `color.action.primary`, nunca cor hex direto no componente]
+must_not_mention: [Deixa esse botão azul por enquanto, variant="info"]
 ---
 
 # Coding session 2026-10-02 (0eva1d0m, part 1)
