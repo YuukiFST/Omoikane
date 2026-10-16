@@ -13,10 +13,11 @@ import subprocess
 import sys
 from datetime import date, timedelta
 from pathlib import Path, PureWindowsPath
+from typing import Callable
 
 from wikilib import (CODE_KEY, DATE, FENCE, GUARD_KEY, GUARDS, PAGE_TYPES, PRACTICE_MIN_SESSIONS, PRUNE_KEY,
-                     PRUNE_MARKS, REPO, REQUIRED_KEYS, SESSION_PAGE, SOURCE_KEYS, UNDATED, WIKI, Page, load_pages,
-                     managed_rules, review_bullets)
+                     PRUNE_MARKS, REPO, REQUIRED_KEYS, SESSION_PAGE, SOURCE_KEYS, UNDATED, WIKI, WIKILINK, Page,
+                     load_pages, managed_rules, review_bullets)
 
 GUARD_CHOICES = f"{', '.join(GUARDS[:-1])} or {GUARDS[-1]}"
 # The pointer wiki-rules.py ends each promoted rule with: (omoikane/wiki/<folder>/<slug>.md).
@@ -271,6 +272,99 @@ def rule_pointers(agents: str, pages: list[Page]) -> list[str]:
     return warnings
 
 
+USER = re.compile(r"\b(?:the user|o usuário|a usuária)\b", re.IGNORECASE)
+# A quote holding quotation marks keeps them as Markdown escapes: "Aqui não existe \"transação\"" (#160 eval).
+QUOTED = re.compile(r"\"((?:\\.|[^\"\\])+)\"|“([^”]+)”")
+MD_ESCAPE = re.compile(r"\\(.)")
+ELLIPSIS = re.compile(r"\[(?:\.\.\.|…)\]|\.\.\.|…")
+TURN = re.compile(r"\bturns? \d+", re.IGNORECASE)
+# Shorter quotes are names of things ("transação"), not statements a capture must hold word for word.
+QUOTE_MIN_WORDS = 3
+
+
+def user_quotes(body: str) -> list[tuple[str, str]]:
+    """Each quote the body attributes to the user, with the line that attributes it.
+
+    A quote is a double-quoted span after `the user` (or `o usuário` / `a usuária`) on the same line, or each `> `
+    line under an attributing line that ends with `:`. An attribution inside a quote attributes nothing.
+    Example: user_quotes('The user: "do it now" (turn 2).') returns [("do it now", 'The user: "do it now" (turn 2).')].
+    """
+    quotes: list[tuple[str, str]] = []
+    lines = body.splitlines()
+    for i, line in enumerate(lines):
+        spans = [(m.start(), m.end(), m.group(1) or m.group(2)) for m in QUOTED.finditer(line)]
+        said = next((m.end() for m in USER.finditer(line) if not any(s <= m.start() < e for s, e, _ in spans)), None)
+        if said is None:
+            continue
+        quotes += [(MD_ESCAPE.sub(r"\1", text), line) for s, _, text in spans if s >= said]
+        if line.rstrip().endswith(":"):
+            block = lines[i + 1:]
+            while block and not block[0].strip():
+                block = block[1:]
+            for quoted in block:
+                if not quoted.startswith(">"):
+                    break
+                quotes.append((quoted[1:].strip(), line))
+    return quotes
+
+
+def misquoted_user_words(pages: list[Page], capture: Callable[[str], str | None]) -> list[str]:
+    """Warn about each quote a domain page attributes to the user that its cited session captures do not hold.
+
+    distill quotes the user's own words (#160); a paraphrase in quotation marks reaches every session as the user's
+    rule. `capture` maps a session source path (`wiki/sources/session-<date>-<id>.md`) to the capture text, or None.
+    A quote passes when each fragment between ellipses, of QUOTE_MIN_WORDS words or more, is in a capture.
+    Example: a domain page citing session-2026-10-02-abcd1234 with 'The user: "never do x" (turn 1).' whose
+    capture says "always do x" returns ['...: the quote "never do x" attributed to the user is not in ...'].
+    """
+    def flat(text: str) -> str:
+        return " ".join(text.split())
+
+    documents = {p.slug for p in pages if p.meta.get("type") == "source" and not p.slug.startswith("session-")}
+    warnings: list[str] = []
+    for p in pages:
+        cited = p.meta.get("sources")
+        if p.meta.get("type") != "domain" or not isinstance(cited, list):
+            continue
+        texts = {posixpath.basename(str(s))[len("session-"):]: t for s in cited
+                 if SESSION_PAGE.match(str(s)) and (t := capture(str(s))) is not None}
+        if not texts:
+            continue
+        held = [flat(t) for t in texts.values()]
+        for quote, line in user_quotes(p.body):
+            links = {slug.strip() for slug in WIKILINK.findall(line)}
+            # distill cites a session quote with its turn. A line that names no session and either cites a document
+            # or names no turn quotes a document ("The user, in the source's section:"), which no capture holds.
+            if not any(SESSION_PAGE.match(f"wiki/sources/{slug}.md") for slug in links) and (
+                    links & documents or not TURN.search(line)):
+                continue
+            if len(quote.split()) < QUOTE_MIN_WORDS:
+                continue
+            fragments = [flat(f) for f in ELLIPSIS.split(quote) if len(f.split()) >= QUOTE_MIN_WORDS]
+            if all(any(f in t for t in held) for f in fragments):
+                continue
+            warnings.append(f"{p.rel}: the quote \"{flat(quote)[:60]}\" attributed to the user is not in the cited "
+                            f"capture {', '.join(sorted(texts))}; copy the user's words from the capture or drop the "
+                            "quotation marks")
+    return warnings
+
+
+def session_capture(wiki: Path) -> Callable[[str], str | None]:
+    """Look up the raw capture of a session source page: distill moves it to raw/sources/sessions/, and a scheduled
+    run may leave it in raw/inbox/sessions/.
+
+    Example: session_capture(wiki)("wiki/sources/session-2026-10-02-abcd1234.md") returns the text of
+    raw/sources/sessions/2026-10-02-abcd1234.md, or None when neither folder holds it.
+    """
+    dirs = [wiki.parent / "raw" / "sources" / "sessions", wiki.parent / "raw" / "inbox" / "sessions"]
+
+    def read(source: str) -> str | None:
+        name = posixpath.basename(source)[len("session-"):]
+        found = next((d / name for d in dirs if (d / name).is_file()), None)
+        return found.read_text(encoding="utf-8") if found else None
+    return read
+
+
 def review_diffs(review: str) -> list[tuple[str, str, bool]]:
     """Each diff fence of _review.md (info string `diff`) under a bullet of its section, as (bullet, diff text,
     whether the fence closes). Fences follow wikilib.review_lines, so a ``` context line inside a four-backtick diff
@@ -352,6 +446,7 @@ def main(wiki: Path = WIKI, repo: Path = REPO) -> int:
     pages = load_pages(wiki)
     findings = lint_pages(pages, repo)
     warnings = stale_pages(pages, last_changed(repo, code_paths(pages, repo))) + unguarded_gotchas(pages, date.today())
+    warnings += misquoted_user_words(pages, session_capture(wiki))
     agents = repo / "AGENTS.md"
     if agents.is_file():
         warnings += rule_pointers(agents.read_text(encoding="utf-8"), pages)

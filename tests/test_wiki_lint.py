@@ -224,6 +224,44 @@ class UnguardedGotchas(unittest.TestCase):
         self.assertEqual(lint.unguarded_gotchas(pages, self.TODAY), [])
 
 
+class MisquotedUserWords(unittest.TestCase):
+    # distill put a paraphrase in quotation marks on a domain page, and every later session read it as the user's
+    # words (#160).
+    def test_a_quote_missing_from_the_cited_capture_is_a_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            wiki = Path(d) / "omoikane" / "wiki"
+            for folder in ("domain", "sources"):
+                (wiki / folder).mkdir(parents=True)
+            captures = wiki.parent / "raw" / "sources" / "sessions"
+            captures.mkdir(parents=True)
+            (captures / "2026-10-02-abcd1234.md").write_text(
+                "## Turn 1\n\n### Prompt\n\nNunca faça push direto na \"main\",\nsempre abra um PR antes.\n",
+                encoding="utf-8")
+            head = ("---\ntitle: {0}\ntype: {1}\nsummary: s\ntags: []\ncreated: 2026-10-02\nupdated: 2026-10-02\n"
+                    "sources: [{2}]\n")
+            session = "session-2026-10-02-abcd1234"
+            (wiki / "sources" / f"{session}.md").write_text(
+                head.format(session, "source", "") + "dated: 2026-10-02\n---\n[[literal]] [[paraphrase]]\n",
+                encoding="utf-8")
+            cites = f"wiki/sources/{session}.md"
+            (wiki / "domain" / "literal.md").write_text(
+                head.format("literal", "domain", cites) + f"---\nThe user: \"Nunca faça push direto na \\\"main\\\", sempre "
+                f"abra um PR antes.\" (source: [[{session}]], turn 1).\n", encoding="utf-8")
+            (wiki / "domain" / "paraphrase.md").write_text(
+                head.format("paraphrase", "domain", cites) + f"---\nThe user: \"Nunca envie código para a main sem "
+                f"PR.\" (source: [[{session}]], turn 1).\n", encoding="utf-8")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                code = lint.main(wiki, Path(d))
+            paraphrase = (wiki / "domain" / "paraphrase.md").as_posix()
+        self.assertEqual(code, 0)
+        self.assertEqual([line for line in out.getvalue().splitlines() if line.startswith("warning:")],
+                         [f"warning: {paraphrase}: the quote \"Nunca envie código para a main sem PR.\" attributed to "
+                          "the user is not in the cited capture 2026-10-02-abcd1234.md; copy the user's words from "
+                          "the capture or drop the quotation marks"])
+        self.assertIn("0 findings", out.getvalue())
+
+
 def commit(repo: Path, day: str, *args: str) -> None:
     """Run a git command in `repo` with a fixed identity and both dates pinned to `day`."""
     stamp = f"2026-09-{day}T12:00:00Z"
