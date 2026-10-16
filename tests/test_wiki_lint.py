@@ -235,14 +235,14 @@ class MisquotedUserWords(unittest.TestCase):
             captures = wiki.parent / "raw" / "sources" / "sessions"
             captures.mkdir(parents=True)
             (captures / "2026-10-02-abcd1234.md").write_text(
-                "## Turn 1\n\n### Prompt\n\nNunca faça push direto na \"main\",\nsempre abra um PR antes.\n",
-                encoding="utf-8")
+                "## Turn 1\n\n### Prompt\n\nNunca faça push direto na \"main\",\nsempre abra um PR antes.\n"
+                "Nunca use float em dinheiro.\nrode C:\\tools\\build.exe antes do push sempre\n", encoding="utf-8")
             head = ("---\ntitle: {0}\ntype: {1}\nsummary: s\ntags: []\ncreated: 2026-10-02\nupdated: 2026-10-02\n"
                     "sources: [{2}]\n")
             session = "session-2026-10-02-abcd1234"
             (wiki / "sources" / f"{session}.md").write_text(
-                head.format(session, "source", "") + "dated: 2026-10-02\n---\n[[literal]] [[paraphrase]]\n",
-                encoding="utf-8")
+                head.format(session, "source", "") + "dated: 2026-10-02\n---\n[[literal]] [[paraphrase]] "
+                "[[windows-path]] [[blockquote]] [[paraphrase-pt]]\n", encoding="utf-8")
             cites = f"wiki/sources/{session}.md"
             (wiki / "domain" / "literal.md").write_text(
                 head.format("literal", "domain", cites) + f"---\nThe user: \"Nunca faça push direto na \\\"main\\\", sempre "
@@ -250,15 +250,28 @@ class MisquotedUserWords(unittest.TestCase):
             (wiki / "domain" / "paraphrase.md").write_text(
                 head.format("paraphrase", "domain", cites) + f"---\nThe user: \"Nunca envie código para a main sem "
                 f"PR.\" (source: [[{session}]], turn 1).\n", encoding="utf-8")
+            # A backslash before a letter is a Windows path, not a Markdown escape (#161 review).
+            (wiki / "domain" / "windows-path.md").write_text(
+                head.format("windows-path", "domain", cites) + f"---\nThe user: \"rode C:\\tools\\build.exe antes do "
+                f"push sempre\" (source: [[{session}]], turn 1).\n", encoding="utf-8")
+            # A blockquote line carries its citation and quotation marks around the user's words (#161 review).
+            (wiki / "domain" / "blockquote.md").write_text(
+                head.format("blockquote", "domain", cites) + f"---\nThe user, in [[{session}]]:\n\n"
+                "> Nunca use float em dinheiro. (turn 1)\n> \"Nunca use float em dinheiro.\"\n", encoding="utf-8")
+            (wiki / "domain" / "paraphrase-pt.md").write_text(
+                head.format("paraphrase-pt", "domain", cites) + "---\nO usuário disse: \"nunca use double em "
+                "dinheiro\" (turno 1).\n", encoding="utf-8")
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
                 code = lint.main(wiki, Path(d))
-            paraphrase = (wiki / "domain" / "paraphrase.md").as_posix()
+            domain = (wiki / "domain").as_posix()
+        tail = ("attributed to the user is not in the cited capture 2026-10-02-abcd1234.md; copy the user's words from "
+                "the capture or drop the quotation marks")
         self.assertEqual(code, 0)
         self.assertEqual([line for line in out.getvalue().splitlines() if line.startswith("warning:")],
-                         [f"warning: {paraphrase}: the quote \"Nunca envie código para a main sem PR.\" attributed to "
-                          "the user is not in the cited capture 2026-10-02-abcd1234.md; copy the user's words from "
-                          "the capture or drop the quotation marks"])
+                         [f"warning: {domain}/paraphrase-pt.md: the quote \"nunca use double em dinheiro\" {tail}",
+                          f"warning: {domain}/paraphrase.md: the quote \"Nunca envie código para a main sem PR.\" "
+                          f"{tail}"])
         self.assertIn("0 findings", out.getvalue())
 
 

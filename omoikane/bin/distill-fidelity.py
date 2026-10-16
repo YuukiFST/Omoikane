@@ -9,6 +9,7 @@ Usage: python omoikane/bin/distill-fidelity.py prepare <omoikane-dir> <fixture>.
 from __future__ import annotations
 
 import argparse
+import glob
 import re
 import sys
 from dataclasses import dataclass, field
@@ -27,6 +28,7 @@ class Fixture:
     name: str
     id8: str
     date: str
+    part: int
     # wikilib splits inline lists on every comma, so a key item cannot carry one: list each clause on its own.
     must_mention: list[str]
     must_not_mention: list[str]
@@ -61,11 +63,13 @@ def parse_fixture(name: str, text: str) -> Fixture:
         raise ValueError(f"{name}: no frontmatter")
     meta, body = parsed
     session, started = str(meta.get("session", "")), str(meta.get("started", ""))
+    part = str(meta.get("part", "1"))
     keys = {k: meta.get(k, []) for k in KEYS}
-    if not session or len(started) < 10 or not all(isinstance(v, list) for v in keys.values()):
-        raise ValueError(f"{name}: needs `session`, `started` and inline lists `must_mention`, `must_not_mention`")
-    return Fixture(name=name, id8=session[-8:], date=started[:10], must_mention=list(keys["must_mention"]),
-                   must_not_mention=list(keys["must_not_mention"]), body=body)
+    if not session or len(started) < 10 or not part.isdigit() or not all(isinstance(v, list) for v in keys.values()):
+        raise ValueError(f"{name}: needs `session`, `started`, a numeric `part` when present and inline lists "
+                         "`must_mention`, `must_not_mention`")
+    return Fixture(name=name, id8=session[-8:], date=started[:10], part=int(part),
+                   must_mention=list(keys["must_mention"]), must_not_mention=list(keys["must_not_mention"]), body=body)
 
 
 def strip_keys(text: str) -> str:
@@ -155,7 +159,9 @@ def prepare(omoikane: Path, fixtures: list[Path]) -> None:
     for path in fixtures:
         text = read(path)
         fx = parse_fixture(path.name, text)
-        (inbox / f"{fx.date}-{fx.id8}.md").write_bytes(strip_keys(text).encode("utf-8"))
+        # The name session-capture.py gives a later part of one session.
+        suffix = "" if fx.part == 1 else f"-part{fx.part}"
+        (inbox / f"{fx.date}-{fx.id8}{suffix}.md").write_bytes(strip_keys(text).encode("utf-8"))
 
 
 def score(omoikane: Path, fixtures: list[Path]) -> list[Score]:
@@ -169,18 +175,39 @@ def score(omoikane: Path, fixtures: list[Path]) -> list[Score]:
     return [score_fixture(parse_fixture(p.name, read(p)), pages, log, review) for p in fixtures]
 
 
+def fixture_paths(args: list[str]) -> list[Path]:
+    """Each argument as a path, a glob pattern expanded in sorted order: PowerShell and cmd pass `distill-*.md`
+    through unexpanded, and Python on Windows does not expand it.
+
+    Example: fixture_paths(["fixtures/distill-term-*.md"]) returns [Path("fixtures/distill-term-session.md")].
+    """
+    paths: list[Path] = []
+    for arg in args:
+        if not any(c in arg for c in "*?["):
+            if not Path(arg).is_file():
+                raise ValueError(f"{arg}: no such file")
+            paths.append(Path(arg))
+            continue
+        matched = sorted(glob.glob(arg))
+        if not matched:
+            raise ValueError(f"{arg}: matches no file")
+        paths += [Path(m) for m in matched]
+    return paths
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("command", choices=("prepare", "score"))
     parser.add_argument("omoikane", type=Path, help="the omoikane/ directory distill runs in")
-    parser.add_argument("fixtures", type=Path, nargs="+")
+    parser.add_argument("fixtures", nargs="+", help="fixture paths or glob patterns")
     args = parser.parse_args(argv)
     omoikane = args.omoikane.resolve()
     try:
+        fixtures = fixture_paths(args.fixtures)
         if args.command == "prepare":
-            prepare(omoikane, args.fixtures)
+            prepare(omoikane, fixtures)
             return 0
-        scores = score(omoikane, args.fixtures)
+        scores = score(omoikane, fixtures)
     except ValueError as e:
         print(f"error: {e}", file=sys.stderr)
         return 2

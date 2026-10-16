@@ -46,6 +46,26 @@ class Prepare(unittest.TestCase):
         expected = b"".join(line for line in original.splitlines(keepends=True) if not line.startswith(b"must_"))
         self.assertEqual(copy, expected)
 
+    def test_a_glob_argument_is_expanded_by_the_script(self) -> None:
+        # PowerShell passes `distill-*.md` through unexpanded, and the literal glob crashed with OSError (#161 review).
+        with tempfile.TemporaryDirectory() as d:
+            done = run("prepare", d, str(FIXTURES / "distill-domain-session*.md"))
+            self.assertEqual(done.returncode, 0, done.stderr)
+            inbox = sorted(p.name for p in (Path(d) / "raw" / "inbox" / "sessions").iterdir())
+            missing = str(Path(d) / "distill-none-*.md")
+            nothing = run("prepare", d, missing)
+        self.assertEqual(inbox, ["2026-10-02-0eva1d0m.md", "2026-10-03-0eva2d0m.md", "2026-10-04-0eva3d0m.md"])
+        self.assertEqual((nothing.returncode, nothing.stderr), (2, f"error: {missing}: matches no file\n"))
+
+    def test_a_later_part_gets_its_own_inbox_name(self) -> None:
+        # Two parts of one session overwrote each other in the inbox (#161 review).
+        with tempfile.TemporaryDirectory() as d:
+            write(Path(d), "distill-part2.md", DOMAIN.read_text(encoding="utf-8").replace("part: 1\n", "part: 2\n"))
+            done = run("prepare", str(Path(d) / "omoikane"), str(Path(d) / "distill-part2.md"))
+            self.assertEqual(done.returncode, 0, done.stderr)
+            inbox = [p.name for p in (Path(d) / "omoikane" / "raw" / "inbox" / "sessions").iterdir()]
+        self.assertEqual(inbox, ["2026-10-02-0eva1d0m-part2.md"])
+
 
 class Score(unittest.TestCase):
     def test_lost_string_and_must_not_on_a_rule_page_fail(self) -> None:

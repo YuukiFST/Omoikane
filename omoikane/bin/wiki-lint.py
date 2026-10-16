@@ -273,11 +273,15 @@ def rule_pointers(agents: str, pages: list[Page]) -> list[str]:
 
 
 USER = re.compile(r"\b(?:the user|o usuário|a usuária)\b", re.IGNORECASE)
+# Markdown escapes ASCII punctuation only: the backslashes of C:\tools\build.exe are the user's own (#161 review).
+ESCAPABLE = r"[!-/:-@\[-`{-~]"
 # A quote holding quotation marks keeps them as Markdown escapes: "Aqui não existe \"transação\"" (#160 eval).
-QUOTED = re.compile(r"\"((?:\\.|[^\"\\])+)\"|“([^”]+)”")
-MD_ESCAPE = re.compile(r"\\(.)")
+QUOTED = re.compile(r"\"((?:\\" + ESCAPABLE + r"|\\(?!" + ESCAPABLE + r")|[^\"\\])+)\"|“([^”]+)”")
+MD_ESCAPE = re.compile(r"\\(" + ESCAPABLE + ")")
+# A blockquote line may end on its citation: > Nunca use float. (turn 1)
+BLOCKQUOTE_CITATION = re.compile(r"\s*\((?:(?:turns?|turnos?) \d+|source: [^()]*)\)\.?$", re.IGNORECASE)
 ELLIPSIS = re.compile(r"\[(?:\.\.\.|…)\]|\.\.\.|…")
-TURN = re.compile(r"\bturns? \d+", re.IGNORECASE)
+TURN = re.compile(r"\b(?:turns?|turnos?) \d+", re.IGNORECASE)
 # Shorter quotes are names of things ("transação"), not statements a capture must hold word for word.
 QUOTE_MIN_WORDS = 3
 
@@ -286,7 +290,8 @@ def user_quotes(body: str) -> list[tuple[str, str]]:
     """Each quote the body attributes to the user, with the line that attributes it.
 
     A quote is a double-quoted span after `the user` (or `o usuário` / `a usuária`) on the same line, or each `> `
-    line under an attributing line that ends with `:`. An attribution inside a quote attributes nothing.
+    line under an attributing line that ends with `:`, less a trailing `(turn N)` or `(source: ...)` and one pair of
+    outer quotation marks. An attribution inside a quote attributes nothing.
     Example: user_quotes('The user: "do it now" (turn 2).') returns [("do it now", 'The user: "do it now" (turn 2).')].
     """
     quotes: list[tuple[str, str]] = []
@@ -304,7 +309,10 @@ def user_quotes(body: str) -> list[tuple[str, str]]:
             for quoted in block:
                 if not quoted.startswith(">"):
                     break
-                quotes.append((quoted[1:].strip(), line))
+                text = BLOCKQUOTE_CITATION.sub("", quoted[1:].strip())
+                if len(text) >= 2 and (text[0], text[-1]) in (('"', '"'), ("“", "”")):
+                    text = text[1:-1]
+                quotes.append((MD_ESCAPE.sub(r"\1", text), line))
     return quotes
 
 
